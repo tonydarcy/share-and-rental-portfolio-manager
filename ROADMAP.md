@@ -1,7 +1,8 @@
 # Roadmap
 
-Share Portfolio Manager aims to be one free, open tool for an investor and their accountant: portfolio tracking like
-Navexa or Sharesight, the ledger and year-end statements like Xero, and the tax and SMSF work like Class or BGL. Shares, CGT and franking come first,
+Share & Rental Portfolio Manager aims to be one free, open tool for an investor and their accountant: portfolio tracking like Navexa or Sharesight, the ledger and year-end statements like Xero, and the tax and SMSF work like ShareSight. 
+
+Shares, CGT and franking come first,
 because that is where other tools are weakest, and the business books (bills, inventory) follow, so one
 tool can cover every entity a client has.
 
@@ -41,31 +42,6 @@ comparatives for each entity type; printable report pack with declarations and t
 **Tax (Australia):** income tax reconciliation; trust distribution statement and resolution; SMSF member accounts, caps,
 minimum pensions and audit pack; company tax, deferred tax check and franking account; Division 7A calculator; tax
 return labels per entity type as a printable page and a CSV keying sheet.
-
-## Now: before going public
-
-These block a public release, so they come first.
-
-1. **Clean public repository.** Old commits contain database passwords and server addresses, so the public copy is a
-   fresh repository with no old history: `tonydarcy/share-and-rental-portfolio-manager` (private until launch). Still
-   to do: rotate the SQL password on the server. Release testing is done: GitHub's checks now build a new database
-   from `CreateDatabase.sql` and every migration (twice), check that every stored procedure the code calls exists,
-   sign in as the demo user and open every page (`tests/smoke/`).
-2. ~~**Fresh-install database script.**~~ Done: `Database/CreateDatabase.sql`, with [SETUP.md](SETUP.md).
-3. ~~**Account security and email.**~~ Done: email sending (SMTP), password reset by email, an email check for new
-   accounts, rate limiting and an optional CAPTCHA on sign-up and login, optional two-factor sign-in, and emailed
-   sharing invitations and invoices. See SETUP.md, "Email and sign-in security".
-4. ~~**Self-hosting guide.**~~ Done: Windows/IIS and Linux in [SETUP.md](SETUP.md), and `docker compose up -d` runs
-   the site and SQL Server together.
-5. ~~**Neutral branding.**~~ Done: site name, logo, address, support email and the old-site link come from the `Site`
-   settings.
-6. ~~**Sample portfolio.**~~ Done: `Database/SampleData/demo-portfolio.sql` (login `demo@example.com`), with an
-   optional demo button on the login page.
-
-## Next: switch-over
-
-7. Run the real Navexa import, set up the EODHD key on the server, and switch
-   off the old Web Forms site (its code is already out of the repository).
 
 ## Then: investor features (Navexa and Sharesight have these)
 
