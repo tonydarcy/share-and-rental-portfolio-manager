@@ -1,0 +1,86 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Invoices";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Invoices</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/Invoices/Customers" class="btn btn-sm btn-outline-secondary">Customers</a>
+        <a asp-page="/Invoices/Repeating" class="btn btn-sm btn-outline-secondary">Repeating</a>
+        <a asp-page="/Invoices/Aged" class="btn btn-sm btn-outline-secondary">Aged receivables</a>
+        <a asp-page="/Invoices/Statement" class="btn btn-sm btn-outline-secondary">Customer statement</a>
+        <a asp-page="/Invoices/Settings" class="btn btn-sm btn-outline-secondary">Invoice settings</a>
+        @if (Model.Portfolio?.CanEdit == true)
+        {
+            <a asp-page="/Invoices/Edit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> New invoice</a>
+        }
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (Model.CustomerCount == 0)
+{
+    <div class="alert alert-info">
+        Invoice a customer for fees, rent, services or anything else this entity sells. Start by
+        <a asp-page="/Invoices/Customers">adding a customer</a>. An approved invoice is posted to the ledger
+        (owed to you in Accounts Receivable, and the income and any GST, VAT or sales tax), and recording its payment moves it to the bank.
+    </div>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card shadow-sm"><div class="card-body">
+            <div class="text-muted small">Owing to you</div>
+            <div class="fs-4 fw-bold">@Model.Owing.ToString("C")</div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card shadow-sm"><div class="card-body">
+            <div class="text-muted small">Overdue</div>
+            <div class="fs-4 fw-bold @(Model.Overdue > 0 ? "text-danger" : "")">@Model.Overdue.ToString("C")</div>
+        </div></div>
+    </div>
+</div>
+
+<ul class="nav nav-pills mb-3">
+    @foreach (var f in IndexModel.Filters)
+    {
+        <li class="nav-item"><a class="nav-link @(Model.Show == f ? "active" : "")" asp-route-show="@f">@f</a></li>
+    }
+</ul>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Number</th><th>Customer</th><th>Date</th><th>Due</th><th class="text-end">Total</th><th class="text-end">Owing</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                @if (Model.Invoices.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No invoices to show.</td></tr>
+                }
+                @foreach (var i in Model.Invoices)
+                {
+                    var status = i.DisplayStatus(Model.Today);
+                    <tr>
+                        <td><a asp-page="/Invoices/View" asp-route-id="@i.InvoiceId">@i.Number</a>@if (Model.Kinds.ContainsKey(i.InvoiceId)) { <span class="badge text-bg-info ms-1">credit note</span> }</td>
+                        <td>@i.CustomerName @if (i.Reference is not null) { <span class="small text-muted">(@i.Reference)</span> }</td>
+                        <td>@i.IssueDate.ToString("d")</td>
+                        <td>@i.DueDate.ToString("d")</td>
+                        <td class="text-end">@i.Total.ToString("C")</td>
+                        <td class="text-end">@(i.Balance > 0 ? i.Balance.ToString("C") : "")</td>
+                        <td><span class="badge @IndexModel.BadgeClass(status)">@status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

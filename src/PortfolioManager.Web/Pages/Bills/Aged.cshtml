@@ -1,0 +1,63 @@
+@page
+@model AgedModel
+@{
+    ViewData["Title"] = "Aged payables";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Aged payables</h1>
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <label for="asAt" class="small text-muted">As at</label>
+        <input type="date" id="asAt" name="asAt" value="@Model.AsAt?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" />
+        <button type="submit" class="btn btn-sm btn-outline-primary">Show</button>
+    </form>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Supplier</th><th class="text-end">Not yet due</th><th class="text-end">1-30 days</th><th class="text-end">31-60</th><th class="text-end">61-90</th><th class="text-end">Over 90</th><th class="text-end">Total</th></tr>
+            </thead>
+            <tbody>
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">Nothing owing to suppliers on that date.</td></tr>
+                }
+                @foreach (var r in Model.Rows)
+                {
+                    <tr>
+                        <td>@r.Supplier</td>
+                        <td class="text-end">@r.Current.ToString("C")</td>
+                        <td class="text-end">@r.Days30.ToString("C")</td>
+                        <td class="text-end">@r.Days60.ToString("C")</td>
+                        <td class="text-end">@r.Days90.ToString("C")</td>
+                        <td class="text-end @(r.Older > 0 ? "text-danger" : "")">@r.Older.ToString("C")</td>
+                        <td class="text-end fw-semibold">@r.Total.ToString("C")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Rows.Count > 1)
+            {
+                <tfoot class="fw-bold">
+                    <tr>
+                        <td>Total</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Current).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Days30).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Days60).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Days90).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Older).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Total).ToString("C")</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>
+<p class="small text-muted mt-2">Amounts are in @RegionSettings.Current.Currency. Bills in another currency are at their own rate; supplier credits not yet used reduce the total.</p>

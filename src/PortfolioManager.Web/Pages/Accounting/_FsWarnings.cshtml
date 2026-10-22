@@ -1,0 +1,14 @@
+@using PortfolioManager.Core.Statements
+@model FinancialStatements
+@if (Model.Warnings.Count > 0)
+{
+    <div class="alert alert-warning no-print">
+        <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> Check before you issue these statements</div>
+        <ul class="mb-0 small">
+            @foreach (var w in Model.Warnings)
+            {
+                <li>@w</li>
+            }
+        </ul>
+    </div>
+}

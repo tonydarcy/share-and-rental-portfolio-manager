@@ -1,0 +1,9 @@
+@model string
+@if (!AccountingMode.PostsJournals(Model))
+{
+    <div class="alert alert-secondary small no-print">
+        <i class="bi bi-info-circle"></i>
+        This portfolio uses <strong>single-entry</strong> accounting, so its trades, cash transactions and payouts don't post
+        ledger journals. The ledger only holds manual journals and imported bank statements, and the reports below show only those.
+    </div>
+}

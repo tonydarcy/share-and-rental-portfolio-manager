@@ -1,0 +1,125 @@
+@page
+@model PortfolioManager.Web.Pages.Payouts.AddDrpModel
+@{
+    ViewData["Title"] = "Add a DRP";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Add a dividend reinvestment (DRP)</h1>
+    <a asp-page="/Payouts/Index" class="btn btn-sm btn-outline-secondary">Back to payouts</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p class="text-muted">
+            A dividend paid as new units for <strong>@Model.Portfolio.Name</strong>. The dividend is saved as a payout and the new units as a buy
+            at the DRP price, together. In a double-entry portfolio the dividend goes into the bank and straight back out to pay for the units,
+            so only any amount left over stays there.
+        </p>
+        <form method="post" id="drpForm">
+            <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-sm-4">
+                    <label asp-for="Input.StockCode" class="form-label">Stock code</label>
+                    <input asp-for="Input.StockCode" class="form-control text-uppercase" placeholder="e.g. BHP" maxlength="50" />
+                </div>
+                <div class="col-sm-3">
+                    <label asp-for="Input.StockExchangeCode" class="form-label">Exchange</label>
+                    <input asp-for="Input.StockExchangeCode" class="form-control text-uppercase" maxlength="50" />
+                </div>
+                <div class="col-sm-5">
+                    <label asp-for="Input.Date" class="form-label">Payment date</label>
+                    <input asp-for="Input.Date" type="date" class="form-control" />
+                </div>
+            </div>
+
+            @{
+                // Franking is Australian; elsewhere the dividend goes in one box (stored as unfranked)
+                var au = RegionSettings.Current.IsAustralia;
+            }
+            <h2 class="h6">Dividend</h2>
+            <div class="row g-3 mb-3">
+                @if (au)
+                {
+                    <div class="col-6 col-md-3">
+                        <label asp-for="Input.Franked" class="form-label">Franked amount</label>
+                        <input asp-for="Input.Franked" type="number" step="0.01" min="0" class="form-control" />
+                    </div>
+                }
+                else
+                {
+                    <input asp-for="Input.Franked" type="hidden" />
+                }
+                <div class="col-6 col-md-3">
+                    <label asp-for="Input.Unfranked" class="form-label">@(au ? "Unfranked amount" : "Dividend amount")</label>
+                    <input asp-for="Input.Unfranked" type="number" step="0.01" min="0" class="form-control" />
+                </div>
+                @if (au)
+                {
+                    <div class="col-6 col-md-3">
+                        <label asp-for="Input.FrankingCredit" class="form-label">Franking credit</label>
+                        <input asp-for="Input.FrankingCredit" type="number" step="0.01" min="0" class="form-control" />
+                        <div class="form-text">Not cash; from your statement.</div>
+                    </div>
+                }
+                else
+                {
+                    <input asp-for="Input.FrankingCredit" type="hidden" />
+                }
+                <div class="col-6 col-md-3">
+                    <label asp-for="Input.TaxWithheld" class="form-label">@(au ? "TFN withholding" : "Tax withheld")</label>
+                    <input asp-for="Input.TaxWithheld" type="number" step="0.01" min="0" class="form-control" />
+                </div>
+            </div>
+
+            <h2 class="h6">New units</h2>
+            <div class="row g-3 mb-3">
+                <div class="col-6 col-md-3">
+                    <label asp-for="Input.Units" class="form-label">Units allotted</label>
+                    <input asp-for="Input.Units" type="number" step="1" min="1" class="form-control" />
+                </div>
+                <div class="col-6 col-md-3">
+                    <label asp-for="Input.Price" class="form-label">DRP price per unit</label>
+                    <input asp-for="Input.Price" type="number" step="any" min="0" class="form-control" />
+                </div>
+                <div class="col-12 col-md-6">
+                    <label asp-for="Input.Comment" class="form-label">Comment <span class="text-muted small">(optional)</span></label>
+                    <input asp-for="Input.Comment" class="form-control" maxlength="500" placeholder="Dividend Reinvestment (DRP)" />
+                </div>
+            </div>
+
+            <div class="bg-body-tertiary rounded px-3 py-2 mb-3">
+                Dividend after tax withheld: <strong id="cash">-</strong> &middot;
+                units cost: <strong id="reinvested">-</strong> &middot;
+                left over: <strong id="residual">-</strong>
+            </div>
+
+            <button type="submit" class="btn btn-success">Save DRP</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const num = id => parseFloat(document.getElementById(id).value) || 0;
+            const fmt = n => n.toLocaleString(pmLocale, { style: 'currency', currency: pmCurrency });
+            function update() {
+                const cash = num('Input_Franked') + num('Input_Unfranked') - num('Input_TaxWithheld');
+                const cost = Math.round(num('Input_Units') * num('Input_Price') * 100) / 100;
+                document.getElementById('cash').textContent = fmt(cash);
+                document.getElementById('reinvested').textContent = fmt(cost);
+                document.getElementById('residual').textContent = fmt(cash - cost);
+            }
+            document.getElementById('drpForm').addEventListener('input', update);
+            update();
+        })();
+    </script>
+}

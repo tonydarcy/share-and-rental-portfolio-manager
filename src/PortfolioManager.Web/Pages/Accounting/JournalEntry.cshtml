@@ -1,0 +1,287 @@
+@page
+@model JournalEntryModel
+@{
+    var editing = Model.Id is not null;
+    var template = Model.Template is not null;
+    var taxed = Model.TaxCodes.Count > 0;
+    ViewData["Title"] = template ? "Change a repeating journal" : editing ? "Edit journal" : "New journal entry";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">@ViewData["Title"]</h1>
+    <a asp-page="/Accounting/Journals" class="btn btn-sm btn-outline-secondary">Back to journals</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_ModeNotice" model="Model.Mode" />
+
+<form method="post" id="journalForm">
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="Template" />
+    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-sm-4 col-md-3">
+                    <label asp-for="Input.Date" class="form-label">Date</label>
+                    <input asp-for="Input.Date" type="date" class="form-control" required />
+                </div>
+                <div class="col-sm-8 col-md-9">
+                    <label asp-for="Input.Description" class="form-label">Description</label>
+                    <input asp-for="Input.Description" class="form-control" maxlength="500" placeholder="e.g. Year end depreciation" required />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Lines</strong>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="addLine"><i class="bi bi-plus-lg"></i> Add line</button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" id="lines">
+                <thead class="table-light">
+                    <tr>
+                        <th style="min-width: 16rem">Account</th>
+                        <th style="min-width: 12rem">Line description (optional)</th>
+                        <th class="text-end" style="width: 9rem">Debit</th>
+                        <th class="text-end" style="width: 9rem">Credit</th>
+                        @if (taxed)
+                        {
+                            <th style="min-width: 10rem">@Model.TaxName code</th>
+                            <th class="text-end" style="width: 8rem">@Model.TaxName</th>
+                        }
+                        @foreach (var t in new[] { Model.Tracking.First, Model.Tracking.Second }.Where(t => t is not null))
+                        {
+                            <th style="min-width: 8rem">@t!.Name</th>
+                        }
+                        <th style="width: 3rem"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Input.Lines.Count; i++)
+                    {
+                        <tr class="journal-line">
+                            <td>
+                                <select asp-for="Input.Lines[i].AccountId" class="form-select form-select-sm" aria-label="Account">
+                                    <option value="0">-- Choose an account --</option>
+                                    @foreach (var a in Model.Accounts)
+                                    {
+                                        <option value="@a.AccountId">@a.DisplayName</option>
+                                    }
+                                </select>
+                            </td>
+                            <td><input asp-for="Input.Lines[i].Description" class="form-control form-control-sm" maxlength="500" aria-label="Line description" /></td>
+                            <td><input asp-for="Input.Lines[i].Debit" type="number" step="0.01" min="0" class="form-control form-control-sm text-end amount debit" aria-label="Debit" /></td>
+                            <td><input asp-for="Input.Lines[i].Credit" type="number" step="0.01" min="0" class="form-control form-control-sm text-end amount credit" aria-label="Credit" /></td>
+                            @if (taxed)
+                            {
+                                <td>
+                                    <select asp-for="Input.Lines[i].TaxCodeId" class="form-select form-select-sm tax-code" aria-label="@Model.TaxName code">
+                                        <option value="">No @Model.TaxName</option>
+                                        @foreach (var c in Model.TaxCodes)
+                                        {
+                                            <option value="@c.TaxCodeId" data-rate="@c.Rate.ToString(System.Globalization.CultureInfo.InvariantCulture)">@c.Display</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td><input asp-for="Input.Lines[i].Tax" type="number" step="0.01" min="0" class="form-control form-control-sm text-end tax" aria-label="@Model.TaxName" /></td>
+                            }
+                            @if (Model.Tracking.First is { } t1)
+                            {
+                                <td>
+                                    <select asp-for="Input.Lines[i].Tracking1Id" class="form-select form-select-sm" aria-label="@t1.Name">
+                                        <option value=""></option>
+                                        @foreach (var o in t1.Options.Where(o => o.Active || o.OptionId == Model.Input.Lines[i].Tracking1Id)) { <option value="@o.OptionId">@o.Name</option> }
+                                    </select>
+                                </td>
+                            }
+                            @if (Model.Tracking.Second is { } t2)
+                            {
+                                <td>
+                                    <select asp-for="Input.Lines[i].Tracking2Id" class="form-select form-select-sm" aria-label="@t2.Name">
+                                        <option value=""></option>
+                                        @foreach (var o in t2.Options.Where(o => o.Active || o.OptionId == Model.Input.Lines[i].Tracking2Id)) { <option value="@o.OptionId">@o.Name</option> }
+                                    </select>
+                                </td>
+                            }
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-danger remove-line" title="Remove line"><i class="bi bi-x-lg"></i><span class="visually-hidden">Remove line</span></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="table-active fw-bold">
+                        <td colspan="2" class="text-end">Total</td>
+                        <td class="text-end" id="totalDebit">0.00</td>
+                        <td class="text-end" id="totalCredit">0.00</td>
+                        @if (taxed)
+                        {
+                            <td colspan="2"></td>
+                        }
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span id="balance" class="fw-bold"></span>
+            <button type="submit" class="btn btn-success">@(template ? "Save repeating journal" : editing ? "Save journal" : "Post journal")</button>
+        </div>
+    </div>
+
+    @if (!editing)
+    {
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                @if (!template)
+                {
+                    <div class="form-check mb-2">
+                        <input asp-for="Repeats" class="form-check-input" data-bs-toggle="collapse" data-bs-target="#repeatFields" />
+                        <label asp-for="Repeats" class="form-check-label">Repeat this journal (rent, fees, depreciation)</label>
+                    </div>
+                }
+                else
+                {
+                    <input type="hidden" asp-for="Repeats" />
+                    <p class="small text-muted">The date above is the first date. Saving changes the journals still to come; journals already posted stay as they are.</p>
+                }
+                <div id="repeatFields" class="row g-3 collapse @(Model.Repeats ? "show" : "")">
+                    <div class="col-sm-4">
+                        <label asp-for="Repeat.Frequency" class="form-label">How often</label>
+                        <select asp-for="Repeat.Frequency" class="form-select">
+                            @foreach (var f in RepeatFrequencies.All) { <option value="@f">@RepeatFrequencies.Label(f)</option> }
+                        </select>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Repeat.End" class="form-label">Last date (optional)</label>
+                        <input asp-for="Repeat.End" type="date" class="form-control" />
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Repeat.Name" class="form-label">Name (optional)</label>
+                        <input asp-for="Repeat.Name" class="form-control" maxlength="200" />
+                    </div>
+                    <div class="col-12 form-check ms-2">
+                        <input asp-for="Repeat.Reverse" class="form-check-input" />
+                        <label asp-for="Repeat.Reverse" class="form-check-label">Reverse each one the next day (an accrual or prepayment)</label>
+                    </div>
+                </div>
+                @if (!template)
+                {
+                    <div class="row g-3 mt-1">
+                        <div class="col-sm-5">
+                            <label asp-for="ReverseOn" class="form-label">Or reverse it once, on (optional)</label>
+                            <input asp-for="ReverseOn" type="date" class="form-control" />
+                            <div class="form-text">For a one-off accrual: e.g. 1 July for a 30 June accrual.</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</form>
+<p class="text-muted small">
+    Each line is a debit or a credit. Debits must equal credits before the journal can be saved; blank lines are ignored.
+    A line without its own description takes the journal's.
+    @if (taxed)
+    {
+        <br />
+        @:With a @Model.TaxName code, enter the amount <strong>including</strong> @Model.TaxName. When the journal is saved the @Model.TaxName is
+        @:worked out from the code's rate (or the amount you type in the @Model.TaxName box) and posted to the @Model.TaxName control account.
+    }
+    else
+    {
+        <br />
+        @:To record GST, VAT or sales tax on a line, set up tax codes on <a asp-page="/SalesTax/Codes">Tax &gt; Tax codes</a> first.
+    }
+</p>
+
+@section Scripts {
+    <script>
+        (() => {
+            const body = document.querySelector('#lines tbody');
+            const money = v => (Math.round(v * 100) / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            // Field names carry the row index (Input.Lines[2].Debit), so renumber after adding or removing a row
+            function renumber() {
+                body.querySelectorAll('tr.journal-line').forEach((row, i) => {
+                    row.querySelectorAll('[name]').forEach(el => {
+                        el.name = el.name.replace(/Lines\[\d+\]/, `Lines[${i}]`);
+                        el.id = el.name.replace(/[\[\].]/g, '_');
+                    });
+                });
+            }
+
+            function totals() {
+                let dr = 0, cr = 0;
+                body.querySelectorAll('.debit').forEach(el => dr += parseFloat(el.value) || 0);
+                body.querySelectorAll('.credit').forEach(el => cr += parseFloat(el.value) || 0);
+                document.getElementById('totalDebit').textContent = money(dr);
+                document.getElementById('totalCredit').textContent = money(cr);
+                const diff = Math.round((dr - cr) * 100) / 100;
+                const balance = document.getElementById('balance');
+                balance.textContent = diff === 0 ? (dr > 0 ? 'Balanced' : '') : `Out of balance by ${money(Math.abs(diff))}`;
+                balance.className = 'fw-bold ' + (diff === 0 ? 'text-success' : 'text-danger');
+                body.querySelectorAll('tr.journal-line').forEach(taxHint);
+            }
+
+            // The tax box shows the tax the code's rate gives, as a hint; typing a figure overrides it
+            function taxHint(row) {
+                const code = row.querySelector('.tax-code'), tax = row.querySelector('.tax');
+                if (!code || !tax)
+                    return;
+                const rate = parseFloat(code.selectedOptions[0]?.dataset.rate);
+                const gross = (parseFloat(row.querySelector('.debit').value) || 0) + (parseFloat(row.querySelector('.credit').value) || 0);
+                tax.placeholder = rate > 0 && gross > 0 ? (Math.round(gross * rate / (100 + rate) * 100) / 100).toFixed(2) : '';
+            }
+
+            body.addEventListener('change', e => {
+                if (e.target.classList.contains('tax-code'))
+                    totals();
+            });
+
+            document.getElementById('addLine').addEventListener('click', () => {
+                const last = body.querySelector('tr.journal-line:last-child');
+                const row = last.cloneNode(true);
+                row.querySelectorAll('input').forEach(el => el.value = '');
+                row.querySelectorAll('select').forEach(el => el.selectedIndex = 0);
+                body.appendChild(row);
+                renumber();
+                row.querySelector('select').focus();
+            });
+
+            body.addEventListener('click', e => {
+                const button = e.target.closest('.remove-line');
+                if (!button)
+                    return;
+                const rows = body.querySelectorAll('tr.journal-line');
+                const row = button.closest('tr');
+                if (rows.length > 1)
+                    row.remove();
+                else
+                    row.querySelectorAll('input').forEach(el => el.value = '');
+                renumber();
+                totals();
+            });
+
+            // Typing a debit clears the credit on the same line, and the other way round
+            body.addEventListener('input', e => {
+                if (e.target.classList.contains('amount') && e.target.value !== '') {
+                    const other = e.target.closest('tr').querySelector(e.target.classList.contains('debit') ? '.credit' : '.debit');
+                    other.value = '';
+                }
+                totals();
+            });
+
+            totals();
+        })();
+    </script>
+}

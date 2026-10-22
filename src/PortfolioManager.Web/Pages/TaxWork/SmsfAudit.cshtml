@@ -1,0 +1,140 @@
+@page
+@model SmsfAuditModel
+@{
+    ViewData["Title"] = "SMSF audit pack";
+    var w = Model.Workpaper;
+    string M(decimal x) => x.ToString("#,##0.00;(#,##0.00);-");
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom no-print">
+    <h1 class="h2 mb-0">SMSF audit pack</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/TaxWork/Smsf" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Member accounts</a>
+        <a asp-page="/Accounting/ReportPack" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Financial statements pack</a>
+        <button type="button" class="btn btn-sm btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Print / Save as PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || w is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_YearPicker" model="Model" />
+
+<div class="text-center mb-4">
+    <h2 class="h4 mb-0">@w.Client.LegalName</h2>
+    @if (w.Client.AbnDisplay is { Length: > 0 } abn) { <div>ABN @abn</div> }
+    <div class="text-muted">Audit pack for the year ended @Model.YearEnd.ToString("d MMMM yyyy")</div>
+</div>
+
+<section class="mb-4">
+    <h3 class="h5 border-bottom pb-1">1. Members' benefits</h3>
+    @if (w.Members is not { Count: > 0 })
+    {
+        <p class="text-muted">No members have been entered. <a asp-page="/TaxWork/Smsf" asp-route-fy="@Model.Year" class="no-print">Add them</a></p>
+    }
+    else
+    {
+        <partial name="_MemberStatements" model="w" />
+    }
+</section>
+
+<section class="mb-4">
+    <h3 class="h5 border-bottom pb-1">2. Investments at market value, @Model.YearEnd.ToString("d MMMM yyyy")</h3>
+    @if (Model.Investments is { } inv)
+    {
+        <table class="table table-sm">
+            <thead class="table-light"><tr><th>Security</th><th class="text-end">Units</th><th class="text-end">Closing price</th><th class="text-end">Market value</th><th class="text-end">Cost</th><th class="text-end">Unrealised gain</th></tr></thead>
+            <tbody>
+                @foreach (var l in inv.Lines.Where(l => l.Units != 0))
+                {
+                    <tr class="@(l.MarketPrice is null ? "table-warning" : "")">
+                        <td>@l.StockCode.@l.ExchangeCode</td>
+                        <td class="text-end">@l.Units.ToString("#,##0.######")</td>
+                        <td class="text-end">@(l.MarketPrice?.ToString("#,##0.00####") ?? "No price")</td>
+                        <td class="text-end">@M(l.MarketValue)</td>
+                        <td class="text-end">@M(l.TotalCost)</td>
+                        <td class="text-end">@M(l.Gain)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot class="fw-bold border-top border-dark">
+                <tr><td>Total</td><td></td><td></td><td class="text-end">@M(inv.Total.MarketValue)</td><td class="text-end">@M(inv.Total.TotalCost)</td><td class="text-end">@M(inv.Total.Gain)</td></tr>
+            </tfoot>
+        </table>
+        <p class="small text-muted">
+            Market value support: closing prices on file for @Model.YearEnd.ToString("d MMMM yyyy") (end-of-day prices from the price feed or uploads),
+            to be agreed to the broker's or registry's holding statements at that date.
+            @if (inv.AnyMissingPrices) { <strong class="text-danger">Some holdings have no price at that date.</strong> }
+        </p>
+    }
+</section>
+
+<section class="mb-4">
+    <h3 class="h5 border-bottom pb-1">3. Bank reconciliations</h3>
+    @if (Model.BankRecs.Count == 0)
+    {
+        <p class="text-muted">No bank accounts found.</p>
+    }
+    <table class="table table-sm">
+        <thead class="table-light"><tr><th>Account</th><th>Reconciled to</th><th class="text-end">Statement balance</th><th class="text-end">Outstanding items</th><th class="text-end">Ledger balance</th></tr></thead>
+        <tbody>
+            @foreach (var b in Model.BankRecs)
+            {
+                if (b.Reconciliation is not { } r)
+                {
+                    <tr class="table-warning"><td>@b.Account</td><td colspan="4">Not reconciled by @Model.YearEnd.ToString("d MMM yyyy")</td></tr>
+                    continue;
+                }
+                <tr class="@(r.StatementDate < Model.YearEnd ? "table-warning" : "")">
+                    <td>@b.Account</td>
+                    <td>@r.StatementDate.ToString("d MMM yyyy")</td>
+                    <td class="text-end">@M(r.StatementBalance)</td>
+                    <td class="text-end">@M(b.OutstandingTotal) <span class="small text-muted">(@b.Outstanding.Count)</span></td>
+                    <td class="text-end">@M(r.StatementBalance + b.OutstandingTotal)</td>
+                </tr>
+                @foreach (var l in b.Outstanding)
+                {
+                    <tr class="small text-muted"><td class="ps-4" colspan="2">@l.Date.ToString("d MMM yyyy") @l.Description</td><td></td><td class="text-end">@M(l.Amount)</td><td></td></tr>
+                }
+            }
+        </tbody>
+    </table>
+</section>
+
+<section class="mb-4">
+    <h3 class="h5 border-bottom pb-1">4. Income tax</h3>
+    <table class="table table-sm">
+        <tbody>
+            @foreach (var line in w.Reconciliation.Lines.Where(l => l.Style != TaxRecStyle.Info))
+            {
+                <tr class="@(line.Style == TaxRecStyle.Item ? "" : "fw-bold")"><td>@line.Label</td><td class="text-end">@M(line.Amount)</td></tr>
+            }
+        </tbody>
+    </table>
+    @if (w.Tax is { } tax)
+    {
+        <partial name="_TaxCalculation" model="tax" />
+    }
+</section>
+
+<section class="mb-4">
+    <h3 class="h5 border-bottom pb-1">5. Checks for the auditor</h3>
+    <ul>
+        @{
+            var members = w.Members ?? [];
+        }
+        <li>Contribution caps: @(members.Any(m => m.OverConcessionalCap || m.OverNonConcessionalCap) ? "one or more members are over a cap (see section 1)." : "no member is over a cap on these figures.")</li>
+        <li>Minimum pensions: @(members.Any(m => m.PensionShort) ? "one or more pensions are below the minimum (see section 1)." : members.Any(m => m.MinimumPension is not null) ? "paid at or above the minimum." : "no pensions in retirement phase.")</li>
+        <li>Bank accounts: @(Model.BankRecs.Any(b => b.Reconciliation is null || b.Reconciliation.StatementDate < Model.YearEnd) ? "not every account is reconciled to 30 June." : "every account is reconciled to 30 June.")</li>
+        <li>Investments: @(Model.Investments?.AnyMissingPrices == true ? "some holdings have no closing price." : "every holding has a closing price.")</li>
+        @if (w.EntityType == ClientEntityTypes.Smsf && w.Data.Settings.EcpiPercent is { } pct)
+        {
+            <li>Exempt current pension income claimed at @pct.ToString("0.##")%: attach the actuarial certificate.</li>
+        }
+    </ul>
+</section>
+
+<partial name="_YearAttachments" model="Model.Attachments" />

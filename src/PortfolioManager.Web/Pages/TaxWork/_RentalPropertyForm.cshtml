@@ -1,0 +1,11 @@
+@model (RentalModel.PropertyInput Input, int Year)
+@{ var p = Model.Input; }
+<form method="post" asp-page="/TaxWork/Rental" asp-page-handler="Property" asp-route-fy="@Model.Year" class="row g-2 align-items-end">
+    <input type="hidden" name="Property.Id" value="@p.Id" />
+    <div class="col-md-5"><label class="form-label small mb-1">Address</label><input name="Property.Address" value="@p.Address" maxlength="300" class="form-control form-control-sm" required /></div>
+    <div class="col-md-2"><label class="form-label small mb-1">First rented</label><input name="Property.FirstEarned" type="date" value="@p.FirstEarned?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Ownership %</label><input name="Property.OwnershipPct" type="number" step="0.01" min="0.01" max="100" value="@p.OwnershipPct.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm" /></div>
+    <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" name="Property.Active" value="true" id="active@(p.Id)" checked="@p.Active" /><input type="hidden" name="Property.Active" value="false" /><label class="form-check-label small" for="active@(p.Id)">Still rented</label></div></div>
+    <div class="col-md-9"><label class="form-label small mb-1">Note</label><input name="Property.Note" value="@p.Note" maxlength="1000" class="form-control form-control-sm" /></div>
+    <div class="col-md-3"><button type="submit" class="btn btn-sm btn-primary">@(p.Id == 0 ? "Add property" : "Save")</button></div>
+</form>

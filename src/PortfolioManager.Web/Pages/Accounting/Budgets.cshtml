@@ -1,0 +1,70 @@
+@page
+@model BudgetsModel
+@{
+    ViewData["Title"] = "Budgets";
+    var ys = RegionSettings.Current.YearStart;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Budgets</h1>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light"><tr><th>Budget</th><th>Year</th><th>For</th><th></th></tr></thead>
+                <tbody>
+                    @if (Model.Budgets.Count == 0)
+                    {
+                        <tr><td colspan="4" class="text-center text-muted p-4">No budgets yet.</td></tr>
+                    }
+                    @foreach (var b in Model.Budgets)
+                    {
+                        <tr>
+                            <td><a asp-page="/Accounting/Budget" asp-route-id="@b.BudgetId">@b.Name</a></td>
+                            <td>@FinancialYear.Label(b.Year, ys)</td>
+                            <td>@(Model.Tracking.OptionName(b.TrackingOptionId) ?? "Everything")</td>
+                            <td class="text-end"><a asp-page="/Accounting/Budget" asp-route-id="@b.BudgetId" asp-route-view="compare" class="btn btn-sm btn-outline-secondary">Budget v actual</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @if (Model.CanEdit)
+    {
+        <div class="col-lg-5">
+            <form method="post" asp-page-handler="Add" class="card shadow-sm card-body">
+                <h2 class="h6">New budget</h2>
+                <div class="mb-2"><label class="form-label" for="name">Name</label><input id="name" name="name" class="form-control" maxlength="100" required placeholder="e.g. Main budget" /></div>
+                <div class="mb-2">
+                    <label class="form-label" for="year">Financial year</label>
+                    <select id="year" name="year" class="form-select">
+                        @for (var y = Model.ThisYear + 1; y >= Model.ThisYear - 2; y--) { <option value="@y" selected="@(y == Model.ThisYear)">@FinancialYear.Label(y, ys)</option> }
+                    </select>
+                </div>
+                @if (Model.Tracking.Any)
+                {
+                    <div class="mb-2">
+                        <label class="form-label" for="trackingOptionId">For</label>
+                        <select id="trackingOptionId" name="trackingOptionId" class="form-select">
+                            <option value="">Everything</option>
+                            @foreach (var c in Model.Tracking.Categories)
+                            {
+                                <optgroup label="@c.Name">@foreach (var o in c.ActiveOptions) { <option value="@o.OptionId">@o.Name</option> }</optgroup>
+                            }
+                        </select>
+                    </div>
+                }
+                <button type="submit" class="btn btn-primary">Add budget</button>
+            </form>
+        </div>
+    }
+</div>

@@ -1,0 +1,129 @@
+@page
+@model CurrencyModel
+@{
+    ViewData["Title"] = "Foreign currency accounts";
+    var home = RegionSettings.Current.Currency;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Foreign currency accounts</h1>
+    <a asp-page="/Accounting/FxRevaluation" class="btn btn-sm btn-outline-secondary">Revalue at today's rates</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Account</th><th class="text-end">Balance</th><th class="text-end">In the books (@home)</th><th></th></tr></thead>
+                <tbody>
+                    @if (Model.Foreign.Count == 0)
+                    {
+                        <tr><td colspan="4" class="text-center text-muted p-4">No foreign currency accounts yet. Set an account's currency to start.</td></tr>
+                    }
+                    @foreach (var f in Model.Foreign)
+                    {
+                        <tr class="@(f.AccountId == Model.AccountId ? "table-active" : "")">
+                            <td><a asp-route-accountId="@f.AccountId">@f.Display</a></td>
+                            <td class="text-end">@Money.Format(f.ForeignBalance, f.Currency)</td>
+                            <td class="text-end">@f.HomeBalance.ToString("C")</td>
+                            <td class="text-end">
+                                @if (Model.CanEdit)
+                                {
+                                    <form method="post" asp-page-handler="Set" class="d-inline">
+                                        <input type="hidden" name="accountId" value="@f.AccountId" /><input type="hidden" name="currency" value="" />
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Only possible before it has foreign entries">Remove currency</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @if (Model.CanEdit)
+    {
+        <div class="col-lg-5">
+            <form method="post" asp-page-handler="Set" class="card shadow-sm card-body">
+                <h2 class="h6">Hold an account in another currency</h2>
+                <div class="mb-2">
+                    <label class="form-label" for="setAccount">Account</label>
+                    <select id="setAccount" name="accountId" class="form-select" required>
+                        <option value="">Choose an account</option>
+                        @foreach (var a in Model.Choices) { <option value="@a.AccountId">@a.Display</option> }
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" for="setCurrency">Currency</label>
+                    <select id="setCurrency" name="currency" class="form-select" required>
+                        @foreach (var c in RegionSettings.Currencies.Where(c => c != home)) { <option>@c</option> }
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Set currency</button>
+                <p class="small text-muted mt-2 mb-0">Use a new account (Chart of accounts) for a foreign bank account: it should have no entries in @home.</p>
+            </form>
+        </div>
+    }
+</div>
+
+@if (Model.Selected is { } s)
+{
+    <h2 class="h5">@s.Display</h2>
+    @if (Model.CanEdit)
+    {
+        <form method="post" asp-page-handler="Add" asp-route-accountId="@s.AccountId" class="card shadow-sm card-body mb-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-4 col-md-2"><label class="form-label" for="date">Date</label><input id="date" name="date" type="date" value="@Model.Today.ToString("yyyy-MM-dd")" class="form-control" required /></div>
+                <div class="col-sm-4 col-md-2">
+                    <label class="form-label" for="direction">Money</label>
+                    <select id="direction" name="direction" class="form-select"><option value="in">In</option><option value="out">Out</option></select>
+                </div>
+                <div class="col-sm-4 col-md-2"><label class="form-label" for="amount">Amount (@s.Currency)</label><input id="amount" name="amount" type="number" step="0.01" min="0.01" class="form-control" required /></div>
+                <div class="col-sm-4 col-md-2"><label class="form-label" for="rate">@s.Currency per 1 @home</label><input id="rate" name="rate" type="number" step="any" min="0" value="@Model.SuggestedRate?.ToString(inv)" class="form-control" required /></div>
+                <div class="col-sm-8 col-md-4">
+                    <label class="form-label" for="otherAccountId">Other account</label>
+                    <select id="otherAccountId" name="otherAccountId" class="form-select" required>
+                        @foreach (var a in Model.Others) { <option value="@a.AccountId">@a.Display</option> }
+                    </select>
+                </div>
+                <div class="col-md-9"><label class="form-label" for="description">Description</label><input id="description" name="description" maxlength="200" class="form-control" placeholder="e.g. Transfer from the AUD account" /></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Post entry</button></div>
+            </div>
+            <p class="small text-muted mt-2 mb-0">The @home amount is the foreign amount divided by the rate. @(Model.SuggestedRate is null ? "No rate is on file for today; enter one." : "The rate shown is the latest on file.") Invoices and bills paid in this account's currency are recorded on the invoice or bill.</p>
+        </form>
+    }
+    <div class="card shadow-sm">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Date</th><th>Description</th><th class="text-end">@s.Currency</th><th class="text-end">@home</th><th class="text-end">Rate</th><th></th></tr></thead>
+            <tbody>
+                @if (Model.Entries.Count == 0) { <tr><td colspan="6" class="text-center text-muted p-4">No entries yet.</td></tr> }
+                @foreach (var e in Model.Entries)
+                {
+                    <tr>
+                        <td>@e.Date.ToString("d")</td>
+                        <td>@e.Description <span class="text-muted small">@e.Source</span></td>
+                        <td class="text-end">@e.ForeignAmount.ToString("N2")</td>
+                        <td class="text-end">@e.HomeAmount.ToString("N2")</td>
+                        <td class="text-end small text-muted">@(e.ForeignAmount != 0 && e.HomeAmount != 0 ? (e.ForeignAmount / e.HomeAmount).ToString("0.####") : "")</td>
+                        <td class="text-end">
+                            @if (Model.CanEdit && e.Source == "ForeignBank")
+                            {
+                                <form method="post" asp-page-handler="Delete" asp-route-accountId="@s.AccountId" class="d-inline">
+                                    <input type="hidden" name="journalId" value="@e.JournalId" />
+                                    <button type="submit" class="btn btn-sm btn-link text-danger p-0">Delete</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

@@ -1,0 +1,62 @@
+@model TaxWorkpaper
+@* Each member's accounts for the year, from opening to closing balance, with the cap and pension checks *@
+@{
+    string M(decimal x) => x.ToString("#,##0.00;(#,##0.00);-");
+}
+@foreach (var m in Model.Members ?? [])
+{
+    <div class="mb-4">
+        <h3 class="h6 mb-1">@m.Member.Name @if (m.Age is { } age) { <span class="text-muted small">age @age at 1 July</span> }</h3>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-1">
+                <thead class="table-light">
+                    <tr>
+                        <th>Account</th><th class="text-end">Opening</th><th class="text-end">Concessional</th><th class="text-end">Non-concessional</th>
+                        <th class="text-end">Rollovers in</th><th class="text-end">Earnings</th><th class="text-end">Contributions tax</th><th class="text-end">Income tax</th>
+                        <th class="text-end">Pensions</th><th class="text-end">Lump sums</th><th class="text-end">Insurance</th><th class="text-end">Closing</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in m.Accounts)
+                    {
+                        <tr>
+                            <td>@SmsfPhases.Label(r.Account.Phase)</td>
+                            <td class="text-end">@M(r.Account.Opening)</td><td class="text-end">@M(r.Account.Concessional)</td><td class="text-end">@M(r.Account.NonConcessional)</td>
+                            <td class="text-end">@M(r.Account.RolloverIn)</td><td class="text-end">@M(r.Earnings)</td><td class="text-end">@M(-r.ContributionsTax)</td><td class="text-end">@M(-r.IncomeTax)</td>
+                            <td class="text-end">@M(-r.Account.PensionPaid)</td><td class="text-end">@M(-r.Account.LumpSum)</td><td class="text-end">@M(-r.Account.Insurance)</td>
+                            <td class="text-end fw-semibold">@M(r.Closing)</td>
+                        </tr>
+                    }
+                    @if (m.Accounts.Count == 0)
+                    {
+                        <tr><td colspan="12" class="text-muted">No account entered for this year.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <ul class="small mb-0 list-unstyled">
+            <li class="@(m.OverConcessionalCap ? "text-danger" : "text-success")">
+                Concessional contributions @m.Concessional.ToString("C0") against the @m.Caps.Concessional.ToString("C0") cap@(m.OverConcessionalCap ? " - over the cap (check unused carry-forward amounts before treating it as excess)" : ".")
+            </li>
+            <li class="@(m.OverNonConcessionalCap ? "text-danger" : "text-success")">
+                Non-concessional contributions @m.NonConcessional.ToString("C0") against @m.NonConcessionalLimit.ToString("C0") available
+                (total super balance in this fund at the previous 30 June: @m.Opening.ToString("C0"))@(m.OverNonConcessionalCap ? " - over the limit" : ".")
+            </li>
+            @if (m.MinimumPension is { } min)
+            {
+                <li class="@(m.PensionShort ? "text-danger" : "text-success")">
+                    Pensions paid @m.PensionPaid.ToString("C0") against the minimum of @min.ToString("C0")@(m.PensionShort ? " - below the minimum, so the pension may not have been in retirement phase for the year" : ".")
+                </li>
+            }
+        </ul>
+    </div>
+}
+@if (Model.Members is { Count: > 0 } && !Model.Members[0].Caps.Known)
+{
+    <p class="small text-warning">The caps for @Model.YearLabel aren't loaded in this site yet, so the latest known caps were used. Check them on ato.gov.au.</p>
+}
+<p class="small text-muted mb-0">
+    Earnings are shared by each account's opening balance plus half its net flows for the year. Contributions tax is 15% of concessional contributions;
+    the rest of the fund's tax is shared between accumulation accounts. Minimum pensions use the standard factors on the opening balance, not pro-rated
+    for a pension started during the year. Bring-forward periods started in the two previous years aren't checked.
+</p>

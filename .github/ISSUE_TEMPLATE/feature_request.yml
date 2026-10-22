@@ -1,0 +1,19 @@
+name: Feature idea
+description: Something you'd like it to do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What do you need to do?
+      description: Describe the job, not the solution. Who does it (investor, accountant, SMSF trustee) and how often?
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you do it today?
+      description: Another package, a spreadsheet, by hand?
+  - type: markdown
+    attributes:
+      value: Check [ROADMAP.md](../blob/main/ROADMAP.md) first; if it's listed, your use case still helps.

@@ -1,0 +1,171 @@
+@page
+@model PortfolioManager.Web.Pages.Prices.QuoteModel
+@using PortfolioManager.Core.Prices
+@{
+    ViewData["Title"] = "Share quote";
+    var q = Model.Quote;
+    var latest = q?.Latest;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Share quote</h1>
+    <a asp-page="/Prices/Trends" class="btn btn-sm btn-outline-secondary">Share trends</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-6 col-md-4">
+                <label for="code" class="form-label small text-muted mb-1">Stock code</label>
+                <input id="code" name="code" class="form-control form-control-sm" list="symbolList" value="@Model.Code"
+                       placeholder="e.g. CBA or ASX:CBA" autofocus />
+                <datalist id="symbolList">
+                    @foreach (var s in Model.Symbols)
+                    {
+                        <option value="@s"></option>
+                    }
+                </datalist>
+            </div>
+            <div class="col-sm-6 col-md-2">
+                <button type="submit" class="btn btn-sm btn-primary w-100">Show</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+@if (Model.Error is not null)
+{
+    <div class="alert alert-warning">@Model.Error</div>
+}
+@if (q is null || latest is null)
+{
+    return;
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">@q.Exchange:@q.Code @(q.Name is null ? "" : $"· {q.Name}")</div>
+            <div class="kpi-value">@latest.Close.ToString("C3")</div>
+            @if (q.Change is { } ch)
+            {
+                <div class="small @(ch > 0 ? "text-success" : ch < 0 ? "text-danger" : "text-muted")">
+                    @(ch >= 0 ? "+" : "")@ch.ToString("N3") (@q.ChangePct!.Value.ToString("+0.00%;-0.00%;0.00%")) on the previous close
+                </div>
+            }
+            <div class="small text-muted">Close on @latest.Date.ToString("ddd d MMM yyyy")</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Trend</div>
+            @if (latest.Trend.Status == ShareTrend.Unknown)
+            {
+                <div class="text-muted">Not worked out yet (it needs about 200 days of prices).</div>
+            }
+            else
+            {
+                <div><span class="badge fs-6 @latest.Trend.BadgeClass">@latest.Trend.Status</span>
+                    <span class="ms-2">@latest.Trend.StandardDeviations!.Value.ToString("+0.0;-0.0;0.0") SD from the 200-day average</span></div>
+                <div class="small text-muted mt-1">200-day average @latest.Sma200!.Value.ToString("C3"), one standard deviation @latest.Sd52!.Value.ToString("C3")</div>
+            }
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            @if (q.YearRange is { } yr)
+            {
+                <div class="text-muted small">Year range (closing prices)</div>
+                <div>@yr.Low.ToString("C3") to @yr.High.ToString("C3")</div>
+            }
+            @if (q.Sector is not null)
+            {
+                <div class="small text-muted mt-1">Sector: @q.Sector</div>
+            }
+            @if (q.UnitsHeld != 0)
+            {
+                <div class="small mt-1">This portfolio holds @q.UnitsHeld.ToString("N0") units, worth @((q.UnitsHeld * latest.Close).ToString("C")) at this price.</div>
+            }
+        </div></div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center">
+        <h2 class="h6 mb-0">Closing price and trend bands</h2>
+        <div class="btn-group btn-group-sm">
+            @foreach (var (key, label) in new[] { ("3m", "3 months"), ("1y", "1 year"), ("all", "All") })
+            {
+                <a class="btn @(Model.Range == key || (key == "1y" && Model.Range is not ("3m" or "all")) ? "btn-secondary" : "btn-outline-secondary")"
+                   asp-route-code="@Model.Code" asp-route-range="@key">@label</a>
+            }
+        </div>
+    </div>
+    <div class="chart-box mt-2"><canvas id="priceChart"></canvas></div>
+</div></div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th><th class="text-end">Open</th><th class="text-end">High</th><th class="text-end">Low</th>
+                    <th class="text-end">Close</th><th class="text-end">Volume</th><th>Trend</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var b in q.Bars.Reverse().Take(30))
+                {
+                    <tr>
+                        <td>@b.Date.ToString("ddd d MMM yyyy")</td>
+                        <td class="text-end">@b.Open?.ToString("N3")</td>
+                        <td class="text-end">@b.High?.ToString("N3")</td>
+                        <td class="text-end">@b.Low?.ToString("N3")</td>
+                        <td class="text-end">@b.Close.ToString("N3")</td>
+                        <td class="text-end">@b.Volume?.ToString("N0")</td>
+                        <td>@if (b.Trend.Status != ShareTrend.Unknown) { <span class="badge @b.Trend.BadgeClass">@b.Trend.Status</span> }</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="text-muted small mt-2">The last 30 trading days on file. Bullish means the close is more than one standard deviation (over 52 weeks) above the 200-day average; Bearish means more than one below.</p>
+
+@section Scripts {
+    @{
+        var bars = Model.ChartBars().Select(b => new
+        {
+            d = b.Date.ToString("yyyy-MM-dd"),
+            c = b.Close,
+            m = b.Sma200 > 0 ? b.Sma200 : null,
+            u = b.Sma200 > 0 && b.Sd52 > 0 ? b.Sma200 + b.Sd52 : null,
+            l = b.Sma200 > 0 && b.Sd52 > 0 ? b.Sma200 - b.Sd52 : null,
+        });
+    }
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        const bars = @Json.Serialize(bars);
+        const line = (label, key, color, dash) => ({ label, data: bars.map(b => b[key]), borderColor: color, borderDash: dash, spanGaps: true });
+        new Chart(document.getElementById('priceChart'), {
+            type: 'line',
+            data: {
+                labels: bars.map(b => b.d),
+                datasets: [
+                    line('Close', 'c', '#0d6efd'),
+                    line('200-day average', 'm', '#6c757d', [4, 4]),
+                    line('Average + 1 SD', 'u', '#198754', [2, 3]),
+                    line('Average - 1 SD', 'l', '#dc3545', [2, 3]),
+                ]
+            },
+            options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, elements: { point: { radius: 0 } },
+                plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: $${c.parsed.y.toFixed(3)}` } } } }
+        });
+    </script>
+}

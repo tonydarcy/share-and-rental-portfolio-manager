@@ -1,0 +1,423 @@
+@page
+@model PortfolioManager.Web.Pages.Import.NavexaSyncModel
+@using PortfolioManager.Core.NavexaSync
+@{
+    ViewData["Title"] = "Navexa sync";
+    var c = Model.Connection;
+    var plan = Model.Plan;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Navexa sync</h1>
+    <a asp-page="/Import/Navexa" class="small">Import Navexa CSV files instead</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (!string.IsNullOrEmpty(Model.Done))
+{
+    <div class="alert alert-success"><i class="bi bi-check-circle"></i> @Model.Done</div>
+}
+@if (!string.IsNullOrEmpty(Model.Problems))
+{
+    <div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> @Model.Problems</div>
+}
+@if (!ViewData.ModelState.IsValid)
+{
+    <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
+}
+
+@if (c is null || Model.NavexaPortfolios is not null)
+{
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <p>
+                Copies your trades, dividends and cash from Navexa into <strong>@Model.Portfolio.Name</strong> using Navexa's API.
+                Run it once to move across, or keep it running daily or weekly. Each Navexa record is only ever added once.
+                Everything goes through the same steps as entering it by hand, so the ledger journals post as usual.
+            </p>
+            @if (Model.NavexaPortfolios is null)
+            {
+                <form method="post" asp-page-handler="Connect" class="row g-2 align-items-end">
+                    <div class="col-md-8">
+                        <label asp-for="ApiKey" class="form-label">Navexa API key</label>
+                        <input asp-for="ApiKey" type="password" autocomplete="off" class="form-control" />
+                        <div class="form-text">
+                            In Navexa, go to <a href="https://www.navexa.com/n/settings/api-keys" target="_blank" rel="noopener">Settings, API keys</a>
+                            and create a key. It is stored encrypted and only used to read your Navexa data; nothing is changed in Navexa.
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="TypedNavexaPortfolioId" class="form-label">Navexa portfolio ID (optional)</label>
+                        <input asp-for="TypedNavexaPortfolioId" type="number" min="1" step="1" class="form-control" />
+                    </div>
+                    <div class="col-12">
+                        <div class="form-text mb-2">Leave the ID blank to pick from a list of your Navexa portfolios. In Navexa it's the number in your browser's address bar when that portfolio is open. It is Navexa's own number, not this site's.</div>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-plug"></i> Connect</button>
+                    </div>
+                </form>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="Choose" class="row g-2 align-items-end">
+                    <input type="hidden" asp-for="ProtectedKey" />
+                    <div class="col-md-8">
+                        <label asp-for="NavexaPortfolioId" class="form-label">Navexa portfolio to copy into @Model.Portfolio.Name</label>
+                        <select asp-for="NavexaPortfolioId" class="form-select">
+                            @foreach (var p in Model.NavexaPortfolios)
+                            {
+                                <option value="@p.Id">@p.Name (@p.BaseCurrencyCode)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="TypedNavexaPortfolioId" class="form-label">Or type its Navexa ID</label>
+                        <input asp-for="TypedNavexaPortfolioId" type="number" min="1" step="1" class="form-control" />
+                    </div>
+                    <div class="col-12">
+                        <div class="form-text mb-2">A typed ID is used instead of the list. In Navexa it's the number in your browser's address bar when that portfolio is open. It is Navexa's own number, not this site's.</div>
+                        <button type="submit" class="btn btn-primary">Use this portfolio</button>
+                    </div>
+                </form>
+            }
+        </div>
+    </div>
+    if (c is null)
+    {
+        return;
+    }
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between gap-2">
+            <div>
+                <div>Connected to Navexa portfolio <strong>@c.NavexaPortfolioName</strong> (Navexa ID @c.NavexaPortfolioId, key ending @c.KeyHint).</div>
+                <div class="text-muted small">
+                    @Model.ImportedCount.ToString("N0") record(s) added so far.
+                    @if (c.LastCheckedUtc is { } last)
+                    {
+                        <span>Last checked @last.ToLocalTime().ToString("g"). @c.LastResult</span>
+                    }
+                    else
+                    {
+                        <span>Not checked yet.</span>
+                    }
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-start">
+                <form method="post" asp-page-handler="Check">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Check Navexa</button>
+                </form>
+                @if (c.LastCheckedUtc is not null)
+                {
+                    <form method="post" asp-page-handler="SyncNow">
+                        <button type="submit" class="btn btn-outline-success"
+                                onclick="return confirm('Check Navexa and add everything that is ready?')"><i class="bi bi-arrow-repeat"></i> Sync now</button>
+                    </form>
+                }
+                <form method="post" asp-page-handler="Disconnect">
+                    <button type="submit" class="btn btn-outline-danger"
+                            onclick="return confirm('Delete the saved API key and stop syncing? Records already added stay.')">Disconnect</button>
+                </form>
+            </div>
+        </div>
+        <form method="post" asp-page-handler="ChangeNavexaPortfolio" class="row g-2 align-items-end mt-2">
+            <div class="col-sm-6 col-md-4">
+                <label asp-for="TypedNavexaPortfolioId" class="form-label">Change the Navexa portfolio ID</label>
+                <input asp-for="TypedNavexaPortfolioId" type="number" min="1" step="1" class="form-control" placeholder="@c.NavexaPortfolioId" />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-outline-secondary">Save ID</button>
+            </div>
+            <div class="col-12 form-text">In Navexa it's the number in your browser's address bar when that portfolio is open. It is Navexa's own number, not this site's. The saved API key is kept.</div>
+        </form>
+        <div class="form-text mt-2">
+            Check Navexa reads everything and shows what would be added, without adding anything.
+            Sync now checks and adds whatever is ready. Records that need your input wait below.
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h5">Settings</h2>
+        <form method="post" asp-page-handler="Settings" class="row g-3">
+            <div class="col-md-5">
+                <label asp-for="TradeBankAccount" class="form-label">Bank account trades settle in</label>
+                <input asp-for="TradeBankAccount" list="bankAccounts" class="form-control" placeholder="Leave blank to record trades without cash" />
+                <div class="form-text">For trades that aren't paid from a Navexa cash account. The bank entry is dated T+2.</div>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="ImportFrom" class="form-label">Only records from</label>
+                <input asp-for="ImportFrom" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" />
+                <div class="form-text">Blank: everything.</div>
+            </div>
+            <div class="col-md-2">
+                <label asp-for="Schedule" class="form-label">Sync automatically</label>
+                <select asp-for="Schedule" class="form-select" asp-items="Html.GetEnumSelectList<SyncSchedule>()"></select>
+                <div class="form-text">Starts after the first check.</div>
+            </div>
+            <div class="col-md-2 d-flex align-items-start pt-md-4">
+                <button type="submit" class="btn btn-outline-primary mt-md-2">Save settings</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<datalist id="bankAccounts">
+    @foreach (var b in Model.BankAccounts)
+    {
+        <option value="@b"></option>
+    }
+</datalist>
+
+@{
+    var (holdings, cashRows, types) = await Model.MappingRowsAsync();
+}
+@if (holdings.Count + cashRows.Count + types.Count > 0)
+{
+    <div class="card shadow-sm mb-3 @(plan?.Setup.Any == true ? "border-primary" : "")">
+        <div class="card-body">
+            <h2 class="h5">How Navexa's holdings and accounts are recorded here</h2>
+            @if (plan?.Setup.Any == true)
+            {
+                <p class="text-primary mb-2">Some records are waiting on these choices. Suggestions are filled in; check them and save.</p>
+            }
+            <form method="post" asp-page-handler="Mappings">
+                @if (holdings.Count > 0)
+                {
+                    <h3 class="h6 mt-2">Holdings Navexa names in a way this site can't use directly</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light"><tr><th>Navexa holding</th><th>Exchange</th><th>Code</th><th>Don't bring across</th></tr></thead>
+                            <tbody>
+                                @for (var i = 0; i < holdings.Count; i++)
+                                {
+                                    <tr>
+                                        <td class="small">@holdings[i].Label
+                                            <input type="hidden" name="Holdings[@i].Key" value="@holdings[i].Key" />
+                                            <input type="hidden" name="Holdings[@i].Label" value="@holdings[i].Label" /></td>
+                                        <td><input name="Holdings[@i].Exchange" value="@holdings[i].Exchange" class="form-control form-control-sm" maxlength="50" style="max-width:8rem" /></td>
+                                        <td><input name="Holdings[@i].Code" value="@holdings[i].Code" class="form-control form-control-sm" maxlength="50" style="max-width:12rem" /></td>
+                                        <td><input type="checkbox" name="Holdings[@i].Skip" value="true" class="form-check-input" @(holdings[i].Skip ? "checked" : "") /></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @if (cashRows.Count > 0)
+                {
+                    <h3 class="h6 mt-2">Navexa cash accounts</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light"><tr><th>Navexa cash account</th><th>Bank account here</th><th>Don't bring across</th></tr></thead>
+                            <tbody>
+                                @for (var i = 0; i < cashRows.Count; i++)
+                                {
+                                    <tr>
+                                        <td class="small">@cashRows[i].Label
+                                            <input type="hidden" name="CashAccounts[@i].Key" value="@cashRows[i].Key" />
+                                            <input type="hidden" name="CashAccounts[@i].Label" value="@cashRows[i].Label" /></td>
+                                        <td><input name="CashAccounts[@i].BankAccount" value="@(cashRows[i].BankAccount ?? cashRows[i].Label)" list="bankAccounts" class="form-control form-control-sm" maxlength="500" /></td>
+                                        <td><input type="checkbox" name="CashAccounts[@i].Skip" value="true" class="form-check-input" @(cashRows[i].Skip ? "checked" : "") /></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @if (types.Count > 0)
+                {
+                    <h3 class="h6 mt-2">Other side of the journal for Navexa cash entries</h3>
+                    @if (!Model.DoubleEntry)
+                    {
+                        <p class="small text-muted">This portfolio doesn't use double-entry accounting, so this only matters if you switch it on later.</p>
+                    }
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light"><tr><th>Navexa entry type</th><th>Ledger account</th></tr></thead>
+                            <tbody>
+                                @for (var i = 0; i < types.Count; i++)
+                                {
+                                    <tr>
+                                        <td>@types[i].Label
+                                            <input type="hidden" name="CashTypes[@i].Key" value="@types[i].Key" />
+                                            <input type="hidden" name="CashTypes[@i].Label" value="@types[i].Label" /></td>
+                                        <td>
+                                            <select name="CashTypes[@i].AccountId" class="form-select form-select-sm">
+                                                <option value="">Owner's Capital (as for a deposit or withdrawal)</option>
+                                                @foreach (var a in Model.LedgerAccounts)
+                                                {
+                                                    <option value="@a.AccountId" selected="@(types[i].AccountId == a.AccountId)">@a.DisplayName</option>
+                                                }
+                                            </select>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                <button type="submit" class="btn btn-outline-primary">Save these choices</button>
+            </form>
+        </div>
+    </div>
+}
+
+@if (plan is null || plan.Items.Count == 0)
+{
+    <p class="text-muted">Press <strong>Check Navexa</strong> to see what would come across.</p>
+    return;
+}
+
+@{
+    var needs = plan.Items.Where(i => i.Status == SyncStatus.NeedsInput && i.Need != InputNeed.Mapping).ToList();
+    var waitingOnMapping = plan.Items.Count(i => i.Status == SyncStatus.NeedsInput && i.Need == InputNeed.Mapping);
+    var ready = plan.Items.Where(i => i.Status == SyncStatus.Ready).ToList();
+}
+
+<div class="card shadow-sm mb-3 border-success">
+    <div class="card-body">
+        <h2 class="h5">From the last check</h2>
+        <p class="mb-2">
+            <span class="badge bg-success">@ready.Count.ToString("N0") ready</span>
+            <span class="badge bg-primary">@plan.Count(SyncStatus.NeedsInput).ToString("N0") need input</span>
+            <span class="badge bg-info text-dark">@plan.Count(SyncStatus.Waiting).ToString("N0") waiting</span>
+            <span class="badge bg-danger">@plan.Count(SyncStatus.Failed).ToString("N0") failed</span>
+            <span class="badge bg-warning text-dark">@plan.Count(SyncStatus.Skipped).ToString("N0") not brought across</span>
+        </p>
+        @if (waitingOnMapping > 0)
+        {
+            <p class="small text-primary mb-2">@waitingOnMapping record(s) are waiting on the choices above.</p>
+        }
+
+        <form method="post" asp-page-handler="Add">
+            @if (needs.Count > 0)
+            {
+                <h3 class="h6 mt-3">Needs your input</h3>
+                <p class="small text-muted">Navexa doesn't give everything the ledger needs for these. Fill them in, then press the button below. Anything left blank waits for next time.</p>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead class="table-light"><tr><th>Date</th><th>Navexa record</th><th>What's needed</th><th>Your answer</th></tr></thead>
+                        <tbody>
+                            @for (var i = 0; i < needs.Count && i < NavexaSyncModel.MaxRowsShown; i++)
+                            {
+                                var n = needs[i];
+                                <tr>
+                                    <td class="text-nowrap">@n.Date.ToString("d")</td>
+                                    <td class="small">@n.Description</td>
+                                    <td class="small">@n.Message</td>
+                                    <td>
+                                        <input type="hidden" name="Inputs[@i].Key" value="@n.Key" />
+                                        @switch (n.Need)
+                                        {
+                                            case InputNeed.FrankingCredit:
+                                                <label class="small">Franking credit
+                                                    <input name="Inputs[@i].FrankingCredit" type="number" step="0.01" min="0" value="@n.Suggested.FrankingCredit" class="form-control form-control-sm" style="max-width:9rem" /></label>
+                                                break;
+                                            case InputNeed.Drp:
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    @if (n.Suggested.FrankingCredit is not null)
+                                                    {
+                                                        <label class="small">Franking credit
+                                                            <input name="Inputs[@i].FrankingCredit" type="number" step="0.01" min="0" value="@n.Suggested.FrankingCredit" class="form-control form-control-sm" style="max-width:8rem" /></label>
+                                                    }
+                                                    <label class="small">Units allotted
+                                                        <input name="Inputs[@i].DrpUnits" type="number" step="1" min="0" value="@n.Suggested.DrpUnits" class="form-control form-control-sm" style="max-width:7rem" /></label>
+                                                    <label class="small">DRP price
+                                                        <input name="Inputs[@i].DrpPrice" type="number" step="0.0001" min="0" value="@n.Suggested.DrpPrice" class="form-control form-control-sm" style="max-width:8rem" /></label>
+                                                </div>
+                                                break;
+                                            case InputNeed.SplitRatio:
+                                                <div class="d-flex gap-1 align-items-center small">
+                                                    <input name="Inputs[@i].SplitNewUnits" type="number" step="1" min="1" class="form-control form-control-sm" style="max-width:5rem" aria-label="New units" />
+                                                    new for
+                                                    <input name="Inputs[@i].SplitOldUnits" type="number" step="1" min="1" class="form-control form-control-sm" style="max-width:5rem" aria-label="Old units" />
+                                                    old
+                                                </div>
+                                                break;
+                                            case InputNeed.ConfirmNotDuplicate:
+                                                <select name="Inputs[@i].Duplicate" class="form-select form-select-sm">
+                                                    <option value="">Decide later</option>
+                                                    <option value="same">Yes, it's already here: don't add it</option>
+                                                    <option value="add">No, it's different: add it</option>
+                                                </select>
+                                                break;
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (needs.Count > NavexaSyncModel.MaxRowsShown)
+                {
+                    <p class="small text-muted">Showing the first @NavexaSyncModel.MaxRowsShown. The rest appear once these are done.</p>
+                }
+            }
+            <button type="submit" class="btn btn-success" @(ready.Count + needs.Count == 0 ? "disabled" : "")
+                    onclick="return confirm('Add the ready records (and any you have just answered) to @Model.Portfolio.Name?')">
+                <i class="bi bi-box-arrow-in-down"></i> @(needs.Count > 0 ? "Save answers and add ready records" : $"Add {ready.Count:N0} ready record(s)")
+            </button>
+        </form>
+    </div>
+</div>
+
+@{
+    var groups = new (string Title, SyncStatus Status, bool Open)[]
+    {
+        ("Ready to add", SyncStatus.Ready, true),
+        ("Failed last time", SyncStatus.Failed, true),
+        ("Waiting for Navexa", SyncStatus.Waiting, false),
+        ("Not brought across", SyncStatus.Skipped, false),
+    };
+}
+@foreach (var g in groups)
+{
+    var rows = plan.Items.Where(i => i.Status == g.Status).ToList();
+    if (rows.Count == 0)
+    {
+        continue;
+    }
+    <details class="mb-3" open="@g.Open">
+        <summary class="h6">@g.Title (@rows.Count.ToString("N0"))</summary>
+        <div class="card shadow-sm mt-2">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th></th><th>Date</th><th>Navexa record</th><th>Will add</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        @foreach (var i in rows.Take(NavexaSyncModel.MaxRowsShown))
+                        {
+                            <tr>
+                                <td><span class="badge @NavexaSyncModel.StatusBadge(i.Status)">@NavexaSyncModel.KindText(i.Kind)</span></td>
+                                <td class="text-nowrap">@i.Date.ToString("d")</td>
+                                <td class="small">@i.Description</td>
+                                <td class="small">@NavexaSyncModel.WillPost(i)</td>
+                                <td class="small">
+                                    @if (i.Message is not null) { <div>@i.Message</div> }
+                                    @foreach (var w in i.Warnings) { <div class="text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> @w</div> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @if (rows.Count > NavexaSyncModel.MaxRowsShown)
+        {
+            <p class="small text-muted mt-1">Showing the first @NavexaSyncModel.MaxRowsShown of @rows.Count.ToString("N0").</p>
+        }
+    </details>
+}
+
+<p class="small text-muted">
+    Not copied: changes or deletions made in Navexa after a record was added here (fix those by hand), TFN amounts withheld and
+    trust distribution components, which Navexa's transaction list doesn't include (edit the payout if they matter).
+    A dividend's cash goes to the ledger's Cash at Bank account, as when a payout is entered by hand.
+</p>

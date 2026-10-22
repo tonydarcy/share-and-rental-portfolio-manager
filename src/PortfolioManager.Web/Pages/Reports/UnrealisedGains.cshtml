@@ -1,0 +1,193 @@
+@page
+@model UnrealisedGainsModel
+@{
+    ViewData["Title"] = "Unrealised capital gains";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">Unrealised capital gains</h1>
+        @if (Model.Portfolio is not null)
+        {
+            <div class="text-muted">@Model.Portfolio.Name &middot; as at @Model.AsAtDate.ToString("d MMM yyyy")@(Model.Group ? " · grouped by stock" : "")</div>
+        }
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted small no-print">What you would gain or lose on your open parcels if you sold them at the prices on file for the date below. Shares you have already sold are on the realised capital gains report.</p>
+
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-6 col-md-3">
+                <label for="asAt" class="form-label small text-muted mb-1">As at</label>
+                <input type="date" id="asAt" name="asAt" class="form-control form-control-sm" value="@Model.AsAtDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="form-check mb-1">
+                    <input class="form-check-input" type="checkbox" id="group" name="group" value="true" checked="@Model.Group" />
+                    <label class="form-check-label" for="group">Group by stock code</label>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <button type="submit" class="btn btn-sm btn-primary w-100">Update report</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+@if (Model.Report.AnyMissingPrices)
+{
+    <div class="alert alert-warning">Some holdings have no price on file in the year before this date, so their market value is counted as zero.</div>
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Exch</th>
+                    <th class="text-end">Units</th>
+                    <th class="text-end">Cost base / unit</th>
+                    <th class="text-end">Total cost base</th>
+                    <th class="text-end">Market price</th>
+                    <th class="text-end">Market value</th>
+                    <th class="text-end">Gain / loss</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Report.Lines.Count == 0)
+                {
+                    <tr><td colspan="8" class="text-center text-muted p-4">No open parcels at this date.</td></tr>
+                }
+                @foreach (var l in Model.Report.Lines)
+                {
+                    <tr>
+                        <td class="fw-bold">@l.StockCode</td>
+                        <td class="text-muted small">@l.ExchangeCode</td>
+                        <td class="text-end">@l.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@l.CostPerUnit.ToString("C3")</td>
+                        <td class="text-end">@l.TotalCost.ToString("C")</td>
+                        <td class="text-end">@(l.MarketPrice?.ToString("C3") ?? "No price")</td>
+                        <td class="text-end">@l.MarketValue.ToString("C")</td>
+                        <td class="text-end fw-bold @PeriodReportModel.GainClass(l.Gain)">@l.Gain.ToString("C")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Report.Lines.Count > 0)
+            {
+                var t = Model.Report.Total;
+                <tfoot>
+                    <tr class="table-active fw-bold">
+                        <td colspan="4">Total</td>
+                        <td class="text-end">@t.TotalCost.ToString("C")</td>
+                        <td></td>
+                        <td class="text-end">@t.MarketValue.ToString("C")</td>
+                        <td class="text-end @PeriodReportModel.GainClass(t.Gain)">@t.Gain.ToString("C")</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>
+@{
+    // The discount columns are Australian; elsewhere the parcels are listed without them
+    var au = Model.Rate.Applies;
+}
+@if (au)
+{
+    <p class="text-muted small mt-2">Gains are before the CGT discount.</p>
+}
+
+<h2 class="h5 mt-4">@(au ? "CGT discount by parcel" : "Parcels held")</h2>
+<p class="text-muted small">
+    Each purchase still held, matched first-in, first-out.
+    @if (au)
+    {
+        <text>A parcel qualifies for the @Model.Rate.RateText discount when it's sold after being held for more than 12 months, so from the day after the anniversary of the purchase.</text>
+    }
+    @if (Model.Parcels.CapitalReturns > 0)
+    {
+        <text>Cost bases here are after returns of capital; the table above, from the older report, doesn't include them.</text>
+    }
+    @if (Model.Rate.Kind == CgtEntityKind.Company)
+    {
+        <text>Companies don't get the discount, so no parcel will be discounted.</text>
+    }
+    @if (Model.Rate.Assumed)
+    {
+        <text>The portfolio's entity type isn't one the discount rules recognise, so 50% is shown.</text>
+    }
+</p>
+@foreach (var p in Model.Parcels.Problems)
+{
+    <div class="alert alert-warning py-2">@p.Message</div>
+}
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Exch</th>
+                    <th>Bought</th>
+                    <th class="text-end">Units</th>
+                    <th class="text-end">Cost base</th>
+                    <th class="text-end">Gain / loss</th>
+                    @if (au)
+                    {
+                        <th>Eligible from</th>
+                        <th>Discount if sold @(Model.AsAt is null ? "today" : $"on {Model.AsAtDate:d MMM yyyy}")</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Parcels.Open.Count == 0)
+                {
+                    <tr><td colspan="@(au ? 8 : 6)" class="text-center text-muted p-4">No open parcels at this date.</td></tr>
+                }
+                @foreach (var p in Model.Parcels.Open)
+                {
+                    var gain = Model.Prices.TryGetValue(UnrealisedGainsModel.Key(p.ExchangeCode, p.StockCode), out var price)
+                        ? Math.Round(p.Units * price, 2) - p.TotalCost
+                        : (decimal?)null;
+                    var qualifies = p.QualifiesOn(Model.AsAtDate);
+                    <tr>
+                        <td class="fw-bold">@p.StockCode</td>
+                        <td class="text-muted small">@p.ExchangeCode</td>
+                        <td>@p.Acquired.ToString("d MMM yyyy")</td>
+                        <td class="text-end">@p.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@p.TotalCost.ToString("C")</td>
+                        <td class="text-end @(gain is { } g ? PeriodReportModel.GainClass(g) : "")">@(gain?.ToString("C") ?? "No price")</td>
+                        @if (au)
+                        {
+                            <td>@p.EligibleFrom.ToString("d MMM yyyy")</td>
+                            <td>
+                                @if (Model.Rate.Rate == 0)
+                                {
+                                    <span class="text-muted">None</span>
+                                }
+                                else if (qualifies)
+                                {
+                                    <span class="badge text-bg-success">Yes</span>
+                                }
+                                else
+                                {
+                                    <span class="badge text-bg-secondary">No</span>
+                                }
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

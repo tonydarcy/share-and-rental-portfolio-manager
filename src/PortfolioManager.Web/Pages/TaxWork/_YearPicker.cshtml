@@ -1,0 +1,38 @@
+@model TaxYearPageModel
+@* The financial year dropdown and the lock notice shared by the tax pages *@
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-6 col-md-3">
+                <label for="fy" class="form-label small text-muted mb-1">Financial year</label>
+                <select id="fy" name="fy" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var y in Model.Years)
+                    {
+                        <option value="@y" selected="@(y == Model.Year)">@FinancialYear.Label(y)</option>
+                    }
+                </select>
+            </div>
+            @if (Model.Workpaper is { } w)
+            {
+                <div class="col-sm-6 col-md-9 small text-muted">
+                    @w.Client.LegalName &middot; @ClientEntityTypes.Describe(w.EntityType) &middot; year ended @Model.YearEnd.ToString("d MMMM yyyy")
+                </div>
+            }
+        </div>
+    </div>
+</form>
+@if (Model.Locked)
+{
+    <div class="alert alert-secondary py-2 no-print"><i class="bi bi-lock-fill"></i> @FinancialYear.Label(Model.Year) is locked, so its tax figures can't be changed. <a asp-page="/Accounting/Lock">Lock periods</a></div>
+}
+@if (Model.Workpaper is { Warnings.Count: > 0 } wp)
+{
+    <div class="alert alert-warning no-print">
+        <ul class="mb-0">
+            @foreach (var warning in wp.Warnings)
+            {
+                <li>@warning</li>
+            }
+        </ul>
+    </div>
+}

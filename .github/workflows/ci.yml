@@ -1,0 +1,57 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build PortfolioManager.slnx -c Release
+      - run: dotnet test PortfolioManager.slnx -c Release --no-build
+
+  # Builds a fresh database from CreateDatabase.sql and every migration (twice), then opens every page as the demo user
+  database-and-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SQL_PASSWORD: Ci-Only-Passw0rd!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Start SQL Server
+        run: |
+          docker run -d --name sql -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$SQL_PASSWORD" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+          for i in $(seq 1 60); do
+            docker exec sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SQL_PASSWORD" -C -Q "SELECT 1" -b -o /dev/null && exit 0
+            sleep 3
+          done
+          docker logs sql | tail -30; exit 1
+      - name: Build the database
+        # sqlcmd comes from the SQL Server image, so nothing needs installing on the runner
+        run: >-
+          docker run --rm --network host -e SQL_PASSWORD -e PATH=/opt/mssql-tools18/bin:/usr/bin:/bin
+          -v "$PWD:/repo:ro" --entrypoint bash mcr.microsoft.com/mssql/server:2022-latest
+          /repo/tests/smoke/build-database.sh localhost PortfolioManagerSmoke
+      - name: Start the site
+        run: |
+          dotnet build src/PortfolioManager.Web -c Release
+          nohup dotnet run --no-build -c Release --project src/PortfolioManager.Web --urls http://localhost:5075 > site.log 2>&1 &
+          for i in $(seq 1 60); do curl -s -o /dev/null http://localhost:5075/Account/Login && break; sleep 2; done
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ConnectionStrings__Default: Server=localhost,1433;Database=PortfolioManagerSmoke;User Id=sa;Password=Ci-Only-Passw0rd!;TrustServerCertificate=True
+      - name: Open every page
+        run: bash tests/smoke/smoke.sh http://localhost:5075
+      - name: Site log
+        if: always()
+        run: grep -E "^(fail|crit)" -A12 site.log || echo "No errors logged."

@@ -1,0 +1,97 @@
+@page
+@model OnboardingModel
+@using PortfolioManager.Core.Practice
+@{
+    ViewData["Title"] = "Client onboarding";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Client onboarding</h1>
+    <a asp-page="/Clients/Dashboard" class="btn btn-sm btn-outline-secondary">Practice dashboard</a>
+</div>
+
+@if (Model.NewLink is not null) { <div class="alert alert-info">Send the client this link: <code class="user-select-all">@Model.NewLink</code></div> }
+
+<p class="text-muted">Send a new client an engagement letter to accept online and a form for their details. Once they accept, press
+    <em>Set up</em>: a portfolio is made for them with their client details and the accounts their entity type needs, and their email is given access
+    (an invitation if they haven't signed up yet).</p>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h2 class="h5">New client</h2>
+        <form method="get" class="mb-2">
+            <label class="form-label small" for="entityType">Entity type (changes the letter)</label>
+            <select id="entityType" name="entityType" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                @foreach (var t in PortfolioManager.Core.Clients.ClientEntityTypes.All) { <option value="@t" selected="@(t == Model.EntityType)">@PortfolioManager.Core.Clients.ClientEntityTypes.Describe(t)</option> }
+            </select>
+        </form>
+        <form method="post" asp-page-handler="Send">
+            <input type="hidden" asp-for="EntityType" />
+            <div class="row g-2">
+                <div class="col-md-6"><label asp-for="ClientName" class="form-label">Client's name</label><input asp-for="ClientName" class="form-control" maxlength="200" required /></div>
+                <div class="col-md-6"><label asp-for="ClientEmail" class="form-label">Client's email</label><input asp-for="ClientEmail" type="email" class="form-control" maxlength="320" required /></div>
+                <div class="col-12">
+                    <label asp-for="Letter" class="form-label">Engagement letter</label>
+                    <textarea asp-for="Letter" class="form-control" rows="14" required></textarea>
+                    <div class="form-text">[client name] is replaced with the name above. Change the wording to suit your practice.</div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary mt-2"><i class="bi bi-send"></i> Send</button>
+        </form>
+    </div>
+</div>
+
+<h2 class="h5">Sent</h2>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Client</th><th>Status</th><th>Details</th><th></th></tr></thead>
+            <tbody>
+                @if (Model.Onboardings.Count == 0) { <tr><td colspan="4" class="text-center text-muted p-4">None yet.</td></tr> }
+                @foreach (var o in Model.Onboardings)
+                {
+                    var d = o.Details;
+                    <tr>
+                        <td><div class="fw-bold">@o.ClientName</div><div class="small text-muted">@o.ClientEmail &middot; @PortfolioManager.Core.Clients.ClientEntityTypes.Describe(o.EntityType) &middot; sent @o.Created.ToString("d")</div></td>
+                        <td>
+                            @OnboardingStatuses.Label(o.Status)
+                            @if (o.Accepted is { } a) { <div class="small text-muted">Accepted by @o.AcceptedName on @a.ToString("g")</div> }
+                        </td>
+                        <td class="small">
+                            @if (o.DetailsXml is not null)
+                            {
+                                <div>@d.LegalName @(d.Abn is null ? "" : $"ABN {d.Abn}") @(d.Acn is null ? "" : $"ACN {d.Acn}")</div>
+                                <div>@d.ContactName @d.Phone</div>
+                                <div>@d.AddressLine1 @d.AddressLine2 @d.Suburb @d.State @d.Postcode</div>
+                                @if (d.People is not null) { <div class="text-muted" style="white-space:pre-line">@d.People</div> }
+                                @if (d.Notes is not null) { <div class="fst-italic">@d.Notes</div> }
+                            }
+                            else if (o.Status == OnboardingStatuses.Sent)
+                            {
+                                <code class="user-select-all small">@Model.Link(o)</code>
+                            }
+                        </td>
+                        <td class="text-end text-nowrap">
+                            @if (o.Status == OnboardingStatuses.Accepted)
+                            {
+                                <form method="post" asp-page-handler="SetUp" asp-route-id="@o.Id" class="d-inline-flex gap-1">
+                                    <select name="access" class="form-select form-select-sm" aria-label="Client's access">
+                                        <option value="View">Client can look</option>
+                                        <option value="Edit">Client can edit</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-success">Set up</button>
+                                </form>
+                            }
+                            @if (o.Status is OnboardingStatuses.Sent or OnboardingStatuses.Accepted)
+                            {
+                                <form method="post" asp-page-handler="Cancel" asp-route-id="@o.Id" class="d-inline" onsubmit="return confirm('Cancel this onboarding? The link stops working.');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

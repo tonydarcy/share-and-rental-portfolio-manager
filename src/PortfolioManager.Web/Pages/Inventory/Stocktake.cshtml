@@ -1,0 +1,94 @@
+@page
+@model StocktakeModel
+@{
+    ViewData["Title"] = "Stocktake";
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Stocktake</h1>
+    <a asp-page="/Inventory/Index" class="btn btn-sm btn-outline-secondary">Inventory</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="d-flex gap-2 align-items-center mb-3">
+    <label for="date" class="small text-muted">Counted on</label>
+    <input type="date" id="date" name="date" value="@Model.Date?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" style="max-width: 11rem" />
+    <button type="submit" class="btn btn-sm btn-outline-primary">Show what the books say</button>
+</form>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="alert alert-info">No tracked items yet. Add them on the <a asp-page="/Inventory/Index">Inventory</a> page.</div>
+}
+else
+{
+    <form method="post" asp-route-date="@Model.Date?.ToString("yyyy-MM-dd")">
+        <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+        <div class="card shadow-sm mb-3">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th>Item</th><th class="text-end">In the books</th><th class="text-end" style="width: 9rem">Counted</th><th class="text-end" style="width: 9rem">Cost each (stock found)</th></tr></thead>
+                    <tbody>
+                        @for (var i = 0; i < Model.Items.Count; i++)
+                        {
+                            var item = Model.Items[i];
+                            <tr>
+                                <td>@item.Display<input type="hidden" name="Lines[@i].ItemId" value="@item.ItemId" /></td>
+                                <td class="text-end">@Model.StockAt(item).ToString("0.####")</td>
+                                <td><input name="Lines[@i].Counted" type="number" step="any" class="form-control form-control-sm text-end" aria-label="Counted" /></td>
+                                <td><input name="Lines[@i].UnitCost" type="number" step="0.0001" min="0" class="form-control form-control-sm text-end" placeholder="@item.AverageCost?.ToString("0.00", inv)" aria-label="Cost each" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="row g-2 align-items-end mb-2">
+            <div class="col-md-5">
+                <label asp-for="AccountId" class="form-label">Post the difference to</label>
+                <select asp-for="AccountId" class="form-select">
+                    @foreach (var a in Model.Accounts) { <option value="@a.AccountId">@a.Display</option> }
+                </select>
+            </div>
+            <div class="col-md-5"><label asp-for="Note" class="form-label">Note</label><input asp-for="Note" class="form-control" maxlength="500" placeholder="e.g. End of year stocktake" /></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Post</button></div>
+        </div>
+        <p class="small text-muted">Leave a count blank to leave that item as it is. Stock missing comes out at the average cost; stock found goes in at the cost you enter (or the average cost).</p>
+    </form>
+}
+
+@if (Model.Adjustments.Count > 0)
+{
+    <h2 class="h5 mt-4">Earlier adjustments</h2>
+    <div class="card shadow-sm">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>Date</th><th>Note</th><th class="text-end">Items</th><th class="text-end">Value change</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var a in Model.Adjustments)
+                {
+                    <tr>
+                        <td>@a.Date.ToString("d")</td>
+                        <td>@a.Note</td>
+                        <td class="text-end">@a.Items</td>
+                        <td class="text-end">@a.Cost.ToString("C")</td>
+                        <td class="text-end text-nowrap">
+                            @if (a.JournalId is { } j) { <a asp-page="/Accounting/Journal" asp-route-id="@j" class="btn btn-sm btn-outline-secondary">Journal</a> }
+                            @if (Model.CanEdit)
+                            {
+                                <form method="post" asp-page-handler="Delete" asp-route-adjustmentId="@a.AdjustmentId" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

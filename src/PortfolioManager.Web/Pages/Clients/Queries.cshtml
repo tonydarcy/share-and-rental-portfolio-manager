@@ -1,0 +1,91 @@
+@page
+@model QueriesModel
+@using PortfolioManager.Core.Practice
+@{
+    ViewData["Title"] = "Client queries";
+    var canEdit = Model.Portfolio?.CanEdit == true;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Client queries</h1>
+    @if (canEdit) { <a asp-page="/Accounting/Unallocated" class="btn btn-sm btn-outline-secondary">Unallocated transactions</a> }
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">Questions about transactions in @Model.Portfolio.Name. Type your answer under each question and press <em>Send answer</em>.
+    @if (canEdit) { <span>To ask about a particular transaction, use <em>Ask the client</em> on the journal or on an unallocated bank transaction.</span> }</p>
+
+@if (canEdit)
+{
+    <form method="post" asp-page-handler="Ask" asp-route-journal="@Model.Journal" asp-route-line="@Model.Line" class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h5">Ask a question</h2>
+            @if (Model.About is { } a)
+            {
+                <p class="mb-2"><strong>About:</strong> @a.Date.ToString("d") &middot; @a.Text &middot; @a.Amount.ToString("C")</p>
+            }
+            <textarea asp-for="Question" class="form-control mb-2" rows="3" maxlength="2000" placeholder="e.g. What was this deposit for?" required></textarea>
+            @if (Model.EmailOn)
+            {
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label asp-for="EmailTo" class="form-label small">Email the client to let them know (optional)</label>
+                        <input asp-for="EmailTo" type="email" class="form-control form-control-sm" />
+                    </div>
+                </div>
+            }
+            <button type="submit" class="btn btn-primary mt-2">Ask</button>
+        </div>
+    </form>
+}
+
+@if (Model.Queries.Count == 0)
+{
+    <p class="text-muted">No questions yet.</p>
+}
+@foreach (var q in Model.Queries)
+{
+    <div class="card shadow-sm mb-3 @(q.Status == QueryStatuses.Closed ? "opacity-75" : "")">
+        <div class="card-body">
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+                <div>
+                    <span class="badge @(q.IsOpen ? "text-bg-warning" : q.Status == QueryStatuses.Answered ? "text-bg-success" : "text-bg-secondary")">@QueryStatuses.Label(q.Status)</span>
+                    @if (q.Transaction is not null)
+                    {
+                        <span class="ms-2">@q.TransactionDate?.ToString("d") &middot; @q.Transaction &middot; @q.Amount?.ToString("C")</span>
+                        @if (q.JournalId is { } jid && canEdit) { <a asp-page="/Accounting/Journal" asp-route-id="@jid" class="small ms-1">journal</a> }
+                    }
+                </div>
+                <div class="small text-muted">Asked @q.Asked.ToString("g") by @q.AskedBy</div>
+            </div>
+            <p class="mt-2 mb-2 fw-semibold">@q.Question</p>
+            @if (q.Answer is not null)
+            {
+                <div class="border-start border-3 ps-2 mb-2">@q.Answer<div class="small text-muted">@q.AnsweredBy, @q.Answered?.ToString("g")</div></div>
+            }
+            @if (q.Status != QueryStatuses.Closed)
+            {
+                <form method="post" asp-page-handler="Answer" asp-route-id="@q.Id" class="d-flex gap-2">
+                    <input name="Answer" class="form-control form-control-sm" maxlength="2000" placeholder="@(q.Answer is null ? "Your answer" : "Add to or change the answer")" required />
+                    <button type="submit" class="btn btn-sm btn-success text-nowrap">Send answer</button>
+                </form>
+            }
+            @if (canEdit)
+            {
+                <div class="mt-2 d-flex gap-2">
+                    <form method="post" asp-page-handler="Status" asp-route-id="@q.Id" asp-route-closed="@(q.Status != QueryStatuses.Closed)">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">@(q.Status == QueryStatuses.Closed ? "Open again" : "Close")</button>
+                    </form>
+                    <form method="post" asp-page-handler="Delete" asp-route-id="@q.Id" onsubmit="return confirm('Delete this question?');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
+                </div>
+            }
+        </div>
+    </div>
+}

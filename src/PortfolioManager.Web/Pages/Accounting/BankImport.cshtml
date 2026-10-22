@@ -1,0 +1,164 @@
+@page
+@model BankImportModel
+@{
+    ViewData["Title"] = "Import bank statement";
+    var preview = Model.Preview;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Import bank statement</h1>
+    <a asp-page="/Accounting/ImportHistory" class="btn btn-sm btn-outline-secondary">Import history</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_ModeNotice" model="Model.Mode" />
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <p class="mb-2">
+            Upload a QIF or OFX statement exported from your bank's internet banking for <strong>@Model.Portfolio.Name</strong>.
+            Each transaction is posted between the account you choose and <strong>Bank Import Suspense</strong>; you then allocate
+            it to an account, payout or trade on the <a asp-page="/Accounting/Unallocated">Unallocated</a> page.
+        </p>
+        <p class="small text-muted">
+            Dates are read day first (15/10/2026). Files up to @(BankStatementParser.MaxFileBytes / (1024 * 1024)) MB.
+            You'll see a preview before anything is saved, and lines already imported into the same account are skipped.
+        </p>
+        @if (Model.BankAccounts.Count == 0)
+        {
+            <div class="alert alert-warning mb-0">
+                There are no postable asset, liability or equity accounts to import into. Add a bank account on the
+                <a asp-page="/Accounting/Accounts">chart of accounts</a> first.
+            </div>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Preview" enctype="multipart/form-data" class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label asp-for="BankAccountId" class="form-label">Account</label>
+                    <select asp-for="BankAccountId" class="form-select">
+                        @foreach (var a in Model.BankAccounts)
+                        {
+                            <option value="@a.AccountId">@a.DisplayName</option>
+                        }
+                    </select>
+                    <div class="form-text">The bank or loan account this statement belongs to.</div>
+                </div>
+                <div class="col-md-5">
+                    <label asp-for="Upload" class="form-label">Statement file</label>
+                    <input asp-for="Upload" type="file" accept=".qif,.ofx,.qfx" class="form-control" required />
+                    <div class="form-text">.qif, .ofx or .qfx</div>
+                </div>
+                <div class="col-md-2 mb-md-4">
+                    <button type="submit" class="btn btn-primary w-100">Preview</button>
+                </div>
+            </form>
+        }
+    </div>
+</div>
+
+@if (preview is not null)
+{
+    if (preview.FileError is not null)
+    {
+        <div class="alert alert-danger">@preview.FileError</div>
+        return;
+    }
+
+    var toImport = preview.ValidCount - preview.DuplicateCount;
+    <div class="card shadow-sm">
+        <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+            <div>
+                @preview.Format file @(Model.FileName is { Length: > 0 } ? $"({Model.FileName})" : "") for <strong>@Model.BankAccountName</strong>:
+                <strong>@preview.ValidCount</strong> transaction@(preview.ValidCount == 1 ? "" : "s"),
+                <strong class="@(preview.ErrorCount > 0 ? "text-danger" : "")">@preview.ErrorCount</strong> with errors
+                @if (preview.DuplicateCount > 0)
+                {
+                    <span>, <strong class="text-warning-emphasis">@preview.DuplicateCount</strong> already imported</span>
+                }
+                <div class="small text-muted">
+                    Deposits @preview.Transactions.Where(t => t.Amount > 0).Sum(t => t.Amount).ToString("C"),
+                    withdrawals @preview.Transactions.Where(t => t.Amount < 0).Sum(t => -t.Amount).ToString("C").
+                </div>
+            </div>
+            @if (preview.ErrorCount == 0)
+            {
+                <form method="post" asp-page-handler="Import" class="ms-auto d-flex flex-wrap gap-3 align-items-center"
+                      data-confirm="Import these transactions into @Model.BankAccountName?" onsubmit="return confirm(this.dataset.confirm);">
+                    <input type="hidden" asp-for="Data" />
+                    <input type="hidden" asp-for="FileName" />
+                    <input type="hidden" asp-for="BankAccountId" />
+                    <input type="hidden" asp-for="PreviewPortfolioId" />
+                    @if (preview.DuplicateCount > 0)
+                    {
+                        <div class="form-check mb-0">
+                            <input asp-for="IncludeDuplicates" class="form-check-input" />
+                            <label asp-for="IncludeDuplicates" class="form-check-label">Import the @preview.DuplicateCount already imported too</label>
+                        </div>
+                    }
+                    <div class="form-check mb-0">
+                        <input asp-for="ApplyRules" class="form-check-input" />
+                        <label asp-for="ApplyRules" class="form-check-label">Allocate lines that match an <a asp-page="/Accounting/Rules">allocation rule</a></label>
+                    </div>
+                    <button type="submit" class="btn btn-success">Import @toImport transaction@(toImport == 1 ? "" : "s")</button>
+                </form>
+            }
+            else
+            {
+                <span class="ms-auto text-danger small">Some lines couldn't be read. Nothing is imported until every line can be.</span>
+            }
+        </div>
+        <div class="table-responsive" style="max-height: 32rem">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th class="text-end">Amount</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in preview.Lines)
+                    {
+                        var t = line.Transaction;
+                        <tr class="@(!line.IsValid ? "table-danger" : line.Duplicate ? "table-warning" : "")">
+                            <td class="text-muted">@line.Number</td>
+                            @if (t is not null)
+                            {
+                                <td class="text-nowrap">@t.Date.ToString("d MMM yyyy")</td>
+                                <td>@t.Description</td>
+                                <td class="text-end text-nowrap @(t.IsDeposit ? "text-success" : "text-danger")">@t.Amount.ToString("C")</td>
+                            }
+                            else
+                            {
+                                <td colspan="3"></td>
+                            }
+                            <td class="small">
+                                @if (line.Error is not null)
+                                {
+                                    <span class="text-danger">@line.Error</span>
+                                }
+                                else if (line.Duplicate)
+                                {
+                                    <span class="text-warning-emphasis">Already imported into this account, so skipped unless you tick the box above.</span>
+                                }
+                                else if (t is not null)
+                                {
+                                    <span class="badge @(t.IsDeposit ? "text-bg-success" : "text-bg-secondary")">@(t.IsDeposit ? "Deposit" : "Withdrawal")</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

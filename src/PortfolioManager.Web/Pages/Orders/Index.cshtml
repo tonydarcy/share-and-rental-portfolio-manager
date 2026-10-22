@@ -1,0 +1,61 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = Model.Plural;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">@Model.Plural</h1>
+    <div class="d-flex gap-2">
+        <a asp-route-kind="@(Model.IsQuote ? QuoteOrderKinds.PurchaseOrder : QuoteOrderKinds.Quote)" class="btn btn-sm btn-outline-secondary">@(Model.IsQuote ? "Purchase orders" : "Quotes")</a>
+        @if (Model.CanEdit)
+        {
+            <a asp-page="/Orders/Edit" asp-route-kind="@Model.Kind" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> New @(Model.IsQuote ? "quote" : "purchase order")</a>
+        }
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">
+    @if (Model.IsQuote)
+    {
+        <text>A quote tells a customer what you'd charge. Nothing is posted to the ledger. When they accept it, turn it into an invoice in one step.</text>
+    }
+    else
+    {
+        <text>A purchase order tells a supplier what you're ordering. Nothing is posted to the ledger. When their invoice arrives, turn it into a bill in one step.</text>
+    }
+</p>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Number</th><th>@(Model.IsQuote ? "Customer" : "Supplier")</th><th>Title</th><th>Date</th><th>@(Model.IsQuote ? "Expires" : "Delivery")</th><th class="text-end">Total</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                @if (Model.Documents.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">None yet.</td></tr>
+                }
+                @foreach (var d in Model.Documents)
+                {
+                    <tr>
+                        <td><a asp-page="/Orders/View" asp-route-id="@d.Id">@d.Number</a></td>
+                        <td>@d.ContactName</td>
+                        <td>@d.Title</td>
+                        <td>@d.Date.ToString("d")</td>
+                        <td class="@(d.IsExpired(Model.Today) ? "text-danger" : "")">@d.Expiry?.ToString("d")</td>
+                        <td class="text-end">@Money.Format(d.Total, d.Currency)</td>
+                        <td><span class="badge @IndexModel.Badge(d.Status)">@(d.IsExpired(Model.Today) ? "Expired" : d.Status)</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

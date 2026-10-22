@@ -1,0 +1,102 @@
+@page
+@model PortfolioManager.Web.Pages.Reports.ContributionModel
+@{
+    ViewData["Title"] = "Contribution";
+    var r = Model.Report;
+    var foreign = r?.Holdings.Any(h => h.Currency != r.Currency) == true;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Contribution</h1>
+    <span class="text-muted">@Model.Period.Description</span>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_PeriodFilter" model="Model" />
+
+@if (Model.Notice is not null)
+{
+    <div class="alert alert-info">@Model.Notice</div>
+}
+@if (r is null)
+{
+    return;
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="small text-muted">Total gain</div><div class="fs-4 @PeriodReportModel.GainClass(r.TotalGain)">@r.TotalGain.ToString("C")</div><div class="small text-muted">@ContributionModel.Pct(r.Return) of the average invested</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="small text-muted">Price</div><div class="fs-4 @PeriodReportModel.GainClass(r.PriceGain)">@r.PriceGain.ToString("C")</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="small text-muted">Income</div><div class="fs-4 @PeriodReportModel.GainClass(r.Income)">@r.Income.ToString("C")</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="small text-muted">Currency</div><div class="fs-4 @PeriodReportModel.GainClass(r.CurrencyGain)">@r.CurrencyGain.ToString("C")</div></div></div></div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Holding</th>
+                <th class="text-end">Value at start</th>
+                <th class="text-end">Bought less sold</th>
+                <th class="text-end">Value at end</th>
+                <th class="text-end">Price</th>
+                <th class="text-end">Income</th>
+                @if (foreign) { <th class="text-end">Currency</th> }
+                <th class="text-end">Total</th>
+                <th class="text-end">Return</th>
+                <th class="text-end" title="The holding's part of the portfolio's return">Share of return</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (r.Holdings.Count == 0)
+            {
+                <tr><td colspan="10" class="text-center text-muted p-4">No holdings in this period.</td></tr>
+            }
+            @foreach (var h in r.Holdings)
+            {
+                <tr>
+                    <td><strong>@h.Code</strong> <span class="small text-muted">@h.Exchange</span></td>
+                    <td class="text-end">@h.StartValue.ToString("C")</td>
+                    <td class="text-end">@h.NetBought.ToString("C")</td>
+                    <td class="text-end">@h.EndValue.ToString("C")</td>
+                    <td class="text-end @PeriodReportModel.GainClass(h.PriceGain)">@h.PriceGain.ToString("C")</td>
+                    <td class="text-end">@h.Income.ToString("C")</td>
+                    @if (foreign) { <td class="text-end @PeriodReportModel.GainClass(h.CurrencyGain)">@(h.Currency == r.Currency ? "" : h.CurrencyGain.ToString("C"))</td> }
+                    <td class="text-end fw-semibold @PeriodReportModel.GainClass(h.TotalGain)">@h.TotalGain.ToString("C")</td>
+                    <td class="text-end">@ContributionModel.Pct(h.Return)</td>
+                    <td class="text-end">@ContributionModel.Pct(h.ShareOfReturn)</td>
+                </tr>
+            }
+        </tbody>
+        <tfoot class="table-light fw-semibold">
+            <tr>
+                <td>Total</td>
+                <td class="text-end">@r.StartValue.ToString("C")</td>
+                <td class="text-end">@r.NetBought.ToString("C")</td>
+                <td class="text-end">@r.EndValue.ToString("C")</td>
+                <td class="text-end">@r.PriceGain.ToString("C")</td>
+                <td class="text-end">@r.Income.ToString("C")</td>
+                @if (foreign) { <td class="text-end">@r.CurrencyGain.ToString("C")</td> }
+                <td class="text-end">@r.TotalGain.ToString("C")</td>
+                <td class="text-end">@ContributionModel.Pct(r.Return)</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+<p class="small text-muted">
+    Price is the change in each holding's value after allowing for what was bought and sold. Income is the dividends,
+    distributions and interest paid in the period, including any reinvested, before franking credits.
+    @if (foreign) { <text>For shares in another currency, price is the change in that currency at the end exchange rate, and currency is what the rate's moves added or took away.</text> }
+    Returns are over each holding's average invested value (the value at the start plus purchases less sales, weighted by
+    the part of the period they were held), so they don't add up exactly to the time-weighted return on the Performance page. Cash isn't included.
+</p>
+@foreach (var w in r.Warnings)
+{
+    <div class="alert alert-warning small py-2">@w</div>
+}

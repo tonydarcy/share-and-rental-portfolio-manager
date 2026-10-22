@@ -1,0 +1,161 @@
+@page
+@model ReconciliationModel
+@{
+    ViewData["Title"] = "Tax reconciliation";
+    var w = Model.Workpaper;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Income tax reconciliation</h1>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/TaxWork/ReturnLabels" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ol"></i> Tax return labels</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || w is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_YearPicker" model="Model" />
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h5">Accounting profit to @w.Reconciliation.ResultLabel.ToLowerInvariant()</h2>
+                <p class="text-muted small">For the year ended @Model.YearEnd.ToString("d MMMM yyyy"), from the ledger, the FIFO capital gains and the year's adjustments.</p>
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        @foreach (var line in w.Reconciliation.Lines)
+                        {
+                            var css = line.Style switch
+                            {
+                                TaxRecStyle.Subtotal => "fw-semibold border-top",
+                                TaxRecStyle.Total => "fw-bold border-top border-dark",
+                                TaxRecStyle.Info => "text-muted fst-italic small",
+                                _ => "",
+                            };
+                            <tr class="@css">
+                                <td>@line.Label @if (line.Note is not null) { <div class="small text-muted fst-normal">@line.Note</div> }</td>
+                                <td class="text-end text-nowrap">@line.Amount.ToString("#,##0.00;(#,##0.00);-")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (w.Tax is { } tax)
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h2 class="h5">Tax payable</h2>
+                    <partial name="_TaxCalculation" model="tax" />
+                    @if (w.Ledger.IncomeTaxExpense != 0)
+                    {
+                        <p class="small text-muted mt-2 mb-0">The ledger shows income tax expense of @w.Ledger.IncomeTaxExpense.ToString("C") for the year (current and deferred).</p>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h5">Capital gains</h2>
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        <tr><td>Discount capital gains (assets held more than 12 months)</td><td class="text-end">@w.Cgt.DiscountGains.ToString("C")</td></tr>
+                        <tr><td>Other capital gains</td><td class="text-end">@w.Cgt.OtherGains.ToString("C")</td></tr>
+                        <tr><td>Capital losses this year</td><td class="text-end">(@w.Cgt.CurrentYearLosses.ToString("C"))</td></tr>
+                        <tr><td>Capital losses brought forward @(w.Data.Settings.CapitalLossesBroughtForward is null ? "(worked out from the trades)" : "(entered)")</td><td class="text-end">(@w.Cgt.PriorYearLosses.ToString("C"))</td></tr>
+                        <tr><td>CGT discount (@w.Cgt.Rate.RateText)</td><td class="text-end">(@w.Cgt.Discount.ToString("C"))</td></tr>
+                        <tr class="fw-bold border-top"><td>Net capital gain</td><td class="text-end">@w.Cgt.NetCapitalGain.ToString("C")</td></tr>
+                        <tr class="text-muted"><td>Net capital losses carried forward</td><td class="text-end">@w.Cgt.LossCarriedForward.ToString("C")</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5 no-print">
+        <form method="post" asp-page-handler="Save" asp-route-fy="@Model.Year" class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h5">Settings for @w.YearLabel</h2>
+                <div class="mb-2">
+                    <label asp-for="Settings.TaxLossesBroughtForward" class="form-label small mb-1">Tax losses brought forward</label>
+                    <input asp-for="Settings.TaxLossesBroughtForward" class="form-control form-control-sm" />
+                </div>
+                <div class="mb-2">
+                    <label asp-for="Settings.CapitalLossesBroughtForward" class="form-label small mb-1">Capital losses brought forward</label>
+                    <input asp-for="Settings.CapitalLossesBroughtForward" class="form-control form-control-sm" placeholder="Leave blank to work out from the trades" />
+                </div>
+                @if (w.EntityType == ClientEntityTypes.Company)
+                {
+                    <div class="mb-2">
+                        <label asp-for="Settings.TaxRatePercent" class="form-label small mb-1">Company tax rate (%)</label>
+                        <input asp-for="Settings.TaxRatePercent" class="form-control form-control-sm" placeholder="30" />
+                        <div class="form-text">25% only for a base rate entity. A company with more than 80% passive income (dividends, interest, gains) pays 30%.</div>
+                    </div>
+                }
+                @if (w.EntityType == ClientEntityTypes.Smsf)
+                {
+                    <div class="mb-2">
+                        <label asp-for="Settings.EcpiPercent" class="form-label small mb-1">Exempt current pension income (%)</label>
+                        <input asp-for="Settings.EcpiPercent" class="form-control form-control-sm" placeholder="From the actuarial certificate" />
+                    </div>
+                }
+                @if (w.EntityType is ClientEntityTypes.Company or ClientEntityTypes.Smsf)
+                {
+                    <div class="mb-2">
+                        <label asp-for="Settings.PaygInstalments" class="form-label small mb-1">PAYG instalments paid for the year</label>
+                        <input asp-for="Settings.PaygInstalments" class="form-control form-control-sm" />
+                    </div>
+                }
+                <button type="submit" class="btn btn-sm btn-primary" disabled="@Model.Locked">Save settings</button>
+            </div>
+        </form>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h5">Adjustments</h2>
+                @if (w.Data.Adjustments.Count == 0)
+                {
+                    <p class="text-muted small">None yet. Add expenses that aren't deductible, or income the accounts treat differently from the tax law.</p>
+                }
+                else
+                {
+                    <table class="table table-sm">
+                        @foreach (var a in w.Data.Adjustments)
+                        {
+                            <tr>
+                                <td>@TaxAdjustmentKinds.Label(a.Kind)<div class="small text-muted">@a.Description</div></td>
+                                <td class="text-end">@a.Amount.ToString("C")</td>
+                                <td class="text-end">
+                                    <form method="post" asp-page-handler="Delete" asp-route-fy="@Model.Year" asp-route-adjustmentId="@a.AdjustmentId" onsubmit="return confirm('Delete this adjustment?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" disabled="@Model.Locked"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </table>
+                }
+                <form method="post" asp-page-handler="Add" asp-route-fy="@Model.Year">
+                    <div class="mb-2">
+                        <select asp-for="Adjustment.Kind" class="form-select form-select-sm">
+                            @foreach (var k in TaxAdjustmentKinds.All)
+                            {
+                                <option value="@k">@TaxAdjustmentKinds.Label(k)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2"><input asp-for="Adjustment.Description" class="form-control form-control-sm" placeholder="Description, e.g. Entertainment" maxlength="200" /></div>
+                    <div class="mb-2"><input asp-for="Adjustment.Amount" class="form-control form-control-sm" placeholder="Amount" /></div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary" disabled="@Model.Locked">Add adjustment</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

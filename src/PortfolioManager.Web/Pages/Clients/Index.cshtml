@@ -1,0 +1,87 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Clients";
+    var detailsUrl = Url.Page("/Clients/Details");
+    var statementsUrl = Url.Page("/Accounting/Statements");
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Clients</h1>
+    <a asp-page="/Clients/Practice" class="btn btn-sm btn-outline-secondary"><i class="bi bi-briefcase"></i> Practice details</a>
+</div>
+
+@if (!Model.HasPractice)
+{
+    <div class="alert alert-info">
+        Add your <a asp-page="/Clients/Practice">practice details</a> (practice name, preparer and tax agent number) so they can
+        go on the compilation report.
+    </div>
+}
+
+<p class="text-muted small">
+    Each portfolio you can open is a client. Choosing one switches the site to that portfolio, as the picker in the navbar does.
+</p>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Client</th>
+                    <th>Entity type</th>
+                    <th>ABN</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Clients.Count == 0)
+                {
+                    <tr><td colspan="4" class="text-center text-muted p-4">You don't have access to any portfolios yet.</td></tr>
+                }
+                @foreach (var c in Model.Clients)
+                {
+                    var isSelected = c.PortfolioId == Model.Selected?.PortfolioId;
+                    <tr>
+                        <td>
+                            <div class="fw-bold">@c.LegalName</div>
+                            @if (!string.Equals(c.LegalName, c.PortfolioName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <div class="small text-muted">Portfolio: @c.PortfolioName</div>
+                            }
+                        </td>
+                        <td>
+                            @ClientEntityTypes.Describe(c.EntityType)
+                            @if (!c.Saved)
+                            {
+                                <span class="badge text-bg-warning ms-1" title="Taken from the portfolio until the client details are saved">details not saved</span>
+                            }
+                        </td>
+                        <td class="text-nowrap">@c.AbnDisplay</td>
+                        <td class="text-end text-nowrap">
+                            @if (isSelected)
+                            {
+                                <span class="badge text-bg-primary me-1">Open now</span>
+                                <a asp-page="/Clients/Details" class="btn btn-sm btn-outline-secondary">Client details</a>
+                                <a asp-page="/Accounting/Statements" class="btn btn-sm btn-outline-primary">Statements</a>
+                            }
+                            else
+                            {
+                                <form method="post" asp-page="/Portfolio/Select" class="d-inline">
+                                    <input type="hidden" name="portfolioId" value="@c.PortfolioId" />
+                                    <input type="hidden" name="returnUrl" value="@detailsUrl" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Client details</button>
+                                </form>
+                                <form method="post" asp-page="/Portfolio/Select" class="d-inline">
+                                    <input type="hidden" name="portfolioId" value="@c.PortfolioId" />
+                                    <input type="hidden" name="returnUrl" value="@statementsUrl" />
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">Statements</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

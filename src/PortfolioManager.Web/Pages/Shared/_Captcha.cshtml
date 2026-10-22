@@ -1,0 +1,7 @@
+@* The "I'm human" check (Cloudflare Turnstile), shown only when Captcha keys are set. Put it inside the form. *@
+@inject Captcha Captcha
+@if (Captcha.IsEnabled)
+{
+    <div class="cf-turnstile mb-3" data-sitekey="@Captcha.SiteKey"></div>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+}

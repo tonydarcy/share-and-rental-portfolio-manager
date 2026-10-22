@@ -1,0 +1,155 @@
+@page
+@model EditModel
+@{
+    var a = Model.Existing;
+    ViewData["Title"] = a is null ? "Add an asset" : a.Display;
+    var posted = a is not null && (a.Posted > 0 || a.IsDisposed);
+    var methods = DepreciationMethods.All.Where(m => Model.Australia || !DepreciationMethods.IsAustralianOnly(m));
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    async Task AccountSelect(string name, int value, string label)
+    {
+        <div class="col-md-4">
+            <label class="form-label" for="@name.Replace(".", "_")">@label</label>
+            <select name="@name" id="@name.Replace(".", "_")" class="form-select" disabled="@posted">
+                @foreach (var x in Model.Accounts) { <option value="@x.AccountId" selected="@(x.AccountId == value)">@x.Display</option> }
+            </select>
+        </div>
+    }
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">@ViewData["Title"] @if (a?.IsDisposed == true) { <span class="badge text-bg-secondary fs-6">sold @a.Disposed?.ToString("d")</span> }</h1>
+    <a asp-page="/Assets/Index" class="btn btn-sm btn-outline-secondary">All assets</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="post" asp-page-handler="Save" asp-route-id="@Model.Id" class="card shadow-sm mb-3">
+    <div class="card-body">
+        <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+        @if (posted)
+        {
+            <div class="alert alert-light border small">Depreciation has been posted for this asset, so only its number, name and description can change. To fix the figures, delete the depreciation runs back to its start.</div>
+        }
+        <div class="row g-3">
+            <div class="col-sm-3 col-md-2"><label asp-for="Input.Number" class="form-label">Number</label><input asp-for="Input.Number" class="form-control" maxlength="30" /></div>
+            <div class="col-sm-9 col-md-5"><label asp-for="Input.Name" class="form-label">Name</label><input asp-for="Input.Name" class="form-control" maxlength="200" required placeholder="e.g. Toyota HiLux" /></div>
+            <div class="col-md-5"><label asp-for="Input.Description" class="form-label">Description</label><input asp-for="Input.Description" class="form-control" maxlength="500" placeholder="Serial number, where it is" /></div>
+            <div class="col-sm-4 col-md-2"><label asp-for="Input.Purchased" class="form-label">Bought</label><input asp-for="Input.Purchased" type="date" class="form-control" disabled="@posted" /></div>
+            <div class="col-sm-4 col-md-2"><label asp-for="Input.Start" class="form-label">First used</label><input asp-for="Input.Start" type="date" class="form-control" disabled="@posted" /></div>
+            <div class="col-sm-4 col-md-2"><label asp-for="Input.Cost" class="form-label">Cost</label><input asp-for="Input.Cost" type="number" step="0.01" min="0.01" class="form-control text-end" disabled="@posted" /></div>
+            <div class="col-sm-6 col-md-4">
+                <label asp-for="Input.Method" class="form-label">Depreciation method</label>
+                <select asp-for="Input.Method" class="form-select" disabled="@posted">
+                    @foreach (var m in methods) { <option value="@m">@DepreciationMethods.Label(m)</option> }
+                </select>
+            </div>
+            <div class="col-sm-6 col-md-2"><label asp-for="Input.LifeYears" class="form-label">Effective life (years)</label><input asp-for="Input.LifeYears" type="number" step="0.01" min="0" class="form-control" disabled="@posted" /></div>
+            @{ await AccountSelect("Input.AssetAccountId", Model.Input.AssetAccountId, "Asset account"); }
+            @{ await AccountSelect("Input.AccumAccountId", Model.Input.AccumAccountId, "Accumulated depreciation account"); }
+            @{ await AccountSelect("Input.ExpenseAccountId", Model.Input.ExpenseAccountId, "Depreciation expense account"); }
+        </div>
+        <details class="mt-3" open="@(Model.Input.OpeningAccum > 0)">
+            <summary class="small">Brought in part way through its life</summary>
+            <div class="row g-3 mt-0">
+                <div class="col-sm-4 col-md-3"><label asp-for="Input.OpeningDate" class="form-label">Depreciation to</label><input asp-for="Input.OpeningDate" type="date" class="form-control" disabled="@posted" /></div>
+                <div class="col-sm-4 col-md-3"><label asp-for="Input.OpeningAccum" class="form-label">Depreciation by then</label><input asp-for="Input.OpeningAccum" type="number" step="0.01" min="0" class="form-control text-end" disabled="@posted" /></div>
+                <div class="col-md-6 small text-muted align-self-end">For an asset moved from another system: its depreciation up to that date (already in the opening balances). Depreciation here carries on from the day after.</div>
+            </div>
+        </details>
+        <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">@(a is null ? "Add asset" : "Save")</button>
+        </div>
+        <div class="small text-muted mt-2">
+            Diminishing value: the value at the start of each year × days held ÷ 365 × 200% ÷ effective life. Prime cost: the cost × days held ÷ 365 ÷ effective life.
+            @if (Model.Australia)
+            {
+                <text>
+                    Low-value pool: 18.75% in the year it is added (whatever the date), then 37.5% a year, for assets under @DepreciationEngine.LowValueThreshold.ToString("C0").
+                    Small business pool: 15% then 30%. Instant asset write-off: the whole cost when first used, for small businesses and assets under @DepreciationEngine.WriteOffThreshold.ToString("C0").
+                </text>
+            }
+        </div>
+    </div>
+</form>
+
+@if (a is not null)
+{
+    var schedule = Model.Schedule();
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header"><strong>Schedule</strong> <span class="small text-muted">(each financial year)</span></div>
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Year</th><th class="text-end">Opening value</th><th class="text-end">Depreciation</th></tr></thead>
+                    <tbody>
+                        @foreach (var (year, opening, amount) in schedule)
+                        {
+                            <tr><td>@Core.Tax.FinancialYear.Label(year, RegionSettings.Current.YearStart)</td><td class="text-end">@opening.ToString("C")</td><td class="text-end">@amount.ToString("C")</td></tr>
+                        }
+                    </tbody>
+                </table>
+                <div class="card-body small text-muted">In the books now: @a.Accumulated.ToString("C") (@(a.LastRun is { } lr ? $"posted to {lr:d}" : "nothing posted yet")).</div>
+            </div>
+            @if (Model.CanEdit && !posted)
+            {
+                <form method="post" asp-page-handler="Delete" asp-route-id="@a.Id"><button type="submit" class="btn btn-sm btn-outline-danger">Delete asset</button></form>
+            }
+        </div>
+        @if (Model.CanEdit)
+        {
+            <div class="col-lg-6">
+                @if (a.IsDisposed)
+                {
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <h2 class="h6">Sold or scrapped on @a.Disposed?.ToString("d")</h2>
+                            <p class="mb-2">Proceeds @a.Proceeds?.ToString("C"), depreciation to the sale @a.DisposalDepreciation?.ToString("C"),
+                                @(a.GainOnSale < 0 ? "loss" : "gain") of @Math.Abs(a.GainOnSale ?? 0).ToString("C").</p>
+                            @if (a.DisposalJournalId is { } dj) { <a asp-page="/Accounting/Journal" asp-route-id="@dj" class="btn btn-sm btn-outline-secondary">Journal</a> }
+                            <form method="post" asp-page-handler="UndoDisposal" asp-route-id="@a.Id" class="d-inline"><button type="submit" class="btn btn-sm btn-outline-danger">Undo the sale</button></form>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    var soldOn = ViewData["SoldOn"] as DateOnly? ?? Model.Today;
+                    var pa = ViewData["ProceedsAccountId"] as int?;
+                    <form method="post" asp-page-handler="Dispose" asp-route-id="@a.Id" class="card shadow-sm">
+                        <div class="card-body">
+                            <h2 class="h6">Sell or scrap it</h2>
+                            <div class="row g-2">
+                                <div class="col-sm-6"><label class="form-label" for="soldOn">Date</label><input type="date" id="soldOn" name="soldOn" value="@soldOn.ToString("yyyy-MM-dd")" class="form-control" /></div>
+                                <div class="col-sm-6"><label class="form-label" for="proceeds">Sold for (nil if scrapped)</label><input type="number" id="proceeds" name="proceeds" step="0.01" min="0" value="@(Model.Preview?.Proceeds.ToString(inv) ?? "0")" class="form-control text-end" /></div>
+                                <div class="col-12">
+                                    <label class="form-label" for="proceedsAccountId">Money went to</label>
+                                    <select id="proceedsAccountId" name="proceedsAccountId" class="form-select">@foreach (var b in Model.BankAccounts) { <option value="@b.AccountId" selected="@(b.AccountId == pa)">@b.DisplayName</option> }</select>
+                                </div>
+                            </div>
+                            @if (Model.Preview is { } p)
+                            {
+                                <table class="table table-sm mt-3 mb-2">
+                                    <tr><td>Depreciation from the last run to the sale</td><td class="text-end">@p.FinalDepreciation.ToString("C")</td></tr>
+                                    <tr><td>Written-down value at the sale</td><td class="text-end">@p.WrittenDown.ToString("C")</td></tr>
+                                    <tr class="fw-bold"><td>@(p.Gain < 0 ? "Loss" : "Gain") on sale</td><td class="text-end">@Math.Abs(p.Gain).ToString("C")</td></tr>
+                                </table>
+                                <input type="hidden" name="confirm" value="true" />
+                                <button type="submit" class="btn btn-danger">Post the sale</button>
+                                <a asp-route-id="@a.Id" class="btn btn-outline-secondary">Cancel</a>
+                            }
+                            else
+                            {
+                                <button type="submit" class="btn btn-outline-primary mt-3">Work it out</button>
+                            }
+                            <p class="small text-muted mt-2 mb-0">Posts the depreciation to the sale date, removes the asset's cost and depreciation, and puts the difference from the proceeds to Gain or Loss on Disposal of Assets.@(Model.Australia ? " A balancing adjustment for tax may differ for pooled assets: check it." : "")</p>
+                        </div>
+                    </form>
+                }
+            </div>
+        }
+    </div>
+}

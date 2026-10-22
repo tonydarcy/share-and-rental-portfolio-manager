@@ -1,0 +1,40 @@
+@page
+@model PortfolioManager.Web.Pages.Account.ResendConfirmationModel
+@{
+    ViewData["Title"] = "Confirm your email";
+}
+
+<div class="row justify-content-center">
+    <div class="col-sm-10 col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h1 class="h4 mb-3">Confirm your email</h1>
+                @if (!Model.CanSendEmail)
+                {
+                    <p>This site doesn't send email, so there's nothing to confirm. <a asp-page="/Account/Login">Log in</a>.</p>
+                }
+                else if (Model.Sent)
+                {
+                    <div class="alert alert-success" role="status">
+                        If @Model.Email has an account that still needs confirming, we've emailed it a new link. It works for 3 days.
+                    </div>
+                }
+                else
+                {
+                    <p class="small">We'll email you a new link to confirm your address.</p>
+                    <form method="post">
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+                        <div class="mb-3">
+                            <label asp-for="Email" class="form-label"></label>
+                            <input asp-for="Email" class="form-control" autocomplete="username" autofocus />
+                            <span asp-validation-for="Email" class="text-danger small"></span>
+                        </div>
+                        <partial name="_Captcha" />
+                        <button type="submit" class="btn btn-primary w-100">Send the link again</button>
+                    </form>
+                }
+                <p class="text-center small mt-3 mb-0"><a asp-page="/Account/Login">Back to log in</a></p>
+            </div>
+        </div>
+    </div>
+</div>

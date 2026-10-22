@@ -1,0 +1,93 @@
+@page
+@model DepreciateModel
+@{
+    ViewData["Title"] = "Post depreciation";
+    var last = Model.Runs.FirstOrDefault();
+    var tooEarly = last is not null && DateOnly.FromDateTime(Model.To!.Value) <= last.To;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Post depreciation</h1>
+    <a asp-page="/Assets/Index" class="btn btn-sm btn-outline-secondary">Fixed assets</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="d-flex gap-2 align-items-center mb-3">
+    <label for="to" class="small text-muted">Depreciate to</label>
+    <input type="date" id="to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" style="max-width: 11rem" />
+    <button type="submit" class="btn btn-sm btn-outline-primary">Work it out</button>
+    @if (last is not null) { <span class="small text-muted">Last posted to @last.To.ToString("d")</span> }
+</form>
+
+@if (tooEarly)
+{
+    <div class="alert alert-warning">Depreciation is already posted to @last!.To.ToString("d"). Choose a later date, or delete the later runs below.</div>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Asset</th><th>Method</th><th class="text-end">Depreciation to the date</th><th class="text-end">Already in the books</th><th class="text-end">To post</th></tr></thead>
+            <tbody>
+                @if (Model.Lines.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-center text-muted p-4">Nothing to post to that date.</td></tr>
+                }
+                @foreach (var l in Model.Lines)
+                {
+                    <tr>
+                        <td><a asp-page="/Assets/Edit" asp-route-id="@l.Asset.Id">@l.Asset.Display</a></td>
+                        <td>@DepreciationMethods.Label(l.Asset.Method)</td>
+                        <td class="text-end">@l.ToDate.ToString("C")</td>
+                        <td class="text-end">@l.Posted.ToString("C")</td>
+                        <td class="text-end fw-semibold">@l.Amount.ToString("C")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Lines.Count > 0)
+            {
+                <tfoot><tr class="fw-bold"><td colspan="4" class="text-end">Total</td><td class="text-end">@Model.Lines.Sum(l => l.Amount).ToString("C")</td></tr></tfoot>
+            }
+        </table>
+    </div>
+</div>
+
+@if (Model.CanEdit && Model.Lines.Count > 0 && !tooEarly)
+{
+    <form method="post" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" class="mb-4">
+        <button type="submit" class="btn btn-primary">Post @Model.Lines.Sum(l => l.Amount).ToString("C") of depreciation on @Model.To?.ToString("d")</button>
+        <span class="small text-muted ms-2">One journal: debit depreciation expense, credit accumulated depreciation.</span>
+    </form>
+}
+
+@if (Model.Runs.Count > 0)
+{
+    <h2 class="h5">Runs posted</h2>
+    <div class="card shadow-sm">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>To</th><th class="text-end">Assets</th><th class="text-end">Amount</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var r in Model.Runs)
+                {
+                    <tr>
+                        <td>@r.To.ToString("d")</td>
+                        <td class="text-end">@r.Assets</td>
+                        <td class="text-end">@r.Total.ToString("C")</td>
+                        <td class="text-end text-nowrap">
+                            @if (r.JournalId is { } j) { <a asp-page="/Accounting/Journal" asp-route-id="@j" class="btn btn-sm btn-outline-secondary">Journal</a> }
+                            @if (Model.CanEdit && r == Model.Runs[0])
+                            {
+                                <form method="post" asp-page-handler="Delete" asp-route-runId="@r.Id" class="d-inline"><button type="submit" class="btn btn-sm btn-outline-danger">Delete</button></form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

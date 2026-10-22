@@ -1,0 +1,103 @@
+@page
+@model PortfolioManager.Web.Pages.Portfolio.SettingsModel
+@{
+    ViewData["Title"] = "Portfolio settings";
+    var months = Enumerable.Range(1, 12).Select(m => (m, System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)));
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Settings for @(Model.Portfolio?.Name ?? "this portfolio")</h1>
+    <a asp-page="/Portfolio/Manage" class="btn btn-sm btn-outline-secondary">All portfolios</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row">
+    <div class="col-lg-7">
+        <form method="post" class="card shadow-sm">
+            <fieldset class="card-body" disabled="@(!Model.Portfolio.CanEdit)">
+                @if (!Model.Portfolio.CanEdit)
+                {
+                    <div class="alert alert-info">You can view this portfolio but not change its settings.</div>
+                }
+                <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+
+                <div class="mb-3">
+                    <label asp-for="CountryCode" class="form-label">Country</label>
+                    <select asp-for="CountryCode" class="form-select" id="country">
+                        @foreach (var c in RegionSettings.Countries)
+                        {
+                            <option value="@c.Code" data-currency="@c.Currency" data-month="@c.YearStart.Month" data-day="@c.YearStart.Day" data-format="@c.Format">@c.Name</option>
+                        }
+                    </select>
+                    <div class="form-text">
+                        Australian portfolios show franking credits and the CGT discount on the tax reports. Other countries show
+                        dividends as one amount and capital gains without a discount, split by whether a parcel was held more than 12 months.
+                        Choosing a country fills in its usual settings below, which you can change.
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-8">
+                        <label asp-for="YearStartMonth" class="form-label">Financial year starts</label>
+                        <div class="input-group">
+                            <input asp-for="YearStartDay" type="number" min="1" max="28" class="form-control" style="max-width: 6rem" id="day" aria-label="Day" />
+                            <select asp-for="YearStartMonth" class="form-select" id="month">
+                                @foreach (var (m, name) in months)
+                                {
+                                    <option value="@m">@name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-text">1 July in Australia, 6 April in the UK, 1 January for a calendar year.</div>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Currency" class="form-label">Currency</label>
+                        <select asp-for="Currency" class="form-select" id="currency">
+                            @foreach (var c in RegionSettings.Currencies)
+                            {
+                                <option value="@c">@c</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="alert alert-warning small py-2" id="currencyWarning" hidden>
+                    Changing the currency doesn't convert amounts already entered. Set it before adding trades, or the totals will be
+                    labelled with the wrong currency.
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Format" class="form-label">Date and number format</label>
+                    <select asp-for="Format" class="form-select" id="format">
+                        @foreach (var f in RegionSettings.Formats)
+                        {
+                            <option value="@f.Culture">@f.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Save settings</button>
+            </fieldset>
+        </form>
+    </div>
+</div>
+
+<script>
+    (() => {
+        const el = id => document.getElementById(id);
+        el('country').addEventListener('change', e => {
+            const o = e.target.selectedOptions[0].dataset;
+            el('currency').value = o.currency;
+            el('month').value = o.month;
+            el('day').value = o.day;
+            el('format').value = o.format;
+            el('currency').dispatchEvent(new Event('change'));
+        });
+        const saved = @Json.Serialize(Model.SavedCurrency);
+        el('currency').addEventListener('change', () => el('currencyWarning').hidden = el('currency').value === saved);
+    })();
+</script>

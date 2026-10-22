@@ -1,0 +1,119 @@
+@page
+@model PortfolioManager.Web.Pages.Import.PricesModel
+@{
+    ViewData["Title"] = "Import share prices";
+    var preview = Model.Preview;
+    const int sampleSize = 50;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Import share prices</h1>
+</div>
+
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <p class="mb-2">
+            End-of-day prices for one exchange, as downloaded from
+            <a href="https://www2.commsec.com.au/Private/Charts/EndOfDayPrices.aspx" target="_blank" rel="noopener">CommSec</a> (Stock Easy format)
+            or <a href="http://www.eoddata.com/download.aspx" target="_blank" rel="noopener">End of Day Data</a> (EzyCharts format).
+            These prices are shared by <strong>every portfolio</strong>; a price already on file for the same code and date is replaced.
+        </p>
+        <p class="font-monospace small bg-body-secondary p-2 rounded">
+            Code, Date (yyyyMMdd or yyMMdd), Open, High, Low, Close, Volume<br />
+            BHP,20261014,45.10,45.80,44.95,45.62,8123456
+        </p>
+        <form method="post" asp-page-handler="Preview" enctype="multipart/form-data" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label asp-for="ExchangeCode" class="form-label">Exchange</label>
+                <input asp-for="ExchangeCode" class="form-control text-uppercase" maxlength="10" required />
+            </div>
+            <div class="col-md-7">
+                <label asp-for="Upload" class="form-label">CSV file (up to @(CsvImport.MaxFileBytes / (1024 * 1024)) MB)</label>
+                <input asp-for="Upload" type="file" accept=".csv,.txt,text/csv" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100">Preview</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (preview is not null)
+{
+    if (preview.FileError is not null)
+    {
+        <div class="alert alert-danger">@preview.FileError</div>
+        return;
+    }
+
+    var errorLines = preview.Lines.Where(l => !l.IsValid).Take(200).ToList();
+    var sample = preview.Lines.Where(l => l.IsValid).Take(sampleSize).ToList();
+    <div class="card shadow-sm">
+        <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+            <div>
+                <strong>@preview.ValidCount.ToString("N0")</strong> @Model.ExchangeCode.ToUpperInvariant() prices ready,
+                <strong class="@(preview.ErrorCount > 0 ? "text-danger" : "")">@preview.ErrorCount.ToString("N0")</strong> lines with errors (these will be skipped)
+            </div>
+            @if (preview.ValidCount > 0)
+            {
+                <form method="post" asp-page-handler="Import" enctype="multipart/form-data" class="ms-auto"
+                      data-confirm="Import @preview.ValidCount.ToString("N0") prices for every portfolio?" onsubmit="return confirm(this.dataset.confirm);">
+                    <input type="hidden" asp-for="Data" />
+                    <input type="hidden" asp-for="ExchangeCode" />
+                    <button type="submit" class="btn btn-success">Import @preview.ValidCount.ToString("N0") prices</button>
+                </form>
+            }
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Line</th>
+                        <th>Code</th>
+                        <th>Date</th>
+                        <th class="text-end">Open</th>
+                        <th class="text-end">High</th>
+                        <th class="text-end">Low</th>
+                        <th class="text-end">Close</th>
+                        <th class="text-end">Volume</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in errorLines)
+                    {
+                        <tr class="table-danger">
+                            <td class="text-muted">@line.LineNumber</td>
+                            <td colspan="4" class="font-monospace small text-break">@line.Text</td>
+                            <td colspan="3" class="small">
+                                @foreach (var e in line.Errors)
+                                {
+                                    <div class="text-danger">@e</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var line in sample)
+                    {
+                        var p = line.Value!;
+                        <tr>
+                            <td class="text-muted">@line.LineNumber</td>
+                            <td class="fw-bold">@p.StockCode</td>
+                            <td class="text-nowrap">@p.Date.ToString("d MMM yyyy")</td>
+                            <td class="text-end">@p.Open</td>
+                            <td class="text-end">@p.High</td>
+                            <td class="text-end">@p.Low</td>
+                            <td class="text-end fw-bold">@p.Close</td>
+                            <td class="text-end">@p.Volume.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (preview.ValidCount > sample.Count || preview.ErrorCount > errorLines.Count)
+        {
+            <div class="card-body small text-muted">Showing the first @errorLines.Count lines with errors and the first @sample.Count valid lines.</div>
+        }
+    </div>
+}

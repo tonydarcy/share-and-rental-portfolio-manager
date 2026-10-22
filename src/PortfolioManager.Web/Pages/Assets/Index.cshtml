@@ -1,0 +1,58 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Fixed assets";
+    var held = Model.Assets.Where(a => !a.IsDisposed).ToList();
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Fixed assets</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/Assets/Depreciate" class="btn btn-sm btn-outline-secondary">Post depreciation</a>
+        @if (Model.CanEdit) { <a asp-page="/Assets/Edit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Add an asset</a> }
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-sm-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted small">Cost</div><div class="fs-4 fw-bold">@held.Sum(a => a.Cost).ToString("C")</div></div></div></div>
+    <div class="col-sm-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted small">Depreciation in the books</div><div class="fs-4 fw-bold">@held.Sum(a => a.Accumulated).ToString("C")</div></div></div></div>
+    <div class="col-sm-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted small">Book value</div><div class="fs-4 fw-bold">@held.Sum(a => a.BookValue).ToString("C")</div><div class="small text-muted">@(Model.Runs.FirstOrDefault() is { } last ? $"Depreciated to {last.To:d}" : "No depreciation posted yet")</div></div></div></div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Asset</th><th>Bought</th><th>Method</th><th class="text-end">Cost</th><th class="text-end">Depreciation</th><th class="text-end">Book value</th><th></th></tr></thead>
+            <tbody>
+                @if (Model.Assets.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No assets yet. Add equipment, vehicles, furniture or computers to depreciate them.</td></tr>
+                }
+                @foreach (var a in Model.Assets)
+                {
+                    <tr class="@(a.IsDisposed ? "text-muted" : "")">
+                        <td><a asp-page="/Assets/Edit" asp-route-id="@a.Id">@a.Display</a></td>
+                        <td>@a.Purchased.ToString("d")</td>
+                        <td>@DepreciationMethods.Label(a.Method)@(a.LifeYears is { } l ? $", {l:0.##} years" : "")</td>
+                        <td class="text-end">@a.Cost.ToString("C")</td>
+                        <td class="text-end">@a.Accumulated.ToString("C")</td>
+                        <td class="text-end">@(a.IsDisposed ? "" : a.BookValue.ToString("C"))</td>
+                        <td>
+                            @if (a.IsDisposed)
+                            {
+                                <span class="badge text-bg-secondary">sold @a.Disposed?.ToString("d")</span>
+                                @if (a.GainOnSale is { } g) { <span class="small @(g < 0 ? "text-danger" : "text-success")">@(g < 0 ? "loss" : "gain") @Math.Abs(g).ToString("C")</span> }
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

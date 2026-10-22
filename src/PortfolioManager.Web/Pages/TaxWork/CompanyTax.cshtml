@@ -1,0 +1,148 @@
+@page
+@model CompanyTaxModel
+@{
+    ViewData["Title"] = "Company tax and franking";
+    var w = Model.Workpaper;
+    string M(decimal x) => x.ToString("#,##0.00;(#,##0.00);-");
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Company tax and franking account</h1>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/TaxWork/Div7a" class="btn btn-sm btn-outline-secondary"><i class="bi bi-calculator"></i> Division 7A calculator</a>
+        <a asp-page="/TaxWork/Reconciliation" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Tax reconciliation</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || w is null || Model.Franking is not { } f || Model.Deferred is not { } d)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_YearPicker" model="Model" />
+
+@if (w.EntityType != ClientEntityTypes.Company)
+{
+    <div class="alert alert-info no-print">This client is set up as @ClientEntityTypes.Describe(w.EntityType).ToLowerInvariant(), not a company. Change the entity type under <a asp-page="/Clients/Details">Client details</a> to see company tax.</div>
+}
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card shadow-sm mb-3 h-100">
+            <div class="card-body">
+                <h2 class="h5">Tax payable</h2>
+                @if (w.Tax is { } tax)
+                {
+                    <partial name="_TaxCalculation" model="tax" />
+                    <p class="small text-muted mt-2 mb-0">
+                        Year-end journal for current tax: debit income tax expense and credit income tax payable @tax.TaxAfterOffsets.ToString("C"),
+                        less any instalments already posted. The ledger shows @w.Ledger.IncomeTaxExpense.ToString("C") of income tax expense for the year.
+                        <a asp-page="/Accounting/JournalEntry" class="no-print">New journal entry</a>
+                    </p>
+                }
+                else
+                {
+                    <p class="text-muted mb-0">Only companies and SMSFs pay tax at a flat rate.</p>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm mb-3 h-100">
+            <div class="card-body">
+                <h2 class="h5">Deferred tax</h2>
+                <table class="table table-sm mb-2">
+                    <tbody>
+                        <tr><td>Market value adjustment (1390) at 30 June</td><td class="text-end">@M(d.Adjustment)</td></tr>
+                        <tr><td>Deferred tax liability expected at @d.RatePercent.ToString("0.##")%</td><td class="text-end">@M(d.Expected)</td></tr>
+                        <tr><td>Deferred tax liability in the ledger (2850)</td><td class="text-end">@M(d.Liability)</td></tr>
+                        <tr class="fw-bold border-top"><td>Difference</td><td class="text-end @(d.Difference == 0 ? "" : "text-danger")">@M(d.Difference)</td></tr>
+                        <tr class="text-muted"><td>Deferred tax expense for the year (5950)</td><td class="text-end">@M(d.YearExpense)</td></tr>
+                    </tbody>
+                </table>
+                <p class="small text-muted mb-0">
+                    The revaluation posts deferred tax on the movement in market value. A difference usually means the revaluation was posted at another rate,
+                    or not at all. Repost it under <a asp-page="/Accounting/Revaluation" class="no-print">Market value revaluation</a>. Deferred tax on carried-forward
+                    tax or capital losses isn't recognised here.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm my-3">
+    <div class="card-body">
+        <h2 class="h5">Franking account, @w.YearLabel</h2>
+        <table class="table table-sm align-middle">
+            <thead class="table-light"><tr><th>Date</th><th>Entry</th><th class="text-end">Credit</th><th class="text-end">Debit</th><th class="text-end">Balance</th><th class="no-print"></th></tr></thead>
+            <tbody>
+                <tr class="fw-semibold"><td>@w.YearStart.ToString("d MMM yyyy")</td><td>Opening balance</td><td></td><td></td><td class="text-end">@M(f.Opening)</td><td class="no-print"></td></tr>
+                @foreach (var l in f.Lines)
+                {
+                    <tr>
+                        <td>@l.Date.ToString("d MMM yyyy")</td>
+                        <td>@l.Description <span class="small text-muted">@FrankingKinds.Label(l.Kind)</span></td>
+                        <td class="text-end">@M(l.Credit)</td>
+                        <td class="text-end">@M(l.Debit)</td>
+                        <td class="text-end">@M(l.Balance)</td>
+                        <td class="text-end no-print">
+                            @if (l.EntryId is { } id)
+                            {
+                                <form method="post" asp-page-handler="Delete" asp-route-fy="@Model.Year" asp-route-entryId="@id" onsubmit="return confirm('Delete this entry?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot class="fw-bold border-top border-dark">
+                <tr><td>@Model.YearEnd.ToString("d MMM yyyy")</td><td>Closing balance</td><td class="text-end">@M(f.Credits)</td><td class="text-end">@M(f.Debits)</td><td class="text-end @(f.Deficit ? "text-danger" : "")">@M(f.Closing)</td><td class="no-print"></td></tr>
+            </tfoot>
+        </table>
+        @if (f.Deficit)
+        {
+            <div class="alert alert-danger py-2">The franking account is in deficit at 30 June. Franking deficit tax of @Math.Abs(f.Closing).ToString("C") is payable with the franking account return.</div>
+        }
+        <p class="small text-muted mb-0">Franking credits received come from the year's payouts. Tax paid, dividends paid, refunds and the opening balance are entered below.</p>
+    </div>
+</div>
+
+<form method="post" asp-page-handler="Add" asp-route-fy="@Model.Year" class="card shadow-sm no-print">
+    <div class="card-body">
+        <h2 class="h5">Add a franking account entry</h2>
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-3"><label asp-for="Entry.Date" class="form-label small mb-1">Date</label><input asp-for="Entry.Date" type="date" class="form-control form-control-sm" /></div>
+            <div class="col-sm-4">
+                <label asp-for="Entry.Kind" class="form-label small mb-1">Kind</label>
+                <select asp-for="Entry.Kind" class="form-select form-select-sm" id="franking-kind">
+                    @foreach (var k in FrankingKinds.Entered)
+                    {
+                        <option value="@k">@FrankingKinds.Label(k)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-sm-5"><label asp-for="Entry.Description" class="form-label small mb-1">Description</label><input asp-for="Entry.Description" class="form-control form-control-sm" maxlength="200" /></div>
+            <div class="col-sm-3" data-kind="amount"><label asp-for="Entry.Amount" class="form-label small mb-1">Amount</label><input asp-for="Entry.Amount" class="form-control form-control-sm" /></div>
+            <div class="col-sm-3" data-kind="dividend"><label asp-for="Entry.Dividend" class="form-label small mb-1">Cash dividend paid</label><input asp-for="Entry.Dividend" class="form-control form-control-sm" /></div>
+            <div class="col-sm-3" data-kind="dividend"><label asp-for="Entry.FrankedPercent" class="form-label small mb-1">Franked %</label><input asp-for="Entry.FrankedPercent" class="form-control form-control-sm" /></div>
+            <div class="col-sm-3" data-kind="dividend"><label asp-for="Entry.TaxRate" class="form-label small mb-1">Company tax rate %</label><input asp-for="Entry.TaxRate" class="form-control form-control-sm" /></div>
+            <div class="col-sm-3"><button type="submit" class="btn btn-sm btn-primary">Add entry</button></div>
+        </div>
+        <p class="small text-muted mt-2 mb-0">An opening debit balance is entered as a negative amount. A dividend's franking debit is worked out from the franked part and the rate.</p>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        (() => {
+            const kind = document.getElementById('franking-kind');
+            const show = () => document.querySelectorAll('[data-kind]').forEach(el =>
+                el.classList.toggle('d-none', (el.dataset.kind === 'dividend') !== (kind.value === 'DividendPaid')));
+            kind.addEventListener('change', show);
+            show();
+        })();
+    </script>
+}

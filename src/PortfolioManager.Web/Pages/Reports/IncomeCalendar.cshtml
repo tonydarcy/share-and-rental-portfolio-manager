@@ -1,0 +1,106 @@
+@page
+@model PortfolioManager.Web.Pages.Reports.IncomeCalendarModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Income calendar";
+    var m = Model.ByMonth;
+    var au = Model.Region.IsAustralia;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Income calendar</h1>
+    <a asp-page="/CorporateActions/Announced" class="btn btn-sm btn-outline-success">Announced dividends waiting</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<h2 class="h5">Coming up</h2>
+<p class="text-muted small">Dividends announced for your holdings and not yet paid, from the daily price update. The amount is an estimate: the units held at the ex-date times the amount per unit, before any withholding.</p>
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Ex-date</th><th>Pays</th><th>Code</th><th class="text-end">Per unit</th><th class="text-end">Units</th><th class="text-end">Estimate</th></tr>
+            </thead>
+            <tbody>
+                @if (Model.Upcoming.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted p-4">No dividends announced yet for your holdings.</td></tr>
+                }
+                @foreach (var u in Model.Upcoming)
+                {
+                    <tr>
+                        <td class="text-nowrap">@u.ExDate.ToString("d MMM yyyy") @if (!u.ExDatePassed) { <span class="badge text-bg-info">to come</span> }</td>
+                        <td class="text-nowrap">@(u.PaymentDate?.ToString("d MMM yyyy") ?? "Not announced")</td>
+                        <td><span class="fw-bold">@u.StockCode</span> <span class="text-muted small">@u.ExchangeCode</span></td>
+                        <td class="text-end">@u.AmountPerUnit.ToString("0.00####") @(u.Currency ?? "")</td>
+                        <td class="text-end">@u.Units.ToString("N0")</td>
+                        <td class="text-end">@u.Estimate.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Upcoming.Count > 0)
+            {
+                <tfoot><tr class="fw-bold"><td colspan="5">Total</td><td class="text-end">@Model.Upcoming.Sum(u => u.Estimate).ToString("N2")</td></tr></tfoot>
+            }
+        </table>
+    </div>
+</div>
+
+<h2 class="h5">Income received by month</h2>
+<partial name="_PeriodFilter" model="Model" />
+<p class="small text-muted">
+    Cash received from dividends, distributions, interest and rent, by payment date: @m.Total.ToString("C")
+    @if (au) { <span>plus @m.FrankingCredits.ToString("C") of franking credits</span> }.
+</p>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 small">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    @foreach (var (y, mo) in m.Months)
+                    {
+                        <th class="text-end">@CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(mo) @(y % 100)</th>
+                    }
+                    <th class="text-end">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!m.Rows.Any())
+                {
+                    <tr><td colspan="@(m.Months.Count + 2)" class="text-center text-muted p-4">No income in this period.</td></tr>
+                }
+                @foreach (var (ex, code) in m.Holdings)
+                {
+                    <tr>
+                        <td class="text-nowrap"><span class="fw-bold">@code</span> <span class="text-muted">@ex</span></td>
+                        @foreach (var (y, mo) in m.Months)
+                        {
+                            var v = m.Cash(ex, code, y, mo);
+                            <td class="text-end">@(v == 0 ? "" : v.ToString("N0"))</td>
+                        }
+                        <td class="text-end fw-bold">@m.HoldingTotal(ex, code).ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (m.Rows.Any())
+            {
+                <tfoot>
+                    <tr class="fw-bold">
+                        <td>Total</td>
+                        @foreach (var (y, mo) in m.Months)
+                        {
+                            <td class="text-end">@m.MonthTotal(y, mo).ToString("N0")</td>
+                        }
+                        <td class="text-end">@m.Total.ToString("N2")</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>

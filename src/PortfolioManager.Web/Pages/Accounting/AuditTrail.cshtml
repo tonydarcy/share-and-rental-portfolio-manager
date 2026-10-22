@@ -1,0 +1,78 @@
+@page
+@model AuditTrailModel
+@using PortfolioManager.Core.Practice
+@{
+    ViewData["Title"] = "Audit trail";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Audit trail</h1>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">Every journal, trade, payout, corporate action, cash transaction and invoice added, changed or deleted in
+    @Model.Portfolio.Name, with the login that did it. Changes are recorded from the day the audit trail was set up. Rows marked
+    <span class="badge text-bg-danger">after lock</span> changed something dated in a period that had already been locked, so the year was unlocked
+    to make the change.</p>
+
+<form method="get" class="row g-2 align-items-end mb-3 no-print">
+    <div class="col-auto"><label class="form-label small mb-1" asp-for="From">Changed from</label><input asp-for="From" type="date" class="form-control form-control-sm" /></div>
+    <div class="col-auto"><label class="form-label small mb-1" asp-for="To">to</label><input asp-for="To" type="date" class="form-control form-control-sm" /></div>
+    <div class="col-auto">
+        <label class="form-label small mb-1" asp-for="Table">What</label>
+        <select asp-for="Table" class="form-select form-select-sm">
+            <option value="">Everything</option>
+            @foreach (var t in AuditRules.Tables) { <option value="@t">@AuditEntry.TableLabel(t)</option> }
+        </select>
+    </div>
+    <div class="col-auto form-check ms-2 mb-1"><input asp-for="AfterLock" class="form-check-input" /><label asp-for="AfterLock" class="form-check-label small">Only changes after a lock</label></div>
+    <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary">Show</button></div>
+</form>
+
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>When</th><th>Who</th><th>What</th><th>Action</th><th>Dated</th><th>Detail</th></tr></thead>
+            <tbody>
+                @if (Model.Entries.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted p-4">No changes in this period.</td></tr>
+                }
+                @foreach (var e in Model.Entries)
+                {
+                    <tr class="@(e.AfterLock ? "table-danger" : "")">
+                        <td class="text-nowrap small">@e.Changed.ToString("g")</td>
+                        <td class="small">@e.Who</td>
+                        <td class="text-nowrap">
+                            @if (e.Table == "Journal" && e.Action != "Deleted") { <a asp-page="/Accounting/Journal" asp-route-id="@e.RecordId">Journal @e.RecordId</a> }
+                            else { @($"{AuditEntry.TableLabel(e.Table)} {e.RecordId}") }
+                        </td>
+                        <td>@e.Action @if (e.AfterLock) { <span class="badge text-bg-danger">after lock</span> }</td>
+                        <td class="text-nowrap">@e.RecordDate?.ToString("d")</td>
+                        <td class="small">@e.Summary</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="h5">Lock changes</h2>
+<div class="card shadow-sm">
+    <table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th>When</th><th>Who</th><th>Locked up to</th></tr></thead>
+        <tbody>
+            @if (Model.LockHistory.Count == 0) { <tr><td colspan="3" class="text-muted text-center p-3">The ledger has never been locked.</td></tr> }
+            @foreach (var h in Model.LockHistory)
+            {
+                <tr><td>@h.Changed.ToString("g")</td><td>@h.ChangedBy</td><td>@(h.LockedTo?.ToString("d") ?? "Unlocked")</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,243 @@
+@page
+@model PortfolioManager.Web.Pages.CorporateActions.AddTransferModel
+@using PortfolioManager.Core.CorporateActions
+@using PortfolioManager.Core.Tax
+@{
+    ViewData["Title"] = "Record a corporate action";
+    var kind = Model.Input.Kind ?? ParcelTransfer.Demerger;
+    bool Is(string k) => kind.Equals(k, StringComparison.OrdinalIgnoreCase);
+    var au = RegionSettings.Current.IsAustralia;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Record a corporate action</h1>
+    <a asp-page="./Index" class="btn btn-sm btn-outline-secondary">Back to corporate actions</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<ul class="nav nav-pills mb-3 flex-wrap">
+    @foreach (var k in TransferKinds.All)
+    {
+        <li class="nav-item"><a class="nav-link @(Is(k) ? "active" : "")" asp-route-kind="@k" asp-route-market="@Model.Input.Market" asp-route-code="@Model.Input.Code">@TransferKinds.Text(k)</a></li>
+    }
+</ul>
+
+<div class="row">
+    <div class="col-lg-9 col-xl-8">
+        <form method="post" class="card shadow-sm" novalidate>
+            <input type="hidden" asp-for="Input.Kind" value="@kind" />
+            <div class="card-body">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+                <p class="text-muted">
+                    For <strong>@Model.Portfolio.Name</strong>.
+                    @if (Is(ParcelTransfer.Demerger))
+                    {
+                        <text>The new company's shares are added with part of the old cost base, and keep each parcel's purchase date@(au ? " for the CGT discount" : ""). Use the percentage in the company's demerger booklet or the ATO's class ruling.</text>
+                    }
+                    else if (Is(ParcelTransfer.Takeover))
+                    {
+                        <text>All the shares held at the end of the date are given up for cash, new shares, or both. @(au ? "With scrip-for-scrip rollover the new shares take over part of the cost base and the purchase dates, and only the cash part is a capital gain now." : "")</text>
+                    }
+                    else if (Is(ParcelTransfer.OptionExercise))
+                    {
+                        <text>For options or warrants (including employee options) exercised for shares. The shares' cost base is the exercise price plus what the options cost, and they're acquired on the exercise date@(au ? ", so the 12 months for the CGT discount start then" : ""). Exercising isn't itself a gain or loss. Options that lapsed are recorded under Worthless, delisted or lapsed.</text>
+                    }
+                    else if (Is(ParcelTransfer.CodeChange))
+                    {
+                        <text>Everything recorded under the old code (trades, income, corporate actions, alerts) moves to the new code. Nothing is bought or sold.</text>
+                    }
+                    else
+                    {
+                        <text>Records a sale of every unit (or option) held for nil, so the cost base is a capital loss on that date. @(au ? "A liquidator's declaration (or the shares being cancelled) is what lets you claim it; keep a copy." : "")</text>
+                    }
+                </p>
+
+                <div class="row g-3">
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Market" class="form-label">Exchange</label>
+                        <input asp-for="Input.Market" class="form-control text-uppercase" maxlength="50" required />
+                        <span asp-validation-for="Input.Market" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Code" class="form-label">@(Is(ParcelTransfer.CodeChange) ? "Old code" : "Stock code")</label>
+                        <input asp-for="Input.Code" class="form-control text-uppercase" maxlength="50" list="holdings" required />
+                        <datalist id="holdings">
+                            @foreach (var h in Model.Holdings)
+                            {
+                                <option value="@h.Code">@h.Exchange</option>
+                            }
+                        </datalist>
+                        <span asp-validation-for="Input.Code" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Date" class="form-label">@(Is(ParcelTransfer.Demerger) ? "Implementation date" : Is(ParcelTransfer.Takeover) ? "Date the shares were given up" : "Date")</label>
+                        <input asp-for="Input.Date" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" required />
+                        <span asp-validation-for="Input.Date" class="text-danger small"></span>
+                    </div>
+
+                    @if (!Is(TransferKinds.Worthless))
+                    {
+                        <div class="col-sm-4">
+                            <label asp-for="Input.NewMarket" class="form-label">New exchange</label>
+                            <input asp-for="Input.NewMarket" class="form-control text-uppercase" maxlength="50" />
+                            <span asp-validation-for="Input.NewMarket" class="text-danger small"></span>
+                        </div>
+                        <div class="col-sm-4">
+                            <label asp-for="Input.NewCode" class="form-label">@(Is(ParcelTransfer.CodeChange) ? "New code" : Is(ParcelTransfer.OptionExercise) ? "Code of the shares" : "New company's code")</label>
+                            <input asp-for="Input.NewCode" class="form-control text-uppercase" maxlength="50" />
+                            <span asp-validation-for="Input.NewCode" class="text-danger small"></span>
+                        </div>
+                        <div class="col-sm-4">
+                            <label asp-for="Input.NewName" class="form-label">New name <span class="text-muted small">(optional)</span></label>
+                            <input asp-for="Input.NewName" class="form-control" maxlength="500" />
+                            <span asp-validation-for="Input.NewName" class="text-danger small"></span>
+                        </div>
+                    }
+                    @if (Is(ParcelTransfer.OptionExercise))
+                    {
+                        <div class="col-sm-4">
+                            <label asp-for="Input.Units" class="form-label">Options exercised <span class="text-muted small">(blank for all)</span></label>
+                            <input asp-for="Input.Units" type="number" min="1" step="1" class="form-control" />
+                            <span asp-validation-for="Input.Units" class="text-danger small"></span>
+                        </div>
+                        <div class="col-sm-4">
+                            <label asp-for="Input.ExercisePrice" class="form-label">Exercise price per share</label>
+                            <input asp-for="Input.ExercisePrice" type="number" min="0" step="any" class="form-control" />
+                            <span asp-validation-for="Input.ExercisePrice" class="text-danger small"></span>
+                        </div>
+                    }
+                    @if (Is(ParcelTransfer.Demerger) || Is(ParcelTransfer.Takeover) || Is(ParcelTransfer.OptionExercise))
+                    {
+                        <div class="col-sm-4">
+                            <label asp-for="Input.NewUnits" class="form-label">New shares received</label>
+                            <input asp-for="Input.NewUnits" type="number" min="0" step="1" class="form-control" />
+                            <span asp-validation-for="Input.NewUnits" class="text-danger small"></span>
+                        </div>
+                    }
+                    @if (Is(ParcelTransfer.Takeover))
+                    {
+                        <div class="col-sm-4">
+                            <label asp-for="Input.NewSharePrice" class="form-label">Value of each new share</label>
+                            <input asp-for="Input.NewSharePrice" type="number" min="0" step="any" class="form-control" />
+                            <div class="form-text">Market value on the day.</div>
+                            <span asp-validation-for="Input.NewSharePrice" class="text-danger small"></span>
+                        </div>
+                        <div class="col-sm-4">
+                            <label asp-for="Input.CashPerShare" class="form-label">Cash for each old share</label>
+                            <input asp-for="Input.CashPerShare" type="number" min="0" step="any" class="form-control" />
+                            <span asp-validation-for="Input.CashPerShare" class="text-danger small"></span>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="form-check mt-2">
+                                <input asp-for="Input.Rollover" class="form-check-input" />
+                                <label asp-for="Input.Rollover" class="form-check-label">Choose scrip-for-scrip rollover for the new shares</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <label asp-for="Input.CostSharePercent" class="form-label">Cost base share for the new shares, % <span class="text-muted small">(optional)</span></label>
+                            <input asp-for="Input.CostSharePercent" type="number" min="0" max="100" step="any" class="form-control" />
+                            <div class="form-text">Left blank, it's the new shares' value as a share of everything received.</div>
+                            <span asp-validation-for="Input.CostSharePercent" class="text-danger small"></span>
+                        </div>
+                    }
+                    @if (Is(ParcelTransfer.Demerger))
+                    {
+                        <div class="col-sm-4">
+                            <label asp-for="Input.CostSharePercent" class="form-label">Cost base to the new company, %</label>
+                            <input asp-for="Input.CostSharePercent" type="number" min="0" max="100" step="any" class="form-control" />
+                            <span asp-validation-for="Input.CostSharePercent" class="text-danger small"></span>
+                        </div>
+                    }
+                    <div class="col-12">
+                        <label asp-for="Input.Comment" class="form-label">Comment <span class="text-muted small">(optional)</span></label>
+                        <input asp-for="Input.Comment" class="form-control" maxlength="500" />
+                        <span asp-validation-for="Input.Comment" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                @if (Model.Preview is { } p && Model.Transfer is { } t)
+                {
+                    <div class="border rounded p-3 mt-3 bg-body-tertiary">
+                        <h2 class="h6">@p.UnitsHeld.ToString("#,##0.####") @t.Code units held, cost base @p.CostBase.ToString("C")</h2>
+                        @if (t.IsTakeover)
+                        {
+                            <p class="small mb-2">
+                                Received @p.Cash.ToString("C") cash@(t.NewUnits > 0 ? $" and {t.NewUnits:N0} {t.NewCode} shares worth {p.ScripValue:C}" : ""), @p.Consideration.ToString("C") in all.
+                                @if (t.Rollover)
+                                {
+                                    <span>With rollover, @((p.CostShare * 100).ToString("0.##"))% of the cost base (@p.CostMoved.ToString("C")) goes to the new shares, and the gain counted now is on the cash: <strong>@p.GainNow(true).ToString("C")</strong>.</span>
+                                }
+                                else
+                                {
+                                    <span>Without rollover the whole holding is sold for that, a gain of <strong>@p.GainNow(false).ToString("C")</strong>@(t.NewUnits > 0 ? ", and the new shares cost what they were worth" : "").</span>
+                                }
+                            </p>
+                        }
+                        @if (t.IsExercise)
+                        {
+                            <p class="small mb-0">
+                                The options' cost base of @p.CostMoved.ToString("C") plus @((t.ExercisePrice * t.NewUnits).ToString("C")) paid
+                                (@t.NewUnits.ToString("N0") × @t.ExercisePrice.ToString("C4")) makes the @t.NewCode shares' cost base
+                                <strong>@((p.CostMoved + t.ExercisePrice * t.NewUnits).ToString("C"))</strong>, acquired on @t.Date.ToString("d MMM yyyy").
+                                Pay the exercise price from the bank as usual; it settles against Trade Clearing.
+                            </p>
+                        }
+                        else if (p.CostMoved > 0)
+                        {
+                            <table class="table table-sm mb-2">
+                                <thead>
+                                    <tr>
+                                        <th>Parcel bought</th>
+                                        <th class="text-end">Units</th>
+                                        <th class="text-end">Cost base</th>
+                                        <th class="text-end">Kept</th>
+                                        <th class="text-end">To @t.NewCode</th>
+                                        <th class="text-end">New units</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var parcel in p.Parcels)
+                                    {
+                                        <tr>
+                                            <td>@parcel.Acquired.ToString("d MMM yyyy")</td>
+                                            <td class="text-end">@parcel.Units.ToString("#,##0.####")</td>
+                                            <td class="text-end">@parcel.CostBefore.ToString("C")</td>
+                                            <td class="text-end">@parcel.CostKept.ToString("C")</td>
+                                            <td class="text-end">@parcel.CostMoved.ToString("C")</td>
+                                            <td class="text-end">@parcel.NewUnits.ToString("#,##0.####")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                            <div class="small text-muted">The new shares keep each parcel's purchase date@(au ? ", so the CGT discount is worked out from when the original shares were bought" : "").</div>
+                        }
+                        @if (t.IsWorthless)
+                        {
+                            <p class="small mb-0">Sold for nil on @t.Date.ToString("d MMM yyyy"): a capital loss of <strong>@p.CostBase.ToString("C")</strong>.</p>
+                        }
+                        @if (t.IsCodeChange)
+                        {
+                            <p class="small mb-0">@t.Code on @t.Market becomes @t.NewCode on @t.NewMarket. To undo it, change the code back.</p>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="card-footer bg-transparent d-flex gap-2">
+                <button type="submit" asp-page-handler="Preview" class="btn btn-outline-primary">Preview</button>
+                @if (Model.Preview is not null)
+                {
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Record it</button>
+                }
+            </div>
+        </form>
+        <div class="text-muted small mt-3">
+            <p class="mb-1"><strong>Bonus issues</strong> are a split: 1 bonus share for every 10 held is 11 for 10 on <a asp-page="./AddSplit">Split or consolidation</a>, which keeps the cost base and purchase dates.</p>
+            <p class="mb-0"><strong>Rights issues and share purchase plans</strong> are purchases: add them on <a asp-page="/Trades/Add">Share trades</a> at the offer price, dated when the new shares were issued.</p>
+        </div>
+    </div>
+</div>

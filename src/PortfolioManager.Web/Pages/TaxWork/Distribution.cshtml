@@ -1,0 +1,181 @@
+@page
+@model DistributionModel
+@{
+    ViewData["Title"] = "Trust distribution";
+    var w = Model.Workpaper;
+    var s = Model.Statement;
+    var editing = Model.Input.BeneficiaryId is not null;
+    string M(decimal x) => x.ToString("#,##0.00;(#,##0.00);-");
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Trust distribution statement</h1>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/TaxWork/Reconciliation" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Tax reconciliation</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || w is null || s is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_YearPicker" model="Model" />
+
+@if (w.EntityType != ClientEntityTypes.Trust)
+{
+    <div class="alert alert-info no-print">This client is set up as @ClientEntityTypes.Describe(w.EntityType).ToLowerInvariant(), not a trust. Change the entity type under <a asp-page="/Clients/Details">Client details</a> to use this page.</div>
+}
+
+@foreach (var warning in s.Warnings)
+{
+    <div class="alert alert-warning py-2">@warning</div>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h5">@w.Client.LegalName</h2>
+        <p class="text-muted small">Distribution statement for the year ended 30 June @Model.Year. Net income of the trust (s95): <strong>@w.Reconciliation.TaxableIncome.ToString("C")</strong>.</p>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Beneficiary</th><th class="text-end">Share</th><th class="text-end">Net income</th>
+                        <th class="text-end">Other income<div class="small fw-normal text-muted">13U</div></th>
+                        <th class="text-end">Franked distributions<div class="small fw-normal text-muted">13C</div></th>
+                        <th class="text-end">Franking credits<div class="small fw-normal text-muted">13Q</div></th>
+                        <th class="text-end">Capital gains (gross)<div class="small fw-normal text-muted">18H</div></th>
+                        <th class="text-end">of which discount</th>
+                        <th class="text-end">TFN credits<div class="small fw-normal text-muted">13R</div></th>
+                        <th class="text-end">Foreign tax<div class="small fw-normal text-muted">20O</div></th>
+                        <th class="no-print"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var sh in s.Shares)
+                    {
+                        var a = sh.Amounts;
+                        <tr>
+                            <td>@sh.Beneficiary.Name <span class="small text-muted">@sh.Beneficiary.Type</span></td>
+                            <td class="text-end">@sh.Beneficiary.Percent.ToString("0.####")%</td>
+                            <td class="text-end">@M(a.NetIncome)</td>
+                            <td class="text-end">@M(a.Other)</td>
+                            <td class="text-end">@M(a.Franked)</td>
+                            <td class="text-end">@M(a.FrankingCredits)</td>
+                            <td class="text-end">@M(a.GrossCapitalGains)</td>
+                            <td class="text-end">@M(a.DiscountGains)</td>
+                            <td class="text-end">@M(a.TfnCredits)</td>
+                            <td class="text-end">@M(a.ForeignTaxCredits)</td>
+                            <td class="text-end text-nowrap no-print">
+                                <a asp-route-fy="@Model.Year" asp-route-edit="@sh.Beneficiary.BeneficiaryId" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                <form method="post" asp-page-handler="Delete" asp-route-fy="@Model.Year" asp-route-beneficiaryId="@sh.Beneficiary.BeneficiaryId" class="d-inline" onsubmit="return confirm('Remove this beneficiary?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" disabled="@Model.Locked"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    @if (s.Undistributed.NetIncome != 0)
+                    {
+                        var u = s.Undistributed;
+                        <tr class="text-muted">
+                            <td>Trustee (no beneficiary presently entitled)</td><td class="text-end">@((100 - s.TotalPercent).ToString("0.####"))%</td>
+                            <td class="text-end">@M(u.NetIncome)</td><td class="text-end">@M(u.Other)</td><td class="text-end">@M(u.Franked)</td>
+                            <td class="text-end">@M(u.FrankingCredits)</td><td class="text-end">@M(u.GrossCapitalGains)</td><td class="text-end">@M(u.DiscountGains)</td>
+                            <td class="text-end">@M(u.TfnCredits)</td><td class="text-end">@M(u.ForeignTaxCredits)</td><td class="no-print"></td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="fw-bold border-top border-dark">
+                    <tr>
+                        <td>Total</td><td></td><td class="text-end">@M(s.Total.NetIncome)</td><td class="text-end">@M(s.Total.Other)</td>
+                        <td class="text-end">@M(s.Total.Franked)</td><td class="text-end">@M(s.Total.FrankingCredits)</td>
+                        <td class="text-end">@M(s.Total.GrossCapitalGains)</td><td class="text-end">@M(s.Total.DiscountGains)</td>
+                        <td class="text-end">@M(s.Total.TfnCredits)</td><td class="text-end">@M(s.Total.ForeignTaxCredits)</td><td class="no-print"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <p class="small text-muted mb-0">
+            Label references are an individual beneficiary's return. Capital gains are shown grossed up (before the CGT discount of @s.Total.CgtDiscount.ToString("C")
+            the trust applied); each beneficiary applies its own losses and discount. A company beneficiary gets no discount.
+        </p>
+    </div>
+</div>
+
+<div class="row g-3 no-print">
+    <div class="col-md-6">
+        <form method="post" asp-page-handler="Save" asp-route-fy="@Model.Year" class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5">@(editing ? "Edit beneficiary" : "Add a beneficiary")</h2>
+                <input type="hidden" asp-for="Input.BeneficiaryId" />
+                <div class="mb-2"><input asp-for="Input.Name" class="form-control form-control-sm" placeholder="Name" maxlength="200" /></div>
+                <div class="row g-2 mb-2">
+                    <div class="col">
+                        <select asp-for="Input.Type" class="form-select form-select-sm">
+                            @foreach (var t in BeneficiaryTypes.All)
+                            {
+                                <option value="@t">@t</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col"><div class="input-group input-group-sm"><input asp-for="Input.Percent" class="form-control" /><span class="input-group-text">%</span></div></div>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary" disabled="@Model.Locked">@(editing ? "Save" : "Add")</button>
+                @if (editing)
+                {
+                    <a asp-route-fy="@Model.Year" class="btn btn-sm btn-link">Cancel</a>
+                }
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5">Resolution</h2>
+                <form method="post" asp-page-handler="Resolution" asp-route-fy="@Model.Year" class="d-flex gap-2 align-items-end mb-3">
+                    <div><label asp-for="ResolutionDate" class="form-label small mb-1">Date the trustee resolved</label><input asp-for="ResolutionDate" type="date" class="form-control form-control-sm" /></div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary" disabled="@Model.Locked">Save date</button>
+                </form>
+                @if (Model.Beneficiaries.Count == 0)
+                {
+                    <form method="post" asp-page-handler="Copy" asp-route-fy="@Model.Year">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" disabled="@Model.Locked">Copy last year's beneficiaries</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.Beneficiaries.Count > 0)
+{
+    var date = w.Data.Settings.ResolutionDate;
+    <div class="card shadow-sm mt-3">
+        <div class="card-body">
+            <h2 class="h5 text-center text-uppercase">Resolution of the trustee</h2>
+            <p class="text-center mb-1">@(w.Client.TrusteeName ?? "The trustee") as trustee for @w.Client.LegalName</p>
+            @if (w.Client.AbnDisplay is { Length: > 0 } abn)
+            {
+                <p class="text-center small text-muted">ABN @abn</p>
+            }
+            @foreach (var p in TrustDistributionStatement.ResolutionWording(w.Client, Model.Year, Model.Beneficiaries))
+            {
+                <p>@p</p>
+            }
+            <p>Dated: @(date?.ToString("d MMMM yyyy") ?? "______________________")</p>
+            <div class="row mt-5">
+                @foreach (var name in TrustDistributionStatement.Signatories(w.Client).DefaultIfEmpty("Trustee"))
+                {
+                    <div class="col-6 mb-4"><div class="border-top pt-1 small">@name</div></div>
+                }
+            </div>
+            @if (date is { } d && d > Model.YearEnd)
+            {
+                <div class="alert alert-danger py-2 no-print">The resolution date is after 30 June @Model.Year. A beneficiary must be presently entitled by the end of the year, so the trustee would be assessed instead.</div>
+            }
+            <p class="small text-muted no-print mb-0">Check this wording against the trust deed (its definition of income, streaming and default beneficiary clauses) before it is signed.</p>
+        </div>
+    </div>
+}

@@ -1,0 +1,127 @@
+@page
+@model AccountsModel
+@{
+    ViewData["Title"] = "Chart of accounts";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Chart of accounts</h1>
+    @if (Model.Portfolio is not null)
+    {
+        <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addAccount"
+                aria-expanded="@(Model.ShowAddForm ? "true" : "false")" aria-controls="addAccount">
+            <i class="bi bi-plus-lg"></i> Add account
+        </button>
+    }
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_ModeNotice" model="Model.Mode" />
+
+<div class="collapse @(Model.ShowAddForm ? "show" : "")" id="addAccount">
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h2 class="h5">Add an account to @Model.Portfolio.Name</h2>
+            <form method="post" asp-page-handler="Add">
+                <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+                @{ ViewData["Accounts"] = Model.Accounts; }
+                <partial name="_AccountFields" for="Input" />
+                <button type="submit" class="btn btn-success">Add account</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@{
+    var byId = Model.Accounts.ToDictionary(a => a.AccountId);
+    int Depth(LedgerAccount a)
+    {
+        var depth = 0;
+        var parent = a.ParentId;
+        while (parent is { } p && byId.TryGetValue(p, out var up) && depth < 10)
+        {
+            depth++;
+            parent = up.ParentId;
+        }
+        return depth;
+    }
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 6rem">Number</th>
+                    <th>Account</th>
+                    <th>Type</th>
+                    <th>Parent</th>
+                    <th>Source</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Accounts.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted p-4">No accounts found.</td></tr>
+                }
+                @foreach (var a in Model.Accounts)
+                {
+                    <tr class="@(a.IsSystem ? "table-light" : "") @(a.IsInactive ? "text-muted" : "")">
+                        <td class="fw-bold">@a.Number</td>
+                        <td style="padding-left: @(0.5 + Depth(a) * 1.25)rem">
+                            @a.Name
+                            @if (a.IsInactive)
+                            {
+                                <span class="badge text-bg-light border">@(a.IsSystem ? "Header" : "Inactive")</span>
+                            }
+                        </td>
+                        <td><span class="badge text-bg-secondary">@a.Type</span></td>
+                        <td class="small text-muted">@a.ParentName</td>
+                        <td>
+                            @if (a.IsSystem)
+                            {
+                                <span class="badge text-bg-info">System</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-warning">Own</span>
+                            }
+                        </td>
+                        <td class="text-end text-nowrap">
+                            @if (!a.IsSystem)
+                            {
+                                <a asp-page="/Accounting/AccountEdit" asp-route-id="@a.AccountId" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i><span class="visually-hidden">Edit</span></a>
+                                <form method="post" asp-page-handler="Active" asp-route-id="@a.AccountId" asp-route-active="@a.IsInactive" class="d-inline">
+                                    @if (a.IsInactive)
+                                    {
+                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Reactivate"><i class="bi bi-arrow-counterclockwise"></i><span class="visually-hidden">Reactivate</span></button>
+                                    }
+                                    else
+                                    {
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Deactivate"><i class="bi bi-slash-circle"></i><span class="visually-hidden">Deactivate</span></button>
+                                    }
+                                </form>
+                                <form method="post" asp-page-handler="Delete" asp-route-id="@a.AccountId" class="d-inline"
+                                      data-confirm="Delete account @a.Number @a.Name? An account with transactions or sub-accounts can't be deleted; deactivate it instead."
+                                      onsubmit="return confirm(this.dataset.confirm);">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="text-muted small mt-2">
+    System accounts are shared by every portfolio and can't be changed. A deactivated account keeps its history and still shows
+    in the reports, but can't be picked for new journals or imports. The site's own postings (trades, payouts, cash) still find
+    their accounts as before.
+</p>

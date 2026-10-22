@@ -1,0 +1,194 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Expense claims";
+    var editing = Model.Id is not null;
+    var owing = ClaimRules.Owing(Model.All);
+    var approved = Model.All.Where(c => c.Status == ClaimStatus.Approved).ToList();
+    var t1 = Model.Lists.Tracking.First;
+    var t2 = Model.Lists.Tracking.Second;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Expense claims</h1>
+    <a asp-page="/Reading/Index" class="btn btn-sm btn-outline-secondary">Read a receipt</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        @if (owing.Count > 0)
+        {
+            <div class="alert alert-light border">
+                Approved and waiting to be paid back:
+                @string.Join(", ", owing.Select(o => $"{o.Claimant} {o.Amount:C} ({o.Count})"))
+            </div>
+        }
+        <ul class="nav nav-pills mb-3">
+            @foreach (var f in IndexModel.Filters)
+            {
+                <li class="nav-item"><a class="nav-link @(Model.Show == f ? "active" : "")" asp-route-show="@f">@f</a></li>
+            }
+        </ul>
+        <div class="card shadow-sm mb-3">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th>Date</th><th>Who</th><th>What</th><th>Account</th><th class="text-end">Amount</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                        @if (Model.Claims.Count == 0)
+                        {
+                            <tr><td colspan="7" class="text-center text-muted p-4">No claims to show.</td></tr>
+                        }
+                        @foreach (var c in Model.Claims)
+                        {
+                            var files = Model.FileCounts.GetValueOrDefault(c.Id);
+                            var tracking = Model.Lists.Tracking.Describe(c.Tracking1Id, c.Tracking2Id);
+                            <tr>
+                                <td>@c.Date.ToString("d")</td>
+                                <td>@c.Claimant</td>
+                                <td>
+                                    @c.Description @if (c.Payee is not null) { <span class="small text-muted">at @c.Payee</span> }
+                                    @if (tracking.Length > 0) { <span class="badge text-bg-light border">@tracking</span> }
+                                    <a asp-page="/Attachments/Index" asp-route-kind="ExpenseClaim" asp-route-target="@c.Id" class="small ms-1"><i class="bi bi-paperclip"></i>@(files > 0 ? files.ToString() : "add")</a>
+                                    @if (c.RejectReason is not null) { <div class="small text-danger">@c.RejectReason</div> }
+                                </td>
+                                <td class="small">@c.AccountName</td>
+                                <td class="text-end">@c.Amount.ToString("C")</td>
+                                <td>
+                                    <span class="badge @(c.Status switch { "Paid" => "text-bg-success", "Approved" => "text-bg-primary", "Rejected" => "text-bg-secondary", _ => "text-bg-warning" })">@c.Status</span>
+                                    @if (c.Paid is { } p) { <div class="small text-muted">@p.ToString("d")</div> }
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    @if (Model.CanEdit)
+                                    {
+                                        @if (c.Status is ClaimStatus.Submitted or ClaimStatus.Rejected)
+                                        {
+                                            <a asp-route-id="@c.Id" asp-route-show="@Model.Show" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                        }
+                                        @if (c.Status == ClaimStatus.Submitted)
+                                        {
+                                            <form method="post" asp-page-handler="Approve" asp-route-claimId="@c.Id" asp-route-show="@Model.Show" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                                            </form>
+                                            <details class="d-inline-block text-start">
+                                                <summary class="btn btn-sm btn-outline-danger">Reject</summary>
+                                                <form method="post" asp-page-handler="Reject" asp-route-claimId="@c.Id" asp-route-show="@Model.Show" class="mt-1 d-flex gap-1">
+                                                    <input name="reason" class="form-control form-control-sm" maxlength="500" placeholder="Why?" aria-label="Reason" />
+                                                    <button type="submit" class="btn btn-sm btn-danger">Reject</button>
+                                                </form>
+                                            </details>
+                                        }
+                                        @if (c.Status == ClaimStatus.Approved)
+                                        {
+                                            <form method="post" asp-page-handler="Unapprove" asp-route-claimId="@c.Id" asp-route-show="@Model.Show" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Take back approval</button>
+                                            </form>
+                                        }
+                                        @if (c.Status == ClaimStatus.Paid && c.PaymentJournalId is { } pj)
+                                        {
+                                            <form method="post" asp-page-handler="UndoPayment" asp-route-journalId="@pj" asp-route-show="@Model.Show" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Undoes the whole payment, for every claim it paid">Undo payment</button>
+                                            </form>
+                                        }
+                                        @if (c.Status is ClaimStatus.Submitted or ClaimStatus.Rejected)
+                                        {
+                                            <form method="post" asp-page-handler="Delete" asp-route-claimId="@c.Id" asp-route-show="@Model.Show" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                                            </form>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (Model.CanEdit && approved.Count > 0)
+        {
+            <form method="post" asp-page-handler="Pay" asp-route-show="@Model.Show" class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6">Pay back approved claims</h2>
+                    @foreach (var c in approved)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="pay" value="@c.Id" id="pay@(c.Id)" checked />
+                            <label class="form-check-label" for="pay@(c.Id)">@c.Claimant: @c.Description, @c.Amount.ToString("C")</label>
+                        </div>
+                    }
+                    <div class="row g-2 mt-1 align-items-end">
+                        <div class="col-sm-4"><label class="form-label" for="payDate">Date paid</label><input type="date" id="payDate" name="payDate" value="@Model.Today.ToString("yyyy-MM-dd")" class="form-control" /></div>
+                        <div class="col-sm-5">
+                            <label class="form-label" for="bankAccountId">Paid from</label>
+                            <select id="bankAccountId" name="bankAccountId" class="form-select">@foreach (var a in Model.BankAccounts) { <option value="@a.AccountId">@a.DisplayName</option> }</select>
+                        </div>
+                        <div class="col-sm-3"><button type="submit" class="btn btn-success w-100">Pay</button></div>
+                    </div>
+                    <p class="small text-muted mt-2 mb-0">One payment for the ticked claims (pay one person at a time to match their bank transfer).</p>
+                </div>
+            </form>
+        }
+    </div>
+
+    @if (Model.CanEdit)
+    {
+        <div class="col-lg-4">
+            <form method="post" asp-page-handler="Save" asp-route-id="@Model.Id" asp-route-show="@Model.Show" enctype="multipart/form-data" class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6">@(editing ? "Change claim" : "New claim")</h2>
+                    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+                    <div class="mb-2"><label asp-for="Input.Claimant" class="form-label">Pay back to</label><input asp-for="Input.Claimant" class="form-control" maxlength="200" required /></div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6"><label asp-for="Input.Date" class="form-label">Receipt date</label><input asp-for="Input.Date" type="date" class="form-control" required /></div>
+                        <div class="col-6"><label asp-for="Input.Amount" class="form-label">Amount paid</label><input asp-for="Input.Amount" type="number" step="0.01" min="0.01" class="form-control text-end" required /></div>
+                    </div>
+                    <div class="mb-2"><label asp-for="Input.Payee" class="form-label">Bought from</label><input asp-for="Input.Payee" class="form-control" maxlength="200" /></div>
+                    <div class="mb-2"><label asp-for="Input.Description" class="form-label">What for</label><input asp-for="Input.Description" class="form-control" maxlength="500" required /></div>
+                    <div class="mb-2">
+                        <label asp-for="Input.AccountId" class="form-label">Expense account</label>
+                        <select asp-for="Input.AccountId" class="form-select">@foreach (var a in Model.Lists.Accounts) { <option value="@a.AccountId">@a.Display</option> }</select>
+                    </div>
+                    @if (Model.Lists.TaxCodes.Count > 0)
+                    {
+                        <div class="row g-2 mb-2">
+                            <div class="col-7">
+                                <label asp-for="Input.TaxCodeId" class="form-label">@Model.Lists.TaxName</label>
+                                <select asp-for="Input.TaxCodeId" class="form-select"><option value="">None</option>@foreach (var c in Model.Lists.TaxCodes) { <option value="@c.TaxCodeId">@c.Code</option> }</select>
+                            </div>
+                            <div class="col-5"><label asp-for="Input.Tax" class="form-label">Tax in it</label><input asp-for="Input.Tax" type="number" step="0.01" min="0" class="form-control text-end" placeholder="worked out" /></div>
+                        </div>
+                    }
+                    @if (t1 is not null)
+                    {
+                        <div class="mb-2">
+                            <label asp-for="Input.Tracking1Id" class="form-label">@t1.Name</label>
+                            <select asp-for="Input.Tracking1Id" class="form-select"><option value=""></option>@foreach (var o in t1.ActiveOptions) { <option value="@o.OptionId">@o.Name</option> }</select>
+                        </div>
+                    }
+                    @if (t2 is not null)
+                    {
+                        <div class="mb-2">
+                            <label asp-for="Input.Tracking2Id" class="form-label">@t2.Name</label>
+                            <select asp-for="Input.Tracking2Id" class="form-select"><option value=""></option>@foreach (var o in t2.ActiveOptions) { <option value="@o.OptionId">@o.Name</option> }</select>
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label asp-for="Receipt" class="form-label">Photo or PDF of the receipt</label>
+                        <input asp-for="Receipt" type="file" accept="image/*,application/pdf" capture="environment" class="form-control" />
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">@(editing ? "Save" : "Submit claim")</button>
+                        @if (editing) { <a asp-route-id="" asp-route-show="@Model.Show" class="btn btn-outline-secondary">Cancel</a> }
+                    </div>
+                    <p class="small text-muted mt-2 mb-0">Approving posts the expense (and any @Model.Lists.TaxName credit) with the amount owed in Expense Claims Payable. Paying it back clears that from the bank.</p>
+                </div>
+            </form>
+        </div>
+    }
+</div>

@@ -1,0 +1,111 @@
+@page
+@model SuppliersModel
+@{
+    ViewData["Title"] = "Suppliers";
+    var editing = Model.Id is not null;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Suppliers</h1>
+    <a asp-page="/Bills/Index" class="btn btn-sm btn-outline-secondary">Bills</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light"><tr><th>Name</th><th>Contact</th><th class="text-end">Bills</th><th class="text-end">Owing</th><th></th></tr></thead>
+                    <tbody>
+                        @if (Model.Suppliers.Count == 0)
+                        {
+                            <tr><td colspan="5" class="text-center text-muted p-4">No suppliers yet.</td></tr>
+                        }
+                        @foreach (var s in Model.Suppliers)
+                        {
+                            <tr class="@(s.IsActive ? "" : "text-muted")">
+                                <td>@s.Name @if (!s.IsActive) { <span class="badge text-bg-secondary">inactive</span> }</td>
+                                <td class="small">@s.ContactName @s.Email</td>
+                                <td class="text-end">@s.BillCount</td>
+                                <td class="text-end">@(s.Owing != 0 ? s.Owing.ToString("C") : "")</td>
+                                <td class="text-end text-nowrap">
+                                    @if (Model.CanEdit)
+                                    {
+                                        <a asp-route-id="@s.SupplierId" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                        <a asp-page="/Bills/Edit" asp-route-supplierId="@s.SupplierId" class="btn btn-sm btn-outline-primary">New bill</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    @if (Model.CanEdit)
+    {
+        <div class="col-lg-5">
+            <form method="post" asp-page-handler="Save" asp-route-id="@Model.Id" asp-route-returnTo="@Model.ReturnTo" class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6">@(editing ? "Change supplier" : "Add a supplier")</h2>
+                    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+                    <div class="mb-2">
+                        <label asp-for="Input.Name" class="form-label">Name</label>
+                        <input asp-for="Input.Name" class="form-control" maxlength="200" required />
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-sm-6"><label asp-for="Input.ContactName" class="form-label">Contact</label><input asp-for="Input.ContactName" class="form-control" maxlength="200" /></div>
+                        <div class="col-sm-6"><label asp-for="Input.Phone" class="form-label">Phone</label><input asp-for="Input.Phone" class="form-control" maxlength="50" /></div>
+                    </div>
+                    <div class="mb-2"><label asp-for="Input.Email" class="form-label">Email</label><input asp-for="Input.Email" type="email" class="form-control" maxlength="500" /></div>
+                    <div class="mb-2"><label asp-for="Input.Address" class="form-label">Address</label><textarea asp-for="Input.Address" class="form-control" rows="2" maxlength="500"></textarea></div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-sm-6"><label asp-for="Input.TaxNumber" class="form-label">@(RegionSettings.Current.IsAustralia ? "ABN" : "Tax number")</label><input asp-for="Input.TaxNumber" class="form-control" maxlength="50" /></div>
+                        <div class="col-sm-6"><label asp-for="Input.DueDays" class="form-label">Days to pay</label><input asp-for="Input.DueDays" type="number" min="0" max="365" class="form-control" placeholder="30" /></div>
+                    </div>
+                    <div class="mb-2"><label asp-for="Input.PaymentDetails" class="form-label">How to pay them (BSB and account, BPAY)</label><textarea asp-for="Input.PaymentDetails" class="form-control" rows="2" maxlength="500"></textarea></div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-sm-7">
+                            <label asp-for="Input.DefaultAccountId" class="form-label">Usual account</label>
+                            <select asp-for="Input.DefaultAccountId" class="form-select">
+                                <option value="">None</option>
+                                @foreach (var a in Model.Lists.Accounts) { <option value="@a.AccountId">@a.Display</option> }
+                            </select>
+                        </div>
+                        @if (Model.Lists.TaxCodes.Count > 0)
+                        {
+                            <div class="col-sm-5">
+                                <label asp-for="Input.DefaultTaxCodeId" class="form-label">Usual @Model.Lists.TaxName</label>
+                                <select asp-for="Input.DefaultTaxCodeId" class="form-select">
+                                    <option value="">None</option>
+                                    @foreach (var c in Model.Lists.TaxCodes) { <option value="@c.TaxCodeId">@c.Code</option> }
+                                </select>
+                            </div>
+                        }
+                    </div>
+                    <div class="form-check mb-3"><input asp-for="Input.IsActive" class="form-check-input" /><label asp-for="Input.IsActive" class="form-check-label">Active</label></div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">@(editing ? "Save" : "Add supplier")</button>
+                        @if (editing)
+                        {
+                            <a asp-route-id="" class="btn btn-outline-secondary">Cancel</a>
+                        }
+                    </div>
+                </div>
+            </form>
+            @if (editing)
+            {
+                <form method="post" asp-page-handler="Delete" asp-route-supplierId="@Model.Id" class="mt-2">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete supplier</button>
+                    <span class="small text-muted">Only one with no bills. Otherwise untick Active.</span>
+                </form>
+            }
+        </div>
+    }
+</div>

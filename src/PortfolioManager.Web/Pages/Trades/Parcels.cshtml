@@ -1,0 +1,128 @@
+@page "{id:int}"
+@model PortfolioManager.Web.Pages.Trades.ParcelsModel
+@using PortfolioManager.Core.Tax
+@{
+    ViewData["Title"] = "Parcels sold";
+    var s = Model.Sale!;
+    var au = Model.Region.IsAustralia;
+    var saleDate = DateOnly.FromDateTime(s.Sale.Date);
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Parcels sold: @s.Sale.StockCode <span class="text-muted fs-5">@s.Sale.ExchangeCode</span></h1>
+    <a asp-page="./Index" asp-route-code="@s.Sale.StockCode" class="btn btn-sm btn-outline-secondary">Back to trades</a>
+</div>
+
+<p>
+    Sold <strong>@s.Units.ToString("#,##0.####")</strong> units on <strong>@s.Sale.Date.ToString("d MMM yyyy")</strong>
+    for @s.ProceedsPerUnit.ToString("#,##0.0000") a unit after brokerage.
+    Now: <strong>@ParcelChoices.Label(s.Choice?.Method ?? ParcelMethod.Fifo)</strong>.
+</p>
+<p class="text-muted small">
+    First in, first out is used unless you choose otherwise. The ATO lets you pick which parcels were sold when they can be identified
+    (for example by holding statements showing each purchase). The choice changes this sale's capital gain@(au ? ", CGT discount" : "") and its realised gain journal.
+    The older "Sales" table on the capital gains report stays first in, first out.
+</p>
+@if (s.ChoiceIsStale)
+{
+    <div class="alert alert-warning">A parcel this sale was set to take has changed since (a trade was edited or deleted), so first in, first out filled the gap. Save the choice again.</div>
+}
+
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+<form method="post">
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-3">
+                @foreach (var m in Enum.GetValues<ParcelMethod>())
+                {
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="Method" value="@m" id="m-@m" />
+                        <label class="form-check-label" for="m-@m">@ParcelChoices.Label(m)</label>
+                    </div>
+                }
+            </div>
+            <div class="small text-muted mt-1">
+                Smallest gain takes losses first, then @(au ? "discounted gains, then other gains" : "the smallest gains"); largest gain the reverse.
+                Parcels picked uses the units entered below.
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Bought</th>
+                        <th class="text-end">Units held</th>
+                        <th class="text-end">Cost a unit</th>
+                        <th class="text-end">Gain a unit</th>
+                        @if (au)
+                        {
+                            <th>Discount</th>
+                        }
+                        <th class="text-end" style="width: 10rem">Units sold from it</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (s.Held.Count == 0)
+                    {
+                        <tr><td colspan="6" class="text-center text-muted p-4">No parcels were held before this sale.</td></tr>
+                    }
+                    @foreach (var p in s.Held)
+                    {
+                        var gain = s.ProceedsPerUnit - p.CostPerUnit;
+                        <tr>
+                            <td class="text-nowrap">@p.Acquired.ToString("d MMM yyyy")</td>
+                            <td class="text-end">@p.Units.ToString("#,##0.####")</td>
+                            <td class="text-end">@p.CostPerUnit.ToString("#,##0.0000")</td>
+                            <td class="text-end @(gain < 0 ? "text-danger" : "")">@gain.ToString("#,##0.0000")</td>
+                            @if (au)
+                            {
+                                <td class="small">@(CgtDiscount.Qualifies(p.Acquired, saleDate) ? "Eligible" : "Not yet")</td>
+                            }
+                            <td class="text-end">
+                                <input type="number" step="any" min="0" max="@p.Units" class="form-control form-control-sm text-end"
+                                       name="Units[@p.BuyTradeId]" value="@(Model.Units.TryGetValue(p.BuyTradeId, out var u) ? u.ToString("0.####") : "")" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="card-body">
+            <button type="submit" class="btn btn-success">Save</button>
+        </div>
+    </div>
+</form>
+
+@if (s.Events.Count > 0)
+{
+    <h2 class="h5">What this sale takes now</h2>
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr><th>Bought</th><th class="text-end">Units</th><th class="text-end">Cost base</th><th class="text-end">Proceeds</th><th class="text-end">Gain</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in s.Events)
+                    {
+                        <tr>
+                            <td>@e.Acquired.ToString("d MMM yyyy")</td>
+                            <td class="text-end">@e.Units.ToString("#,##0.####")</td>
+                            <td class="text-end">@e.CostBase.ToString("N2")</td>
+                            <td class="text-end">@e.Proceeds.ToString("N2")</td>
+                            <td class="text-end @(e.Gain < 0 ? "text-danger" : "")">@e.Gain.ToString("N2")</td>
+                        </tr>
+                    }
+                    <tr class="fw-bold">
+                        <td>Total</td>
+                        <td class="text-end">@s.Events.Sum(e => e.Units).ToString("#,##0.####")</td>
+                        <td class="text-end">@s.Events.Sum(e => e.CostBase).ToString("N2")</td>
+                        <td class="text-end">@s.Events.Sum(e => e.Proceeds).ToString("N2")</td>
+                        <td class="text-end">@s.Events.Sum(e => e.Gain).ToString("N2")</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

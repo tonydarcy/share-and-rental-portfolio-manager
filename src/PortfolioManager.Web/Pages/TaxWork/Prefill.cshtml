@@ -1,0 +1,82 @@
+@page
+@model PrefillModel
+@using PortfolioManager.Core.TaxWork
+@{
+    ViewData["Title"] = "ATO prefill";
+    var w = Model.Workpaper;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">ATO prefill</h1>
+    <a asp-page="/TaxWork/ReturnLabels" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary no-print">Return labels</a>
+</div>
+
+@if (Model.Portfolio is null || w is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+<partial name="_YearPicker" model="Model" />
+
+<p class="text-muted small">Download the client's prefill report from Online services for agents (or the client's myGov), then upload it as a CSV or paste the table here.
+    The figures are compared with the payouts, fund tax statements and ESS statements, so anything the ATO knows about that isn't recorded shows up before lodging.
+    Lodging returns straight to the ATO needs software with ATO digital service provider accreditation, which this site doesn't have, so lodge from your tax package.</p>
+
+@if (Model.Comparison.Count > 0)
+{
+    <div class="card shadow-sm mb-4">
+        <div class="card-header fw-bold">Prefill against the records, @FinancialYear.Label(Model.Year)
+            <span class="small text-muted fw-normal ms-2">imported @Model.Imported?.ToString("g")</span></div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light"><tr><th>Item</th><th class="text-end">ATO prefill</th><th class="text-end">Recorded here</th><th class="text-end">Difference</th><th>From</th></tr></thead>
+                <tbody>
+                    @foreach (var c in Model.Comparison)
+                    {
+                        <tr class="@(c.Ours is null ? "" : c.Agrees ? "" : "table-warning")">
+                            <td>@PrefillCategories.Label(c.Category)</td>
+                            <td class="text-end">@c.Prefill.ToString("C")</td>
+                            <td class="text-end">@c.Ours?.ToString("C")</td>
+                            <td class="text-end">@(c.Difference is { } d ? (c.Agrees ? "Agrees" : d.ToString("C")) : "")</td>
+                            <td class="small text-muted">@c.Where</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold">Prefill figures by payer</span>
+            <form method="post" asp-page-handler="Clear" asp-route-fy="@Model.Year" class="no-print" onsubmit="return confirm('Clear the prefill figures for this year?');">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Clear</button>
+            </form>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 small">
+                <thead class="table-light"><tr><th>Payer</th><th>Item</th><th class="text-end">Amount</th></tr></thead>
+                <tbody>
+                    @foreach (var i in Model.Items.OrderBy(i => i.Payer).ThenBy(i => i.Category))
+                    {
+                        <tr><td>@i.Payer</td><td>@PrefillCategories.Label(i.Category)</td><td class="text-end">@i.Amount.ToString("C")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<div class="card shadow-sm no-print">
+    <div class="card-header fw-bold">Import the prefill report</div>
+    <div class="card-body">
+        <form method="post" asp-page-handler="Import" asp-route-fy="@Model.Year" enctype="multipart/form-data">
+            <div class="mb-2"><label asp-for="Upload" class="form-label small mb-1">CSV file</label><input asp-for="Upload" type="file" accept=".csv,.txt" class="form-control form-control-sm" /></div>
+            <div class="mb-2"><label asp-for="Pasted" class="form-label small mb-1">Or paste the table (from a spreadsheet or the report)</label>
+                <textarea asp-for="Pasted" rows="6" class="form-control form-control-sm font-monospace" placeholder="Type,Payer,Amount,Franked,Unfranked,Franking credit,Tax withheld&#10;Interest,Big Bank,412.50,,,,&#10;Dividend,BHP Group,,1200.00,0,514.29,"></textarea></div>
+            <p class="small text-muted">The first row must be headings. Columns are found by name: a type (interest, dividend, distribution, employee share, share sale), the payer,
+                and Amount, Franked, Unfranked, Franking credit and Tax withheld. Importing replaces the year's figures.</p>
+            <button type="submit" class="btn btn-sm btn-primary">Import</button>
+        </form>
+    </div>
+</div>

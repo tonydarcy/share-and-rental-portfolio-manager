@@ -1,0 +1,167 @@
+@page
+@model RevaluationModel
+@using PortfolioManager.Core.Clients
+@{
+    ViewData["Title"] = "Market value revaluation";
+    var plan = Model.Plan;
+    var i = 0;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Market value revaluation</h1>
+    <a asp-page="/Accounting/Statements" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Financial statements</a>
+</div>
+
+@if (Model.Portfolio is null || plan is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">
+    Posts one journal at the end of the financial year that brings the investments to market value. Each holding's market value
+    less its cost in the ledger goes to <strong>1390 Investments - Market Value Adjustment</strong>; the adjustment from earlier years
+    is reversed, and the change goes to <strong>4600 Unrealised Gains on Investments</strong>. Market value is required for
+    @ClientEntityTypes.Describe(ClientEntityTypes.Smsf).ToLowerInvariant()s and optional for other entities. Posting again replaces the
+    journal for that date.
+</p>
+
+@if (!AccountingMode.PostsJournals(Model.Mode))
+{
+    <div class="alert alert-warning">This portfolio uses single-entry accounting, so there is no ledger to revalue.</div>
+}
+
+<form method="get" class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <label for="fy" class="form-label small text-muted mb-1">Financial year</label>
+        <select id="fy" name="fy" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            @foreach (var y in Model.Years)
+            {
+                <option value="@y" selected="@(y == Model.Year)">@FinancialYear.Label(y)</option>
+            }
+        </select>
+    </div>
+</form>
+
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+@if (Model.Locked)
+{
+    <div class="alert alert-secondary"><i class="bi bi-lock-fill"></i> @FinancialYear.Label(Model.Year) is locked, so its revaluation can't be posted or removed. <a asp-page="/Accounting/Lock">Lock periods</a></div>
+}
+
+@if (plan.Posted is not null && !Model.Locked)
+{
+    <div class="alert alert-success d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>A revaluation is already posted at @Model.Date.ToString("d MMM yyyy"). Posting again replaces it.</span>
+        <form method="post" asp-page-handler="Delete" asp-route-fy="@Model.Year" onsubmit="return confirm('Remove the revaluation journal at @Model.Date.ToString("d MMM yyyy")?');">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Remove it</button>
+        </form>
+    </div>
+}
+@if (plan.Later is { } later)
+{
+    <div class="alert alert-warning">
+        There is a revaluation at @later.ToString("d MMM yyyy"), which reverses this one. To change this year, remove that one first,
+        then post this year and post that one again.
+    </div>
+}
+
+<form method="post" asp-route-fy="@Model.Year">
+    <div class="card shadow-sm mb-3">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Holding</th>
+                        <th class="text-end">Units</th>
+                        <th class="text-end" style="min-width: 9rem">Price at @Model.Date.ToString("d MMM yyyy")</th>
+                        <th class="text-end">Market value</th>
+                        <th class="text-end">Cost in ledger</th>
+                        <th class="text-end">Adjustment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (plan.Holdings.Count == 0)
+                    {
+                        <tr><td colspan="6" class="text-center text-muted p-4">No investments in the ledger at this date.</td></tr>
+                    }
+                    @foreach (var h in plan.Holdings)
+                    {
+                        <tr>
+                            <td>@h.Key</td>
+                            <td class="text-end">@h.Units.ToString("#,##0.######")</td>
+                            <td class="text-end">
+                                @if (h.LeftAtCost)
+                                {
+                                    <span class="text-muted small">left at cost</span>
+                                }
+                                else
+                                {
+                                    <input type="hidden" name="Prices[@i].Key" value="@h.Key" />
+                                    <input type="number" step="any" min="0" name="Prices[@i].Price" value="@h.Price"
+                                           class="form-control form-control-sm text-end @(h.Price is null ? "is-invalid" : "")" />
+                                    i++;
+                                }
+                            </td>
+                            <td class="text-end">@h.MarketValue?.ToString("C")</td>
+                            <td class="text-end">@h.Cost.ToString("C")</td>
+                            <td class="text-end @(h.Adjustment < 0 ? "text-danger" : "")">@h.Adjustment?.ToString("C")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="fw-bold table-active">
+                        <td colspan="3">Total</td>
+                        <td class="text-end">@plan.MarketValue.ToString("C")</td>
+                        <td class="text-end">@plan.Cost.ToString("C")</td>
+                        <td class="text-end">@plan.TargetAdjustment.ToString("C")</td>
+                    </tr>
+                    <tr>
+                        <td colspan="5">Less the adjustment already in the ledger</td>
+                        <td class="text-end">@((-plan.PriorAdjustment).ToString("C"))</td>
+                    </tr>
+                    <tr class="fw-bold">
+                        <td colspan="5">@(plan.Movement >= 0 ? "Unrealised gain" : "Fall in value") to post</td>
+                        <td class="text-end @(plan.Movement < 0 ? "text-danger" : "")">@plan.Movement.ToString("C")</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    @if (plan.Holdings.Any(h => h.LeftAtCost))
+    {
+        <p class="small text-muted">
+            "Left at cost" means the ledger has a cost for the holding but no units are held at that date (often a small remainder
+            after a sale). It is not revalued; check the holding's cost base account.
+        </p>
+    }
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body row g-2 align-items-end">
+            <div class="col-sm-4 col-md-3">
+                <label asp-for="TaxRate" class="form-label">Deferred tax rate (%)</label>
+                <input asp-for="TaxRate" type="number" step="0.01" min="0" max="99.99" class="form-control" />
+            </div>
+            <div class="col-sm-8 col-md-9 small text-muted">
+                Leave at 0 for no deferred tax. Companies usually use 30% (25% for a base rate entity). An SMSF that tax-effects its
+                accounts often uses 10% (15% less the one-third CGT discount). The tax on the change posts to
+                5950 Income Tax Expense - Deferred against 2850 Deferred Income Tax Liability.
+                Projected at @Model.TaxRate.ToString("0.##")%: @RevaluationPlan.DeferredTax(plan.Movement, Model.TaxRate).ToString("C").
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" asp-page-handler="Post" class="btn btn-primary" disabled="@(!AccountingMode.PostsJournals(Model.Mode) || plan.Later is not null || Model.Locked)">
+            <i class="bi bi-check2-circle"></i> Post revaluation at @Model.Date.ToString("d MMM yyyy")
+        </button>
+        <button type="submit" asp-page-handler="Preview" class="btn btn-outline-secondary">Recalculate with these prices</button>
+    </div>
+</form>
+
+<p class="small text-muted mt-3">
+    Prices are the closing prices on file at the date, in each share's own currency; overseas holdings need the price converted to
+    the portfolio's currency by hand. Units come from the trades to that date.
+</p>

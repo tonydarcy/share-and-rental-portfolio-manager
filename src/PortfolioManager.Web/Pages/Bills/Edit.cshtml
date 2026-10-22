@@ -1,0 +1,105 @@
+@page
+@model EditModel
+@{
+    var editing = Model.Id is not null;
+    var approved = Model.Existing is { IsDraft: false };
+    var credit = Model.Input.Kind == BillKinds.SupplierCredit;
+    var word = credit ? "supplier credit" : "bill";
+    ViewData["Title"] = editing ? $"Edit {word}" : $"New {word}";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">@ViewData["Title"]</h1>
+    <a asp-page="@(editing ? "/Bills/View" : "/Bills/Index")" asp-route-id="@Model.Id" class="btn btn-sm btn-outline-secondary">Cancel</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+@if (Model.Suppliers.Count == 0)
+{
+    <div class="alert alert-info">Add a supplier first: <a asp-page="/Bills/Suppliers" asp-route-returnTo="bill">add a supplier</a>.</div>
+    return;
+}
+@if (approved)
+{
+    <div class="alert alert-warning">This @word is approved. Saving changes posts its journal again with the new amounts.</div>
+}
+
+<form method="post">
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="Input.Kind" />
+    <input type="hidden" asp-for="Input.PurchaseOrderId" />
+    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label asp-for="Input.SupplierId" class="form-label">Supplier</label>
+                    <select asp-for="Input.SupplierId" class="form-select" required>
+                        <option value="0">-- Choose a supplier --</option>
+                        @foreach (var s in Model.Suppliers) { <option value="@s.SupplierId">@s.Name</option> }
+                    </select>
+                    <a asp-page="/Bills/Suppliers" asp-route-returnTo="bill" class="small">Add a new supplier</a>
+                </div>
+                <div class="col-sm-6 col-md-2">
+                    <label asp-for="Input.Number" class="form-label">Their invoice number</label>
+                    <input asp-for="Input.Number" class="form-control" maxlength="60" />
+                </div>
+                <div class="col-sm-6 col-md-2">
+                    <label asp-for="Input.IssueDate" class="form-label">Date</label>
+                    <input asp-for="Input.IssueDate" type="date" class="form-control" required />
+                </div>
+                <div class="col-sm-6 col-md-2">
+                    <label asp-for="Input.DueDate" class="form-label">Due</label>
+                    <input asp-for="Input.DueDate" type="date" class="form-control" required />
+                </div>
+                <div class="col-sm-6 col-md-2">
+                    <label asp-for="Input.Reference" class="form-label">Your reference</label>
+                    <input asp-for="Input.Reference" class="form-control" maxlength="200" />
+                </div>
+            </div>
+            @if (Model.Lists.TaxCodes.Count > 0)
+            {
+                <div class="form-check mt-3">
+                    <input asp-for="Input.AmountsIncludeTax" class="form-check-input" id="includesTax" />
+                    <label asp-for="Input.AmountsIncludeTax" class="form-check-label" for="includesTax">Prices include @Model.Lists.TaxName</label>
+                </div>
+            }
+            <partial name="_CurrencyFields" model="new CurrencyFieldsView(Model.Input.Currency, Model.Input.ExchangeRate, RegionSettings.Current.Currency)" />
+        </div>
+    </div>
+
+    <partial name="_DocumentLines" model="Model.Lists.View(Model.Input.Lines)" />
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <label asp-for="Input.Notes" class="form-label">Notes (only you see these)</label>
+            <textarea asp-for="Input.Notes" class="form-control" rows="2" maxlength="1000"></textarea>
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+        @if (approved)
+        {
+            <button type="submit" asp-page-handler="Approve" class="btn btn-success">Save changes</button>
+        }
+        else
+        {
+            <button type="submit" asp-page-handler="Draft" class="btn btn-outline-primary">Save as draft</button>
+            <button type="submit" asp-page-handler="Approve" class="btn btn-success">Approve and post</button>
+        }
+    </div>
+    <p class="text-muted small mt-2">
+        Approving posts the @word on its date: the total @(credit ? "out of" : "to") Accounts Payable and each line to its account,
+        with any @Model.Lists.TaxName to the @Model.Lists.TaxName control account. A line for a stock item goes into inventory at its cost.
+        Blank lines are ignored.
+    </p>
+</form>
+
+@section Scripts {
+    <script src="~/js/document-lines.js" asp-append-version="true"></script>
+}

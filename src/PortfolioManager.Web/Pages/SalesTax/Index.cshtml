@@ -1,0 +1,186 @@
+@page
+@model IndexModel
+@{
+    var tax = Model.Setup?.TaxName ?? Model.Preset.TaxName;
+    ViewData["Title"] = $"{tax} report";
+    var r = Model.Report;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">@tax report</h1>
+    @if (r is not null)
+    {
+        <div class="no-print d-flex gap-2">
+            <a asp-page="/SalesTax/Codes" class="btn btn-sm btn-outline-secondary">Tax codes</a>
+            <a asp-page-handler="Csv" asp-route-from="@r.From.ToString("yyyy-MM-dd")" asp-route-to="@r.To.ToString("yyyy-MM-dd")" class="btn btn-sm btn-outline-secondary">Download CSV</a>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">Print</button>
+        </div>
+    }
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (Model.Setup is null)
+{
+    <div class="alert alert-info">
+        This portfolio isn't set up for @tax yet. If it's registered for GST, VAT or another sales tax,
+        <a asp-page="/SalesTax/Codes">set up its tax codes</a> first, then give a tax code to the bank allocations and journals that have tax in them.
+    </div>
+    return;
+}
+
+<form method="get" class="row g-2 align-items-end mb-3 no-print">
+    <div class="col-md-4">
+        <label for="period" class="form-label">Period</label>
+        <select id="period" name="period" class="form-select" onchange="this.form.from.value=''; this.form.to.value=''; this.form.submit()">
+            @if (Model.Selected is null)
+            {
+                <option value="">Custom dates</option>
+            }
+            @foreach (var p in Model.Periods)
+            {
+                <option value="@p.Key" selected="@(p == Model.Selected)">@p.Label</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label for="from" class="form-label">From</label>
+        <input id="from" name="from" type="date" class="form-control" value="@Model.From?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-md-3">
+        <label for="to" class="form-label">To</label>
+        <input id="to" name="to" type="date" class="form-control" value="@Model.To?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100" onclick="this.form.period.value=''">Show dates</button>
+    </div>
+</form>
+
+@if (Model.Warning is { } warning)
+{
+    <div class="alert alert-warning py-2">@warning</div>
+}
+
+<p class="text-muted">
+    @Model.Portfolio.Name, @r!.From.ToString("d MMM yyyy") to @r.To.ToString("d MMM yyyy").
+    Made from every bank allocation and journal line with a @tax code, by its date. Use it to fill in your
+    @(Model.Preset.ReturnName.Length > 0 ? Model.Preset.ReturnName : "return"), or your country's equivalent.
+</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">@tax on sales</div>
+            <div class="fs-4 fw-bold">@r.TaxOnSales.ToString("C")</div>
+            <div class="small text-muted">on sales of @r.TotalSales.ToString("C") before tax</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">@tax on purchases</div>
+            <div class="fs-4 fw-bold">@r.TaxOnPurchases.ToString("C")</div>
+            <div class="small text-muted">on purchases of @r.TotalPurchases.ToString("C") before tax</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100 @(r.NetTax > 0 ? "border-danger" : r.NetTax < 0 ? "border-success" : "")"><div class="card-body">
+            <div class="text-muted small">@(r.NetTax >= 0 ? "Net amount to pay" : "Net refund due")</div>
+            <div class="fs-4 fw-bold">@Math.Abs(r.NetTax).ToString("C")</div>
+            <div class="small text-muted">@tax on sales less @tax on purchases</div>
+        </div></div>
+    </div>
+</div>
+
+<h2 class="h5">Return boxes</h2>
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Box</th><th class="text-end">Amount</th><th>From tax codes</th></tr></thead>
+            <tbody>
+                @if (r.Boxes.Count == 0)
+                {
+                    <tr><td colspan="3" class="text-center text-muted p-4">None of the tax codes name a box. Add the boxes on the <a asp-page="/SalesTax/Codes">Tax codes</a> page.</td></tr>
+                }
+                @foreach (var b in r.Boxes)
+                {
+                    <tr>
+                        <td class="fw-bold">@b.Box</td>
+                        <td class="text-end">@b.Amount.ToString("C")</td>
+                        <td class="small text-muted">@string.Join(", ", b.Codes)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="h5">By tax code</h2>
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Code</th><th>Name</th><th class="text-end">Rate</th><th class="text-end">Transactions</th><th class="text-end">Before tax</th><th class="text-end">@tax</th><th class="text-end">With tax</th></tr>
+            </thead>
+            <tbody>
+                @if (r.Codes.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">Nothing with a @tax code in this period.</td></tr>
+                }
+                @foreach (var group in r.Codes.GroupBy(c => c.Code.Kind))
+                {
+                    <tr class="table-light"><td colspan="7" class="fw-bold">@(group.Key == TaxKind.Sales ? "Sales and income" : "Purchases and expenses")</td></tr>
+                    @foreach (var c in group)
+                    {
+                        <tr>
+                            <td class="fw-bold">@c.Code.Code</td>
+                            <td>@c.Code.Name</td>
+                            <td class="text-end">@c.Code.Rate.ToString("0.##")%</td>
+                            <td class="text-end">@c.Count</td>
+                            <td class="text-end">@c.Net.ToString("C")</td>
+                            <td class="text-end">@c.Tax.ToString("C")</td>
+                            <td class="text-end">@c.Gross.ToString("C")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="h5">Transactions</h2>
+<div class="card shadow-sm mb-3">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Date</th><th>Description</th><th>Account</th><th>Code</th><th class="text-end">Before tax</th><th class="text-end">@tax</th><th class="text-end">With tax</th></tr>
+            </thead>
+            <tbody>
+                @if (r.Lines.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No transactions.</td></tr>
+                }
+                @foreach (var l in r.Lines)
+                {
+                    <tr>
+                        <td class="text-nowrap"><a asp-page="/Accounting/Journal" asp-route-id="@l.JournalId">@l.Date.ToString("d")</a></td>
+                        <td>@l.Description</td>
+                        <td class="small">@l.AccountName</td>
+                        <td>@r.CodesById[l.TaxCodeId].Code</td>
+                        <td class="text-end">@l.Net.ToString("C")</td>
+                        <td class="text-end">@l.Tax.ToString("C")</td>
+                        <td class="text-end">@l.Gross.ToString("C")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="small text-muted">
+    Refunds show as negative amounts. Amounts are by the date of each entry: bank allocations are dated when the money moved
+    (the cash basis). Check the boxes against your return's instructions before lodging; you can change which box each code goes to on the
+    <a asp-page="/SalesTax/Codes">Tax codes</a> page.
+</p>

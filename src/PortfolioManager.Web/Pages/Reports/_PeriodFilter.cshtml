@@ -1,0 +1,47 @@
+@model PortfolioManager.Web.Pages.Reports.PeriodReportModel
+@{
+    var years = FinancialYear.Recent(PortfolioManager.Web.Pages.Reports.PeriodReportModel.Today).ToList();
+    // Keep an older bookmarked year in the list
+    if (Model.Period.FinancialYear is { } fy && !years.Contains(fy))
+        years.Add(fy);
+}
+
+@if (Model.Period.Warning is not null)
+{
+    <div class="alert alert-warning no-print">@Model.Period.Warning</div>
+}
+
+<form method="get" class="card shadow-sm mb-3 no-print" id="periodForm">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-6 col-md-3">
+                <label for="fy" class="form-label small text-muted mb-1">Financial year</label>
+                <select id="fy" name="fy" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var y in years)
+                    {
+                        <option value="@y" selected="@(y == Model.Period.FinancialYear)">@FinancialYear.Label(y)</option>
+                    }
+                    <option value="" selected="@(Model.Period.FinancialYear is null)">Custom dates</option>
+                </select>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <label for="from" class="form-label small text-muted mb-1">From</label>
+                <input type="date" id="from" name="from" class="form-control form-control-sm" value="@Model.Period.From.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <label for="to" class="form-label small text-muted mb-1">To</label>
+                <input type="date" id="to" name="to" class="form-control form-control-sm" value="@Model.Period.To.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <button type="submit" class="btn btn-sm btn-primary w-100">Update report</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+    // Typing a date switches the dropdown to "Custom dates", otherwise the year would win
+    for (const id of ['from', 'to']) {
+        document.getElementById(id).addEventListener('change', () => document.getElementById('fy').value = '');
+    }
+</script>

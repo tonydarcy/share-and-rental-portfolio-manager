@@ -1,0 +1,113 @@
+@page
+@model PortfolioManager.Web.Pages.Prices.ManualModel
+@using PortfolioManager.Core.Prices
+@{
+    ViewData["Title"] = "Manual prices";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Manual prices</h1>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+@if (Model.LoadError is not null)
+{
+    <div class="alert alert-warning">@Model.LoadError</div>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body small">
+        <p class="mb-2">Assets other than listed shares are trades like any other, on one of these markets (enter it as the exchange when you add the trade):</p>
+        <ul class="mb-0">
+            @foreach (var a in AssetTypes.All)
+            {
+                <li><strong>@a.Market</strong>: @a.Name. @a.Pricing</li>
+            }
+        </ul>
+        <p class="mt-2 mb-0 text-muted">Prices entered here are only used by @Model.Portfolio.Name. The newest one is used for its holdings, unrealised gains and performance.</p>
+    </div>
+</div>
+
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+@if (Model.Holdings.Count == 0)
+{
+    <div class="alert alert-info">This portfolio has no trades on FUND, UNLISTED, PROPERTY or OTHER yet.</div>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-lg-7">
+            <form method="post" asp-page-handler="Add" class="card shadow-sm h-100">
+                <div class="card-body row g-2 align-items-end">
+                    <h2 class="h6">Enter a price</h2>
+                    <div class="col-md-5">
+                        <label asp-for="Holding" class="form-label">Holding</label>
+                        <select asp-for="Holding" asp-items="@(new SelectList(Model.Holdings))" class="form-select"></select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label asp-for="Date" class="form-label">Date</label>
+                        <input asp-for="Date" type="date" class="form-control" value="@(Model.Date ?? DateOnly.FromDateTime(DateTime.Today)).ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label asp-for="Price" class="form-label">Price</label>
+                        <input asp-for="Price" type="number" step="any" min="0" class="form-control" />
+                    </div>
+                    <div class="col-md-2"><button class="btn btn-success w-100">Save</button></div>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-5">
+            <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="card shadow-sm h-100">
+                <div class="card-body row g-2 align-items-end">
+                    <h2 class="h6">Or upload a CSV: Code, Date, Price</h2>
+                    <div class="col-md-4">
+                        <label asp-for="Market" class="form-label">Market</label>
+                        <select asp-for="Market" class="form-select">
+                            @foreach (var a in AssetTypes.All.Where(a => AssetTypes.IsManual(a.Market)))
+                            {
+                                <option value="@a.Market">@a.Market</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label asp-for="Upload" class="form-label">File</label>
+                        <input asp-for="Upload" type="file" accept=".csv,.txt" class="form-control" required />
+                    </div>
+                    <div class="col-md-3"><button class="btn btn-primary w-100">Upload</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Code</th><th>Date</th><th class="text-end">Price</th><th></th></tr></thead>
+            <tbody>
+                @if (Model.Prices.Count == 0)
+                {
+                    <tr><td colspan="4" class="text-center text-muted p-4">No prices entered yet.</td></tr>
+                }
+                @foreach (var p in Model.Prices)
+                {
+                    <tr>
+                        <td><span class="fw-bold">@p.StockCode</span> <span class="text-muted small">@p.ExchangeCode</span></td>
+                        <td>@p.Date.ToString("d MMM yyyy")</td>
+                        <td class="text-end">@p.Price.ToString("#,##0.00####")</td>
+                        <td class="text-end">
+                            <form method="post" asp-page-handler="Delete" asp-route-id="@p.PriceId" class="d-inline">
+                                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

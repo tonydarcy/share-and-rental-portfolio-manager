@@ -1,0 +1,88 @@
+@page
+@model PortfolioManager.Web.Pages.Cash.AddModel
+@{
+    ViewData["Title"] = "Add cash transaction";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Add cash transaction</h1>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (!string.IsNullOrEmpty(Model.Success))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="status">
+        <i class="bi bi-check-circle"></i> @Model.Success
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-lg-8 col-xl-7">
+        <form method="post" class="card shadow-sm" novalidate>
+            <div class="card-body">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Date" class="form-label">Date</label>
+                        <input asp-for="Input.Date" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" required />
+                        <span asp-validation-for="Input.Date" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <span class="form-label d-block">Type</span>
+                        <div class="btn-group w-100" role="group" aria-label="Deposit or withdrawal">
+                            <input type="radio" class="btn-check" asp-for="Input.Direction" value="Deposit" id="dirDeposit" />
+                            <label class="btn btn-outline-success" for="dirDeposit">Deposit</label>
+                            <input type="radio" class="btn-check" asp-for="Input.Direction" value="Withdrawal" id="dirWithdrawal" />
+                            <label class="btn btn-outline-danger" for="dirWithdrawal">Withdrawal</label>
+                        </div>
+                        <span asp-validation-for="Input.Direction" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Amount" class="form-label">Amount</label>
+                        <input asp-for="Input.Amount" type="number" min="0.01" step="0.01" class="form-control" required />
+                        <span asp-validation-for="Input.Amount" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Currency" class="form-label">Currency <span class="text-muted small">(optional)</span></label>
+                        <input asp-for="Input.Currency" class="form-control text-uppercase" maxlength="3" placeholder="@Model.PortfolioCurrency" />
+                        <div class="form-text">Blank uses the account's currency, or @Model.PortfolioCurrency for a new account.</div>
+                        <span asp-validation-for="Input.Currency" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label asp-for="Input.BankAccount" class="form-label">Bank account <span class="text-muted small">(optional)</span></label>
+                        <input asp-for="Input.BankAccount" class="form-control" list="bankAccounts" maxlength="500" placeholder="Most recently used account" />
+                        <datalist id="bankAccounts">
+                            @foreach (var a in Model.BankAccounts)
+                            {
+                                <option value="@a.Name">@a.Currency</option>
+                            }
+                        </datalist>
+                        <span asp-validation-for="Input.BankAccount" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label asp-for="Input.Comment" class="form-label">Description <span class="text-muted small">(optional)</span></label>
+                        <textarea asp-for="Input.Comment" class="form-control" rows="2" maxlength="500"></textarea>
+                        <span asp-validation-for="Input.Comment" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                <p class="form-text mt-3 mb-0">
+                    For money you put in or take out. To record the cash for a share trade, tick the cash option on <a asp-page="/Trades/Add">Add trade</a> instead.
+                </p>
+            </div>
+            <div class="card-footer bg-transparent">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Add transaction</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,139 @@
+@page
+@model PortfolioManager.Web.Pages.CorporateActions.AnnouncedModel
+@{
+    ViewData["Title"] = "Announced dividends and splits";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Announced dividends and splits</h1>
+    <a asp-page="./Index" class="btn btn-sm btn-outline-secondary">Corporate actions</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+@if (Model.LoadError is not null)
+{
+    <div class="alert alert-warning">@Model.LoadError</div>
+    return;
+}
+
+<p class="text-muted small">
+    The daily price update fetches the dividends and splits announced for every stock held. Here are the ones for holdings in
+    <strong>@Model.Portfolio.Name</strong> that are paid or effective but not recorded yet. Check each against the statement before
+    you add it: the feed has the amount per unit and the dates, but not the franking or a DRP price, so franking is taken from the
+    last payout of the same stock.
+</p>
+
+<h2 class="h5">Dividends</h2>
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Paid</th>
+                    <th>Code</th>
+                    <th class="text-end">Per unit</th>
+                    <th class="text-end">Units at ex-date</th>
+                    <th class="text-end">Amount</th>
+                    @if (Model.Region.IsAustralia)
+                    {
+                        <th>Franking</th>
+                    }
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Suggestions.Dividends.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No announced dividends are waiting.</td></tr>
+                }
+                @foreach (var d in Model.Suggestions.Dividends)
+                {
+                    var review = Model.NeedsReview(d);
+                    <tr>
+                        <td class="text-nowrap">
+                            @d.PayDate.ToString("d MMM yyyy")
+                            <div class="small text-muted">ex @d.ExDate.ToString("d MMM yyyy")@(d.Period is null ? "" : $", {d.Period}")</div>
+                        </td>
+                        <td><span class="fw-bold">@d.StockCode</span> <span class="text-muted small">@d.ExchangeCode</span></td>
+                        <td class="text-end">@d.AmountPerUnit.ToString("0.00####") @(d.Currency ?? "")</td>
+                        <td class="text-end">@d.Units.ToString("N0")</td>
+                        <td class="text-end">@d.Total.ToString("N2")</td>
+                        @if (Model.Region.IsAustralia)
+                        {
+                            <td class="small">@(d.Franking?.Basis ?? (d.IsAustralian ? "Not known" : "Foreign dividend"))</td>
+                        }
+                        <td class="text-end text-nowrap">
+                            @if (review is null)
+                            {
+                                <form method="post" asp-page-handler="ConfirmDividend" asp-route-id="@d.Id" class="d-inline">
+                                    <button class="btn btn-sm btn-success">Add payout</button>
+                                </form>
+                            }
+                            else
+                            {
+                                <div class="small text-muted mb-1">@review</div>
+                            }
+                            @if (d.LastWasDrp)
+                            {
+                                <a asp-page="/Payouts/AddDrp" asp-route-announced="@d.Id" class="btn btn-sm btn-outline-primary">Add as DRP</a>
+                            }
+                            <a asp-page="/Payouts/Add" asp-route-announced="@d.Id" class="btn btn-sm btn-outline-primary">Review</a>
+                            <form method="post" asp-page-handler="Dismiss" asp-route-kind="Dividend" asp-route-id="@d.Id" class="d-inline">
+                                <button class="btn btn-sm btn-outline-secondary" title="Don't offer this again">Dismiss</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="h5">Splits and consolidations</h2>
+<p class="text-muted small">Recording one changes the earlier trades to the new units, as on <a asp-page="./AddSplit">Record a split</a>.</p>
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Effective</th>
+                    <th>Code</th>
+                    <th>Type</th>
+                    <th>Ratio</th>
+                    <th class="text-end">Units before</th>
+                    <th class="text-end">Units after</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Suggestions.Splits.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No announced splits are waiting.</td></tr>
+                }
+                @foreach (var s in Model.Suggestions.Splits)
+                {
+                    <tr>
+                        <td class="text-nowrap">@s.EffectiveDate.ToString("d MMM yyyy")</td>
+                        <td><span class="fw-bold">@s.StockCode</span> <span class="text-muted small">@s.ExchangeCode</span></td>
+                        <td>@s.Ratio.Kind</td>
+                        <td>@s.Ratio</td>
+                        <td class="text-end">@s.UnitsBefore.ToString("N0")</td>
+                        <td class="text-end">@s.UnitsAfter.ToString("N2")</td>
+                        <td class="text-end text-nowrap">
+                            <form method="post" asp-page-handler="ApplySplit" asp-route-id="@s.Id" class="d-inline">
+                                <button class="btn btn-sm btn-success">Record it</button>
+                            </form>
+                            <form method="post" asp-page-handler="Dismiss" asp-route-kind="Split" asp-route-id="@s.Id" class="d-inline">
+                                <button class="btn btn-sm btn-outline-secondary" title="Don't offer this again">Dismiss</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

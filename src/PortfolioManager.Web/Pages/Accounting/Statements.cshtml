@@ -1,0 +1,100 @@
+@page
+@model StatementsModel
+@using PortfolioManager.Core.Clients
+@using PortfolioManager.Core.Statements
+@{
+    ViewData["Title"] = "Financial statements";
+    var fs = Model.Statements;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">Financial statements</h1>
+        @if (fs is not null)
+        {
+            <div class="text-muted">@fs.Client.LegalName &middot; @ClientEntityTypes.Describe(fs.Client.EntityType) &middot; year ended @fs.YearEndText</div>
+        }
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/Clients/Details" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-vcard"></i> Client details</a>
+        <a asp-page="/Accounting/ReportPack" asp-route-fy="@Model.Year" class="btn btn-sm btn-primary"><i class="bi bi-journal-richtext"></i> Report pack</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || fs is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-6 col-md-3">
+                <label for="fy" class="form-label small text-muted mb-1">Financial year</label>
+                <select id="fy" name="fy" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var y in Model.Years)
+                    {
+                        <option value="@y" selected="@(y == Model.Year)">@FinancialYear.Label(y)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-sm-6 col-md-9 small text-muted">
+                From the ledger (trial balance) at 30 June @Model.Year, @(Model.Year - 1) and @(Model.Year - 2). The year's profit is rolled into
+                equity at year end; no closing journals are posted.
+            </div>
+        </div>
+    </div>
+</form>
+
+@if (Model.Locked)
+{
+    <div class="alert alert-secondary py-2 no-print"><i class="bi bi-lock-fill"></i> @FinancialYear.Label(Model.Year) is locked, so these figures can't change. <a asp-page="/Accounting/Lock">Lock periods</a></div>
+}
+
+<partial name="_FsWarnings" model="fs" />
+
+@if (fs.IsEmpty)
+{
+    <div class="alert alert-info">Nothing has been posted to this portfolio's ledger for these two years.</div>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h5">@fs.IncomeStatement.Title</h2>
+        <p class="text-muted small">For the year ended @fs.YearEndText</p>
+        <div class="table-responsive"><partial name="_FsStatement" model="(fs.IncomeStatement, fs.Year, true)" /></div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h5">@fs.FinancialPosition.Title</h2>
+        <p class="text-muted small">As at @fs.YearEndText</p>
+        <div class="table-responsive"><partial name="_FsStatement" model="(fs.FinancialPosition, fs.Year, true)" /></div>
+        @if (fs.Reconciles)
+        {
+            <p class="small text-success mt-2 mb-0 no-print"><i class="bi bi-check-circle"></i> Assets less liabilities equal equity at both dates.</p>
+        }
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h5">Notes to the financial statements</h2>
+        <partial name="_FsNotes" model="fs" />
+    </div>
+</div>
+
+<details class="card shadow-sm no-print">
+    <summary class="card-body py-2">How accounts are mapped to statement lines</summary>
+    <div class="card-body pt-0">
+        <ul class="small text-muted mb-0">
+            @foreach (var c in StatementClassifier.Conventions)
+            {
+                <li>@c</li>
+            }
+        </ul>
+    </div>
+</details>

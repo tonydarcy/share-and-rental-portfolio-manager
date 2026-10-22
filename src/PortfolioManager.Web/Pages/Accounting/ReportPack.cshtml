@@ -1,0 +1,210 @@
+@page
+@model ReportPackModel
+@using PortfolioManager.Core.Clients
+@using PortfolioManager.Core.Statements
+@{
+    ViewData["Title"] = "Report pack";
+    var pack = Model.Pack;
+    var fs = pack?.Statements;
+    var signedText = pack?.Options.SigningDate is { } d ? StatementFormat.Date(d) : null;
+    const string footer = "The accompanying notes form part of these financial statements.";
+    var compiled = pack?.Compilation is not null ? " These statements should be read in conjunction with the attached compilation report." : "";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom no-print">
+    <div>
+        <h1 class="h2 mb-0">Report pack</h1>
+        @if (fs is not null)
+        {
+            <div class="text-muted">@fs.Client.LegalName &middot; year ended @fs.YearEndText</div>
+        }
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-page="/Accounting/Statements" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Statements</a>
+        <a asp-page="/Clients/Details" class="btn btn-sm btn-outline-secondary">Client details</a>
+        <button type="button" class="btn btn-sm btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Print / Save as PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || pack is null || fs is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-4 col-md-3">
+                <label for="fy" class="form-label small text-muted mb-1">Financial year</label>
+                <select id="fy" name="fy" class="form-select form-select-sm">
+                    @foreach (var y in Model.Years)
+                    {
+                        <option value="@y" selected="@(y == Model.Year)">@FinancialYear.Label(y)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-sm-4 col-md-3">
+                <label for="compilation" class="form-label small text-muted mb-1">Compilation report</label>
+                <select id="compilation" name="compilation" class="form-select form-select-sm">
+                    <option value="true" selected="@Model.Compilation">Include</option>
+                    <option value="false" selected="@(!Model.Compilation)">Leave out</option>
+                </select>
+            </div>
+            <div class="col-sm-4 col-md-3">
+                <label for="signed" class="form-label small text-muted mb-1">Signing date (optional)</label>
+                <input type="date" id="signed" name="signed" class="form-control form-control-sm" value="@pack.Options.SigningDate?.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-sm-12 col-md-3">
+                <button type="submit" class="btn btn-sm btn-primary w-100">Update pack</button>
+            </div>
+        </div>
+        <div class="form-text">Without a signing date the declaration and compilation report have a blank date line. Use your browser's Print and choose "Save as PDF" for a PDF (A4, with headers and footers turned off).</div>
+    </div>
+</form>
+
+@if (pack.Warnings.Count > 0)
+{
+    <div class="alert alert-warning no-print">
+        <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> Check before you issue this pack</div>
+        <ul class="mb-0 small">
+            @foreach (var w in pack.Warnings)
+            {
+                <li>@w</li>
+            }
+        </ul>
+    </div>
+}
+
+@{
+    const string ContentsTitle = "Contents";
+    var forYear = $"For the year ended {fs.YearEndText}";
+    var asAt = $"As at {fs.YearEndText}";
+    (FinancialStatements, string, string) Header(string title, string period) => (fs, title, period);
+}
+
+<div class="pack">
+    @* Cover *@
+    <section class="pack-page pack-cover">
+        <div>
+            <h1 class="display-6 fw-bold mb-3">@fs.Client.LegalName</h1>
+            @foreach (var line in pack.CoverLines)
+            {
+                <div class="lead">@line</div>
+            }
+            <div class="h4 mt-5">@pack.Title</div>
+        </div>
+        @if (pack.Compilation?.Practice is { } coverPractice)
+        {
+            <div class="pack-cover-foot small">
+                Prepared by @coverPractice.PracticeName
+                @if (coverPractice.Address.Lines.Count > 0)
+                {
+                    <br />@coverPractice.Address.OneLine
+                }
+            </div>
+        }
+    </section>
+
+    @* Contents *@
+    <section class="pack-page">
+        <partial name="_PackHeader" model="Header(ContentsTitle, pack.Title)" />
+        <ol class="pack-contents">
+            @foreach (var item in pack.Contents)
+            {
+                <li>@item</li>
+            }
+        </ol>
+    </section>
+
+    @* Statements *@
+    <section class="pack-page">
+        <partial name="_PackHeader" model="Header(fs.IncomeStatement.Title, forYear)" />
+        <partial name="_FsStatement" model="(fs.IncomeStatement, fs.Year, true)" />
+        <p class="pack-footer">@footer@compiled</p>
+    </section>
+
+    <section class="pack-page">
+        <partial name="_PackHeader" model="Header(fs.FinancialPosition.Title, asAt)" />
+        <partial name="_FsStatement" model="(fs.FinancialPosition, fs.Year, true)" />
+        <p class="pack-footer">@footer@compiled</p>
+    </section>
+
+    @* Notes *@
+    <section class="pack-page">
+        <partial name="_PackHeader" model="Header(ReportPackBuilder.NotesTitle, forYear)" />
+        <partial name="_FsNotes" model="fs" />
+    </section>
+
+    @* Declaration *@
+    <section class="pack-page">
+        <partial name="_PackHeader" model="Header(pack.Declaration.Title, forYear)" />
+        <p>@pack.Declaration.Intro</p>
+        <ol>
+            @foreach (var point in pack.Declaration.Points)
+            {
+                <li class="mb-2">@point</li>
+            }
+        </ol>
+        @if (pack.Declaration.Closing is not null)
+        {
+            <p>@pack.Declaration.Closing</p>
+        }
+        <div class="pack-signatures">
+            @foreach (var s in pack.Declaration.Signatories)
+            {
+                <div class="pack-signature">
+                    <div class="pack-sign-line"></div>
+                    <div class="fw-semibold">@(s.Name.Length > 0 ? s.Name : "Name:")</div>
+                    @if (s.Role.Length > 0)
+                    {
+                        <div class="small">@s.Role</div>
+                    }
+                </div>
+            }
+        </div>
+        <p class="mt-4">Dated: @(signedText ?? "____________________")</p>
+    </section>
+
+    @* Compilation report *@
+    @if (pack.Compilation is { } report)
+    {
+        <section class="pack-page">
+            <partial name="_PackHeader" model="Header(report.Title, forYear)" />
+            @foreach (var part in report.Sections)
+            {
+                if (part.Heading is not null)
+                {
+                    <h3 class="h6 fw-bold mt-3">@part.Heading</h3>
+                }
+                @foreach (var p in part.Paragraphs)
+                {
+                    <p>@p</p>
+                }
+            }
+            <div class="pack-signature mt-5">
+                <div class="pack-sign-line"></div>
+                @if (report.Practice is { } practice)
+                {
+                    <div class="fw-semibold">@practice.PreparerName@(string.IsNullOrEmpty(practice.ProfessionalBody) ? "" : ", " + practice.ProfessionalBody)</div>
+                    <div>@practice.PracticeName</div>
+                    @if (!string.IsNullOrEmpty(practice.TaxAgentNumber))
+                    {
+                        <div class="small">Registered tax agent @practice.TaxAgentNumber</div>
+                    }
+                    @foreach (var line in practice.Address.Lines)
+                    {
+                        <div class="small">@line</div>
+                    }
+                }
+                else
+                {
+                    <div class="fw-semibold">Name:</div>
+                    <div>Practice:</div>
+                }
+            </div>
+            <p class="mt-3">Dated: @(signedText ?? "____________________")</p>
+        </section>
+    }
+    <partial name="_YearAttachments" model="Model.Attachments" />
+</div>

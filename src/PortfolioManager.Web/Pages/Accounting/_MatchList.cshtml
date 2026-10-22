@@ -1,0 +1,30 @@
+@model MatchList
+
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Date</th>
+                <th>@Model.Handler</th>
+                <th class="text-end">Amount</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in Model.Candidates)
+            {
+                <tr>
+                    <td class="text-nowrap">@c.Date.ToString("d MMM yyyy")</td>
+                    <td>@c.Description</td>
+                    <td class="text-end">@c.Amount.ToString("C")</td>
+                    <td class="text-end">
+                        <form method="post" asp-page-handler="@Model.Handler" class="d-inline"
+                              asp-all-route-data="@(new Dictionary<string, string> { ["id"] = Model.LineId.ToString(), [Model.IdName] = c.Id.ToString() })">
+                            <button type="submit" class="btn btn-sm btn-success">Match</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

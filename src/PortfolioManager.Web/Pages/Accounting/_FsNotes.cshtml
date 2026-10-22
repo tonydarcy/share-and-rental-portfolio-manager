@@ -1,0 +1,28 @@
+@using PortfolioManager.Core.Statements
+@model FinancialStatements
+@foreach (var note in Model.Notes)
+{
+    <section class="fs-note-section">
+        <h3 class="h6 fw-bold mt-3">Note @note.Number. @note.Title</h3>
+        @foreach (var p in note.Paragraphs)
+        {
+            var (heading, text) = StatementNote.Split(p);
+            if (heading is not null)
+            {
+                <p class="mb-2"><span class="fw-semibold">@heading.</span> @text</p>
+            }
+            else
+            {
+                <p class="mb-2">@text</p>
+            }
+        }
+        @foreach (var t in note.Tables)
+        {
+            if (t.Caption is not null)
+            {
+                <div class="fw-semibold small mt-2">@t.Caption</div>
+            }
+            <partial name="_FsStatement" model="(new Statement(t.Caption ?? note.Title, [new StatementBlock(null, t.Rows)]), Model.Year, false)" />
+        }
+    </section>
+}

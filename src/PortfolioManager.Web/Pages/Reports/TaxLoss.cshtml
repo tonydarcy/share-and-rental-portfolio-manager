@@ -1,0 +1,104 @@
+@page
+@model PortfolioManager.Web.Pages.Reports.TaxLossModel
+@{
+    ViewData["Title"] = "Tax-loss selling";
+    var r = Model.Report;
+    var au = Model.Region.IsAustralia;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Tax-loss selling</h1>
+    @if (r is not null) { <span class="text-muted">@r.Year.Description, as at @r.AsAt.ToString("d MMM yyyy")</span> }
+</div>
+
+@if (Model.Portfolio is null || r is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">Holdings worth less than they cost at the latest price (foreign shares converted at the FX close). Selling the parcels at a loss before the year ends
+    would offset this year's capital gains. Nothing is saved here; each row opens the what-if sale with those units.</p>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="small text-muted">Gains so far this year</div><div class="fs-4">@r.SoFar.GrossGains.ToString("C")</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="small text-muted">Losses so far (with earlier years)</div><div class="fs-4">@((r.SoFar.CurrentYearLosses + r.SoFar.PriorYearLosses).ToString("C"))</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="small text-muted">Net capital gain so far</div><div class="fs-4">@r.SoFar.NetCapitalGain.ToString("C")</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="small text-muted">Unrealised losses</div><div class="fs-4 text-danger">@r.UnrealisedLoss.ToString("C")</div></div></div></div>
+</div>
+
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body py-2 d-flex flex-wrap align-items-end gap-2">
+        <div><label class="form-label small mb-0" for="TaxRate">Tax rate on net capital gains (%)</label>
+            <input class="form-control" id="TaxRate" name="TaxRate" type="number" step="any" min="0" max="100" value="@Model.TaxRate" style="max-width: 10rem" /></div>
+        <button class="btn btn-outline-primary">Work it out again</button>
+    </div>
+</form>
+
+<div class="card shadow-sm mb-3">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Holding</th>
+                <th class="text-end">Units held</th>
+                <th class="text-end">Units at a loss</th>
+                <th class="text-end">Price</th>
+                <th class="text-end">Loss</th>
+                <th class="text-end">Net gain change</th>
+                <th class="text-end">Tax saved</th>
+                <th class="text-end">Loss carried forward</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (r.Candidates.Count == 0)
+            {
+                <tr><td colspan="9" class="text-center text-muted p-4">No holdings are below cost at the latest price.</td></tr>
+            }
+            @foreach (var c in r.Candidates)
+            {
+                <tr>
+                    <td>
+                        <strong>@c.StockCode</strong> <span class="small text-muted">@c.ExchangeCode</span>
+                        @if (c.BoughtRecently(Model.Today))
+                        {
+                            <span class="badge text-bg-warning" title="Bought on @c.LastBought.ToString("d MMM yyyy")">bought recently</span>
+                        }
+                    </td>
+                    <td class="text-end">@c.UnitsHeld.ToString("#,##0.####")</td>
+                    <td class="text-end">@c.UnitsAtLoss.ToString("#,##0.####")</td>
+                    <td class="text-end">@c.Price.ToString("C") <span class="small text-muted">@c.PriceDate.ToString("d MMM")</span></td>
+                    <td class="text-end text-danger">@c.UnrealisedLoss.ToString("C")</td>
+                    <td class="text-end">@c.Sale.NetGainChange.ToString("C")</td>
+                    <td class="text-end fw-semibold @(c.TaxSaved > 0 ? "text-success" : "")">@c.TaxSaved.ToString("C")</td>
+                    <td class="text-end">@(c.Sale.LossCarriedForwardChange == 0 ? "" : c.Sale.LossCarriedForwardChange.ToString("C"))</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-secondary" asp-page="/Reports/WhatIf" asp-route-Holding="@($"{c.ExchangeCode}:{c.StockCode}")"
+                           asp-route-Units="@c.UnitsAtLoss" asp-route-Method="MinGain" asp-route-TaxRate="@Model.TaxRate">What-if</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+@if (r.NoPrice.Count > 0)
+{
+    <p class="small text-muted">No price (or, for foreign shares, exchange rate) on file for @string.Join(", ", r.NoPrice), so they aren't checked.</p>
+}
+
+<div class="alert alert-warning small">
+    <strong>Wash sales.</strong>
+    @if (au)
+    {
+        <text>Selling shares to make a loss and buying the same (or very similar) shares back soon after is a "wash sale". The ATO
+        can cancel the loss under the general anti-avoidance rule (Part IVA, see TR 2008/1) when getting the tax benefit was
+        the main reason for the sale. There is no safe waiting period.</text>
+    }
+    else
+    {
+        <text>Selling to make a loss and buying the same shares back soon after may not count for tax. Check your country's rules.</text>
+    }
+    Holdings marked "bought recently" were bought in the last @PortfolioManager.Core.Tax.TaxLoss.WashSaleDays days. Each row is
+    worked out on its own: selling several changes how the losses are applied. Tax saved only counts this year's gains;
+    a loss bigger than them is carried forward instead.
+</div>

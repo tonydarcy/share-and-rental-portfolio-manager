@@ -1,0 +1,207 @@
+@page
+@model CapitalGainsModel
+@{
+    ViewData["Title"] = "Realised capital gains";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">Realised capital gains</h1>
+        @if (Model.Portfolio is not null)
+        {
+            <div class="text-muted">@Model.Portfolio.Name &middot; @Model.Period.Description</div>
+        }
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@{
+    // The CGT discount and the tax return wording are Australian; other countries get the plain figures
+    var au = RegionSettings.Current.IsAustralia;
+}
+<p class="text-muted small no-print">Gains and losses on shares sold between the dates below, using first-in, first-out (FIFO) cost bases@(au ? ", with the CGT discount for parcels held more than 12 months" : "").</p>
+
+<partial name="_PeriodFilter" model="Model" />
+
+@if (Model.Return is { } r)
+{
+    var c = r.Summary;
+    <h2 class="h5">@(au ? "For your tax return" : "Summary")</h2>
+    @if (c.Rate.Assumed)
+    {
+        <div class="alert alert-warning">This portfolio's entity type (@(string.IsNullOrWhiteSpace(Model.Portfolio.EntityType) ? "not set" : Model.Portfolio.EntityType)) isn't one the discount rules recognise, so the 50% discount for individuals and trusts has been used. Companies get no discount and complying super funds get 33⅓%.</div>
+    }
+    @if (!r.AgreesWith(Model.Report.Total.Gain))
+    {
+        <div class="alert alert-warning">The parcel-by-parcel total below (@r.TotalGain.ToString("C")) doesn't match the sales table (@Model.Report.Total.Gain.ToString("C")). The two match sales to purchases slightly differently; check the parcels sold before using these figures.</div>
+    }
+    @foreach (var p in r.Problems)
+    {
+        <div class="alert alert-warning py-2">@p.Message</div>
+    }
+    @if (Model.ChosenSales > 0)
+    {
+        <div class="alert alert-info py-2">
+            @Model.ChosenSales sale@(Model.ChosenSales == 1 ? "" : "s") in this period use parcels you chose (Share trades, the stack button on a sale).
+            The figures for the tax return and the parcels sold follow that choice; the Sales table is first in, first out.
+        </div>
+    }
+    @if (r.CapitalReturns > 0)
+    {
+        <div class="alert alert-info py-2">
+            Returns of capital reduce the cost bases in these figures and in the parcels below, but not in the sales table, which comes from the older report.
+            @if (r.CapitalReturnGains > 0)
+            {
+                <text>The gross gains include @r.CapitalReturnGains.ToString("C") from returns of capital more than a parcel's cost base (CGT event G1).</text>
+            }
+        </div>
+    }
+    <div class="card shadow-sm mb-4">
+        <table class="table table-sm mb-0">
+            <tbody>
+                <tr><td>Gains on parcels held more than 12 months@(au ? " (discount gains)" : "")</td><td class="text-end">@c.DiscountGains.ToString("C")</td></tr>
+                <tr><td>@(au ? "Other capital gains" : "Gains on parcels held 12 months or less")</td><td class="text-end">@c.OtherGains.ToString("C")</td></tr>
+                <tr class="fw-bold"><td>Gross capital gains</td><td class="text-end">@c.GrossGains.ToString("C")</td></tr>
+                <tr><td class="text-muted">Capital losses this period</td><td class="text-end text-muted">@c.CurrentYearLosses.ToString("C")</td></tr>
+                @if (r.PriorYearLossesIncluded)
+                {
+                    <tr><td class="text-muted">Net capital losses brought forward from earlier years</td><td class="text-end text-muted">@c.PriorYearLosses.ToString("C")</td></tr>
+                }
+                <tr><td>Capital losses applied@(au ? " (against other gains first, then discount gains)" : "")</td><td class="text-end">@((-c.LossesApplied).ToString("C"))</td></tr>
+                @if (c.Rate.Applies)
+                {
+                    <tr><td>CGT discount (@c.Rate.RateText of the discount gains left)</td><td class="text-end">@((-c.Discount).ToString("C"))</td></tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="table-active fw-bold"><td>Net capital gain</td><td class="text-end">@c.NetCapitalGain.ToString("C")</td></tr>
+                @if (c.LossCarriedForward > 0)
+                {
+                    <tr class="fw-bold"><td>Net capital loss carried forward</td><td class="text-end text-danger">@c.LossCarriedForward.ToString("C")</td></tr>
+                }
+            </tfoot>
+        </table>
+    </div>
+    <p class="text-muted small">
+        @if (c.Rate.Kind == CgtEntityKind.Individual)
+        {
+            <text>On an individual return these are item 18: total current year capital gains (H) is the gross capital gains, net capital gain is A, and a loss carried forward is V. </text>
+        }
+        @if (r.PriorYearLossesIncluded)
+        {
+            <text>Losses brought forward are worked out from sales recorded here in earlier years, using the current entity type; losses from shares or other assets not recorded here aren't included.</text>
+        }
+        else
+        {
+            <text>Losses from earlier years are only brought forward when a financial year is chosen.</text>
+        }
+    </p>
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Exch</th>
+                    <th>Date sold</th>
+                    <th class="text-end">Cost base / unit</th>
+                    <th class="text-end">Total cost base</th>
+                    <th class="text-end">Proceeds / unit</th>
+                    <th class="text-end">Total proceeds</th>
+                    <th class="text-end">Gain / loss</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Report.Lines.Count == 0)
+                {
+                    <tr><td colspan="8" class="text-center text-muted p-4">No shares were sold between these dates.</td></tr>
+                }
+                @foreach (var l in Model.Report.Lines)
+                {
+                    <tr>
+                        <td class="fw-bold">@l.StockCode</td>
+                        <td class="text-muted small">@l.ExchangeCode</td>
+                        <td>@(l.DateSold?.ToString("d MMM yyyy") ?? l.DateSoldText)</td>
+                        <td class="text-end">@l.CostPerUnit.ToString("C4")</td>
+                        <td class="text-end">@l.TotalCost.ToString("C")</td>
+                        <td class="text-end">@l.ProceedsPerUnit.ToString("C4")</td>
+                        <td class="text-end">@l.TotalProceeds.ToString("C")</td>
+                        <td class="text-end fw-bold @PeriodReportModel.GainClass(l.Gain)">@l.Gain.ToString("C")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Report.Lines.Count > 0)
+            {
+                var t = Model.Report.Total;
+                <tfoot>
+                    <tr class="table-active fw-bold">
+                        <td colspan="4">Total</td>
+                        <td class="text-end">@t.TotalCost.ToString("C")</td>
+                        <td></td>
+                        <td class="text-end">@t.TotalProceeds.ToString("C")</td>
+                        <td class="text-end @PeriodReportModel.GainClass(t.Gain)">@t.Gain.ToString("C")</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>
+<p class="text-muted small mt-2">@(au ? "Gains on each sale are before the CGT discount; a" : "A") sale can include parcels bought on different dates.</p>
+
+@if (Model.Return is { Events.Count: > 0 } ret)
+{
+    <h2 class="h5 mt-4">@(ret.Events.Any(e => e.IsCapitalReturn) ? "Parcels sold and returns of capital" : "Parcels sold")</h2>
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Code</th>
+                        <th>Exch</th>
+                        <th>Bought</th>
+                        <th>@(ret.Events.Any(e => e.IsCapitalReturn) ? "Sold / paid" : "Sold")</th>
+                        <th class="text-end">Units</th>
+                        <th class="text-end">Cost base</th>
+                        <th class="text-end">Proceeds</th>
+                        <th class="text-end">Gain / loss</th>
+                        <th>@(au ? "Discount" : "Held over 12 months")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in ret.Events)
+                    {
+                        <tr>
+                            <td>
+                                <span class="fw-bold">@e.StockCode</span>
+                                @if (e.IsCapitalReturn)
+                                {
+                                    <span class="badge text-bg-info" title="Return of capital more than the parcel's cost base">Return of capital (G1)</span>
+                                }
+                                @if (e.IsFundGain)
+                                {
+                                    <span class="badge text-bg-info" title="From the fund's annual tax statement (Income > Fund tax statements)">Fund distribution</span>
+                                }
+                            </td>
+                            <td class="text-muted small">@e.ExchangeCode</td>
+                            <td>@(e.IsFundGain ? "" : e.Acquired.ToString("d MMM yyyy"))</td>
+                            <td>@e.Disposed.ToString("d MMM yyyy")</td>
+                            <td class="text-end">@e.Units.ToString("#,##0.####")</td>
+                            <td class="text-end">@e.CostBase.ToString("C")</td>
+                            <td class="text-end">@e.Proceeds.ToString("C")</td>
+                            <td class="text-end fw-bold @PeriodReportModel.GainClass(e.Gain)">@e.Gain.ToString("C")</td>
+                            <td>@(au && e.Gain < 0 ? "Loss" : e.DiscountEligible ? "Yes" : "No")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

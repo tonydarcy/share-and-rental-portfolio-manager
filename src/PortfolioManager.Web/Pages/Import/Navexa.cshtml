@@ -1,0 +1,245 @@
+@page
+@model PortfolioManager.Web.Pages.Import.NavexaModel
+@using PortfolioManager.Core.Import
+@{
+    ViewData["Title"] = "Import from Navexa";
+    var preview = Model.Preview;
+}
+
+<div class="pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Import from Navexa</h1>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (!string.IsNullOrEmpty(Model.Done))
+{
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> @Model.Done
+        <a asp-page="/Holdings" class="alert-link ms-2">See holdings</a>
+    </div>
+}
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <p class="mb-3">
+            Brings your trades and dividends across from Navexa into <strong>@Model.Portfolio.Name</strong>.
+            In Navexa, export your trades and your income as CSV files, then choose them below.
+            Nothing is saved until you have checked the preview and pressed Import.
+        </p>
+        <form method="post" asp-page-handler="Preview" enctype="multipart/form-data" class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="TradesFile" class="form-label">Trades CSV</label>
+                <input asp-for="TradesFile" type="file" accept=".csv,.txt,text/csv" class="form-control" />
+            </div>
+            <div class="col-md-6">
+                <label asp-for="IncomeFile" class="form-label">Income (dividends) CSV</label>
+                <input asp-for="IncomeFile" type="file" accept=".csv,.txt,text/csv" class="form-control" />
+            </div>
+            <div class="col-12">
+                <div class="form-check">
+                    <input asp-for="RatesForeignPerPortfolioUnit" class="form-check-input" />
+                    <label asp-for="RatesForeignPerPortfolioUnit" class="form-check-label">
+                        The file's exchange rates are foreign currency per 1 AUD (e.g. 0.65 for USD), not AUD per foreign unit (e.g. 1.54)
+                    </label>
+                </div>
+                <div class="form-text">Only matters for trades or income not in the portfolio's currency. If the AUD totals in the preview look wrong, tick this and preview again.</div>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-eye"></i> Preview</button>
+                <span class="text-muted small ms-2">Up to @(NavexaModel.MaxFileBytes / 1024 / 1024) MB and @NavexaParser.MaxRows.ToString("N0") rows per file.</span>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (preview is not null)
+{
+    var trades = preview.Trades;
+    var income = preview.Income;
+
+    <div class="card shadow-sm mb-3 border-primary">
+        <div class="card-body">
+            <h2 class="h5">Ready to import</h2>
+            <p class="mb-2">
+                <strong>@preview.TradesToImport</strong> trade(s) and <strong>@preview.PayoutsToImport</strong> payout(s).
+                Rows marked Duplicate, Not supported or Error are left out.
+            </p>
+            @if (preview.TradesToImport + preview.PayoutsToImport > 0)
+            {
+                <form method="post" asp-page-handler="Import" class="d-flex flex-wrap gap-3 align-items-center">
+                    <input type="hidden" asp-for="TradesData" />
+                    <input type="hidden" asp-for="IncomeData" />
+                    <input type="hidden" asp-for="RatesForeignPerPortfolioUnit" />
+                    @if (preview.TradesToImport > 0)
+                    {
+                        <div class="form-check mb-0">
+                            <input asp-for="WithCash" class="form-check-input" />
+                            <label asp-for="WithCash" class="form-check-label">Also record each trade's settlement in the bank account (T+2)</label>
+                        </div>
+                    }
+                    <button type="submit" class="btn btn-success"
+                            onclick="return confirm('Import @preview.TradesToImport trade(s) and @preview.PayoutsToImport payout(s)?')">
+                        <i class="bi bi-box-arrow-in-down"></i> Import
+                    </button>
+                </form>
+            }
+        </div>
+    </div>
+
+    @if (trades is not null)
+    {
+        <h2 class="h4 mt-4">Trades</h2>
+        @foreach (var e in trades.Errors)
+        {
+            <div class="alert alert-danger">@e</div>
+        }
+        @foreach (var w in trades.Warnings)
+        {
+            <div class="alert alert-warning">@w</div>
+        }
+        @if (trades.Rows.Count > 0)
+        {
+            <p class="text-muted small">
+                @trades.Count(ImportRowStatus.Ready) to import, @trades.Count(ImportRowStatus.Duplicate) duplicate,
+                @trades.Count(ImportRowStatus.Unsupported) not supported, @trades.Count(ImportRowStatus.Error) with errors.
+            </p>
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Line</th><th></th><th>Date</th><th>Type</th><th>Code</th><th>Exch</th>
+                                <th class="text-end">Units</th><th class="text-end">Price</th><th class="text-end">Brokerage</th>
+                                <th>Ccy</th><th class="text-end">Total (@preview.PortfolioCurrency)</th><th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in trades.Rows)
+                            {
+                                var ok = t.Status is ImportRowStatus.Ready or ImportRowStatus.Duplicate;
+                                <tr class="@(t.Status == ImportRowStatus.Ready ? "" : "text-body-secondary")">
+                                    <td class="small">@t.Line</td>
+                                    <td><span class="badge @NavexaModel.StatusBadge(t.Status)">@NavexaModel.StatusText(t.Status)</span></td>
+                                    <td class="text-nowrap">@(t.Date == default ? "" : t.Date.ToString("d"))</td>
+                                    <td>@(t.Type.Length > 0 ? t.Type : t.RawType)</td>
+                                    <td class="fw-bold">@t.Code</td>
+                                    <td class="small">@t.Exchange</td>
+                                    <td class="text-end">@(t.Quantity == 0 ? "" : t.Quantity.ToString("#,##0"))</td>
+                                    <td class="text-end">@(ok ? t.Price.ToString("0.00####") : "")</td>
+                                    <td class="text-end">@(ok ? t.Brokerage.ToString("0.00") : "")</td>
+                                    <td class="small">@t.Currency</td>
+                                    <td class="text-end">@(ok ? t.PortfolioTotal.ToString("C") : "")</td>
+                                    <td class="small">
+                                        @foreach (var e in t.Errors) { <div class="text-danger">@e</div> }
+                                        @if (t.Unsupported is not null) { <div class="text-warning-emphasis">@t.Unsupported</div> }
+                                        @if (t.DuplicateOf is not null) { <div>@t.DuplicateOf</div> }
+                                        @foreach (var w in t.Warnings) { <div class="text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> @w</div> }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+
+    @if (income is not null)
+    {
+        <h2 class="h4 mt-4">Income</h2>
+        @foreach (var e in income.Errors)
+        {
+            <div class="alert alert-danger">@e</div>
+        }
+        @foreach (var w in income.Warnings)
+        {
+            <div class="alert alert-warning">@w</div>
+        }
+        @if (income.Rows.Count > 0)
+        {
+            <p class="text-muted small">
+                @income.Count(ImportRowStatus.Ready) to import, @income.Count(ImportRowStatus.Duplicate) duplicate,
+                @income.Count(ImportRowStatus.Unsupported) not supported, @income.Count(ImportRowStatus.Error) with errors.
+                Amounts are in @preview.PortfolioCurrency.
+            </p>
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Line</th><th></th><th>Paid</th><th>Code</th><th>Exch</th>
+                                <th class="text-end">Franked</th><th class="text-end">Unfranked</th><th class="text-end">Franking credits</th>
+                                <th class="text-end">Tax withheld</th><th class="text-end">Cash received</th><th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in income.Rows)
+                            {
+                                var ok = p.Status is ImportRowStatus.Ready or ImportRowStatus.Duplicate;
+                                <tr class="@(p.Status == ImportRowStatus.Ready ? "" : "text-body-secondary")">
+                                    <td class="small">@p.Line</td>
+                                    <td><span class="badge @NavexaModel.StatusBadge(p.Status)">@NavexaModel.StatusText(p.Status)</span></td>
+                                    <td class="text-nowrap">@(p.Date == default ? "" : p.Date.ToString("d"))</td>
+                                    <td class="fw-bold">@p.Code</td>
+                                    <td class="small">@p.Exchange</td>
+                                    <td class="text-end">@(ok ? p.Franked.ToString("C") : "")</td>
+                                    <td class="text-end">@(ok ? p.Unfranked.ToString("C") : "")</td>
+                                    <td class="text-end">@(ok ? p.FrankingCredit.ToString("C") : "")</td>
+                                    <td class="text-end">@(ok ? (p.ForeignTax + p.TfnWithheld).ToString("C") : "")</td>
+                                    <td class="text-end fw-bold">@(ok ? p.Net.ToString("C") : "")</td>
+                                    <td class="small">
+                                        @foreach (var e in p.Errors) { <div class="text-danger">@e</div> }
+                                        @if (p.Unsupported is not null) { <div class="text-warning-emphasis">@p.Unsupported</div> }
+                                        @if (p.DuplicateOf is not null) { <div>@p.DuplicateOf</div> }
+                                        @foreach (var w in p.Warnings) { <div class="text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> @w</div> }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+}
+
+<details class="mt-4">
+    <summary class="h5">Columns this page reads</summary>
+    <p class="mt-2">
+        Columns are matched by heading, in any order and any case. Other columns are ignored.
+        Dates are day/month/year (or year-month-day). Amounts may include $ signs and thousands separators.
+    </p>
+    @foreach (var (title, columns) in new[] { ("Trades file", NavexaParser.TradeColumns), ("Income file", NavexaParser.IncomeColumns) })
+    {
+        <h3 class="h6 mt-3">@title</h3>
+        <div class="table-responsive">
+            <table class="table table-sm small">
+                <thead><tr><th>Field</th><th>Headings accepted</th><th>Notes</th></tr></thead>
+                <tbody>
+                    @foreach (var c in columns)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@c.Field @(c.Required ? "(required)" : "")</td>
+                            <td>@string.Join(", ", c.Headers)</td>
+                            <td>@c.Notes</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    <p class="small text-muted">
+        The income file needs at least one of Gross, Net, Franked or Unfranked.
+        Rows already in this portfolio (same code, date, type, units and price for trades; same code, date and cash amount for income) are skipped.
+    </p>
+</details>

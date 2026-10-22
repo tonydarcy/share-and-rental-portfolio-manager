@@ -1,0 +1,181 @@
+@page
+@model DetailsModel
+@{
+    ViewData["Title"] = "Client details";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">Client details</h1>
+        @if (Model.Portfolio is not null)
+        {
+            <div class="text-muted">Portfolio: @Model.Portfolio.Name</div>
+        }
+    </div>
+    <a asp-page="/Clients/Index" class="btn btn-sm btn-outline-secondary">All clients</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (Model.Details is { Saved: false })
+{
+    <div class="alert alert-secondary small">
+        These details haven't been saved yet. The name and entity type below are taken from the portfolio
+        (@Model.Details.PortfolioEntityType); check them before you prepare statements.
+    </div>
+}
+
+<form method="post">
+    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h2 class="h6">Entity</h2>
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label asp-for="Input.LegalName" class="form-label">Legal name</label>
+                    <input asp-for="Input.LegalName" class="form-control" maxlength="500" required />
+                    <div class="form-text">As it appears on the cover page, e.g. "Smith Family Trust" or "Smith Investments Pty Ltd".</div>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Input.EntityType" class="form-label">Entity type</label>
+                    <select asp-for="Input.EntityType" class="form-select" id="entityType">
+                        @foreach (var t in ClientEntityTypes.All)
+                        {
+                            <option value="@t">@ClientEntityTypes.Describe(t)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Input.Abn" class="form-label">ABN</label>
+                    <input asp-for="Input.Abn" class="form-control" maxlength="14" inputmode="numeric" placeholder="e.g. 51 824 753 556" />
+                </div>
+                <div class="col-md-4" data-show-for="Company">
+                    <label asp-for="Input.Acn" class="form-label">ACN</label>
+                    <input asp-for="Input.Acn" class="form-control" maxlength="11" inputmode="numeric" placeholder="e.g. 000 000 019" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3" data-show-for="Trust SMSF">
+        <div class="card-body">
+            <h2 class="h6">Trustee</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="Input.TrusteeName" class="form-label">Trustee name</label>
+                    <input asp-for="Input.TrusteeName" class="form-control" maxlength="500" placeholder="e.g. Smith Nominees Pty Ltd, or the individual trustees" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.TrusteeType" class="form-label">Trustee type</label>
+                    <select asp-for="Input.TrusteeType" class="form-select">
+                        <option value="">-- Not set --</option>
+                        @foreach (var t in TrusteeTypes.All)
+                        {
+                            <option value="@t">@t</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.TrusteeAcn" class="form-label">Trustee company ACN</label>
+                    <input asp-for="Input.TrusteeAcn" class="form-control" maxlength="11" inputmode="numeric" />
+                    <div class="form-text">Corporate trustee only.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h2 class="h6">Directors, trustees, partners and members</h2>
+            <p class="text-muted small mb-2">
+                They sign the declaration: directors for a company or a corporate trustee, trustees for individual trustees, partners for a partnership.
+                Leave a name empty to remove that person.
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th>Name</th><th style="width: 16rem">Role</th></tr></thead>
+                    <tbody>
+                        @for (var i = 0; i < Model.Input.Officeholders.Count; i++)
+                        {
+                            <tr>
+                                <td><input asp-for="Input.Officeholders[i].Name" class="form-control form-control-sm" maxlength="200" aria-label="Name" /></td>
+                                <td>
+                                    <select asp-for="Input.Officeholders[i].Role" class="form-select form-select-sm" aria-label="Role">
+                                        @foreach (var r in OfficeholderRoles.All)
+                                        {
+                                            <option value="@r">@r</option>
+                                        }
+                                    </select>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-text">Need more rows? Save, and three more empty rows appear.</div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h2 class="h6">Address</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="Input.AddressLine1" class="form-label">Address line 1</label>
+                    <input asp-for="Input.AddressLine1" class="form-control" maxlength="200" />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Input.AddressLine2" class="form-label">Address line 2</label>
+                    <input asp-for="Input.AddressLine2" class="form-control" maxlength="200" />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Input.Suburb" class="form-label">Suburb</label>
+                    <input asp-for="Input.Suburb" class="form-control" maxlength="100" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.State" class="form-label">State</label>
+                    <select asp-for="Input.State" class="form-select">
+                        <option value="">--</option>
+                        @foreach (var s in AustralianStates.All)
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.Postcode" class="form-label">Postcode</label>
+                    <input asp-for="Input.Postcode" class="form-control" maxlength="4" inputmode="numeric" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h2 class="h6">Reporting basis</h2>
+            <label asp-for="Input.ReportingBasis" class="form-label">Describe the report as a</label>
+            <input asp-for="Input.ReportingBasis" class="form-control" maxlength="500" placeholder="@ClientDetails.DefaultReportingBasis" />
+            <div class="form-text">Used in the notes and declaration, e.g. "This @ClientDetails.DefaultReportingBasis has been prepared ...". Leave empty for the default.</div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-success">Save client details</button>
+</form>
+
+@section Scripts {
+    <script>
+        // Show the ACN and trustee fields only for the entity types that use them (they are ignored on save otherwise)
+        (function () {
+            const type = document.getElementById('entityType');
+            const sync = () => document.querySelectorAll('[data-show-for]').forEach(el =>
+                el.classList.toggle('d-none', !el.dataset.showFor.split(' ').includes(type.value)));
+            type.addEventListener('change', sync);
+            sync();
+        })();
+    </script>
+}

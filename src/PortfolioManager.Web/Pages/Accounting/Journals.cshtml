@@ -1,0 +1,93 @@
+@page
+@model JournalsModel
+@{
+    ViewData["Title"] = "Journals";
+    var lastYear = Model.ThisYear - 1;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Journals</h1>
+    <a asp-page="/Accounting/JournalEntry" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> New journal entry</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_ModeNotice" model="Model.Mode" />
+
+<form method="get" class="card shadow-sm mb-3">
+    <div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <label for="from" class="form-label mb-0">From</label>
+            <input type="date" id="from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control form-control-sm w-auto" />
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <label for="to" class="form-label mb-0">To</label>
+            <input type="date" id="to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control form-control-sm w-auto" />
+        </div>
+        <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="manual" name="manual" value="true" checked="@Model.Manual" />
+            <label class="form-check-label" for="manual">Manual journals only</label>
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Show</button>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Financial year">
+            <a class="btn btn-outline-secondary" asp-page="/Accounting/Journals" asp-route-manual="@Model.Manual"
+               asp-route-from="@FinancialYear.StartDate(Model.ThisYear).ToString("yyyy-MM-dd")" asp-route-to="@FinancialYear.EndDate(Model.ThisYear).ToString("yyyy-MM-dd")">This FY</a>
+            <a class="btn btn-outline-secondary" asp-page="/Accounting/Journals" asp-route-manual="@Model.Manual"
+               asp-route-from="@FinancialYear.StartDate(lastYear).ToString("yyyy-MM-dd")" asp-route-to="@FinancialYear.EndDate(lastYear).ToString("yyyy-MM-dd")">Last FY</a>
+        </div>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Source</th>
+                    <th class="text-end">Amount</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Journals.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-center text-muted p-4">No journals in this period.</td></tr>
+                }
+                @foreach (var j in Model.Journals)
+                {
+                    <tr>
+                        <td class="text-nowrap">@j.Date.ToString("d MMM yyyy")</td>
+                        <td><a asp-page="/Accounting/Journal" asp-route-id="@j.JournalId" class="text-decoration-none">@(string.IsNullOrEmpty(j.Description) ? "(no description)" : j.Description)</a></td>
+                        <td>
+                            <span class="badge @(j.IsManual ? "text-bg-primary" : "text-bg-light border")">@JournalRules.SourceLabel(j.SourceModule)</span>
+                        </td>
+                        <td class="text-end">@j.TotalAmount.ToString("C")</td>
+                        <td class="text-end text-nowrap">
+                            <a asp-page="/Accounting/Journal" asp-route-id="@j.JournalId" class="btn btn-sm btn-outline-secondary" title="View"><i class="bi bi-eye"></i><span class="visually-hidden">View</span></a>
+                            @if (j.IsManual)
+                            {
+                                <a asp-page="/Accounting/JournalEntry" asp-route-id="@j.JournalId" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i><span class="visually-hidden">Edit</span></a>
+                                <form method="post" asp-page-handler="Delete" asp-route-id="@j.JournalId"
+                                      asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-manual="@Model.Manual"
+                                      class="d-inline" data-confirm="Delete the journal &quot;@j.Description&quot; of @j.TotalAmount.ToString("C") on @j.Date.ToString("d MMM yyyy")? This can't be undone."
+                                      onsubmit="return confirm(this.dataset.confirm);">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="text-muted small mt-2">
+    Amount is the journal's total debits. Only manual journals can be edited or deleted here; a journal posted for a trade, payout,
+    cash transaction, bank import or allocation changes with that record.
+</p>

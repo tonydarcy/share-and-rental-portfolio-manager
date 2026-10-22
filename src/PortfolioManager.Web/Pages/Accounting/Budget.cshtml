@@ -1,0 +1,96 @@
+@page
+@model BudgetModel
+@{
+    var b = Model.Budget!;
+    ViewData["Title"] = b.Name;
+    var ys = RegionSettings.Current.YearStart;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">@b.Name <span class="fs-6 text-muted">@FinancialYear.Label(b.Year, ys)@(Model.Tracking.OptionName(b.TrackingOptionId) is { } o ? $", {o}" : "")</span></h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/Accounting/Budgets" class="btn btn-sm btn-outline-secondary">All budgets</a>
+        @if (Model.Comparing) { <a asp-route-id="@b.BudgetId" class="btn btn-sm btn-outline-primary">Edit amounts</a> }
+        else { <a asp-route-id="@b.BudgetId" asp-route-view="compare" class="btn btn-sm btn-outline-primary">Budget v actual</a> }
+    </div>
+</div>
+
+@if (Model.Comparing)
+{
+    var lines = Model.Compare;
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr><th>Account</th>@foreach (var m in Model.Months) { <th class="text-end">@m.ToString("MMM yy")</th> }<th class="text-end">Budget</th><th class="text-end">Actual</th><th class="text-end">Better / (worse)</th></tr>
+                </thead>
+                <tbody>
+                    @if (lines.Count == 0) { <tr><td colspan="16" class="text-center text-muted p-4">No budget amounts or actual income and expenses for this year.</td></tr> }
+                    @foreach (var l in lines)
+                    {
+                        var v = l.Variance(l.BudgetTotal, l.ActualTotal);
+                        <tr>
+                            <td class="text-nowrap">@l.Number - @l.Name</td>
+                            @for (var i = 0; i < 12; i++)
+                            {
+                                var mv = l.Variance(l.Budget[i], l.Actual[i]);
+                                <td class="text-end" title="Budget @l.Budget[i].ToString("C0"), actual @l.Actual[i].ToString("C0")">
+                                    @l.Actual[i].ToString("N0")<div class="@(mv < 0 ? "text-danger" : "text-muted")">@(l.Budget[i] != 0 ? l.Budget[i].ToString("N0") : "")</div>
+                                </td>
+                            }
+                            <td class="text-end">@l.BudgetTotal.ToString("C0")</td>
+                            <td class="text-end">@l.ActualTotal.ToString("C0")</td>
+                            <td class="text-end fw-semibold @(v < 0 ? "text-danger" : "text-success")">@v.ToString("#,##0;(#,##0)")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="fw-bold">
+                    @{
+                        decimal Profit(Func<BudgetLine, decimal> f) => lines.Where(l => l.Type == "Revenue").Sum(f) - lines.Where(l => l.Type == "Expense").Sum(f);
+                        var pb = Profit(l => l.BudgetTotal);
+                        var pa = Profit(l => l.ActualTotal);
+                    }
+                    <tr><td>Profit</td>@for (var i = 0; i < 12; i++) { var n = i; <td class="text-end">@Profit(l => l.Actual[n]).ToString("N0")</td> }<td class="text-end">@pb.ToString("C0")</td><td class="text-end">@pa.ToString("C0")</td><td class="text-end @(pa < pb ? "text-danger" : "text-success")">@((pa - pb).ToString("#,##0;(#,##0)"))</td></tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    <p class="small text-muted mt-2">Each month shows the actual amount, with the budget underneath (red when worse than budget). More income or less spending than budget is better.@(b.TrackingOptionId is not null ? " Only lines tagged with this budget's tracking option count as actual." : "")</p>
+    return;
+}
+
+<form method="post" asp-page-handler="Save" asp-route-id="@b.BudgetId">
+    <div class="card shadow-sm mb-3">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr><th>Account</th>@foreach (var m in Model.Months) { <th class="text-end" style="min-width: 5.5rem">@m.ToString("MMM yy")</th> }<th class="text-end" style="min-width: 7rem">Or a year, spread</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in Model.Accounts)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@a.Display</td>
+                            @for (var i = 0; i < 12; i++)
+                            {
+                                var v = Model.Current.Month(a.AccountId, i);
+                                <td><input name="Amounts[@a.AccountId][@i]" value="@(v != 0 ? v.ToString("0.##", inv) : "")" type="number" step="0.01" class="form-control form-control-sm text-end" aria-label="@a.Name @Model.Months[i].ToString("MMM")" disabled="@(!Model.CanEdit)" /></td>
+                            }
+                            <td><input name="Yearly[@a.AccountId]" type="number" step="0.01" class="form-control form-control-sm text-end" placeholder="@(Model.Current.Year(a.AccountId) is var y && y != 0 ? y.ToString("N0") : "")" aria-label="@a.Name for the year" disabled="@(!Model.CanEdit)" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @if (Model.CanEdit)
+    {
+        <div class="d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary">Save budget</button>
+            <button type="submit" asp-page-handler="CopyActuals" asp-route-id="@b.BudgetId" asp-route-fromYear="@(b.Year - 1)" class="btn btn-outline-secondary">Start from last year's actuals</button>
+            <button type="submit" asp-page-handler="Delete" asp-route-id="@b.BudgetId" class="btn btn-outline-danger ms-auto">Delete budget</button>
+        </div>
+        <p class="small text-muted mt-2">Enter income and expenses as positive amounts. A figure in the last column replaces that account's months with the year spread evenly. Copying last year's actuals replaces what is entered.</p>
+    }
+</form>

@@ -1,0 +1,135 @@
+@page
+@using PortfolioManager.Core.Regions
+@model PaperReturnModel
+@{
+    ViewData["Title"] = "Paper tax return";
+    var s = Model.Schedule;
+    var f = Model.Form;
+    var w = Model.Workpaper;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom no-print">
+    <h1 class="h2 mb-0">Paper tax return</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/TaxWork/ReturnLabels" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ol"></i> Tax return labels</a>
+        <button type="button" class="btn btn-sm btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || s is null || f is null || w is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="no-print"><partial name="_YearPicker" model="Model" /></div>
+
+@if (!RegionSettings.Current.IsAustralia)
+{
+    <div class="alert alert-warning no-print">This portfolio's country isn't Australia, so there is no ATO paper return for it. Change the country under Portfolio settings if that's wrong.</div>
+    return;
+}
+
+<div class="pack">
+    <section class="pack-page">
+        <div class="pack-header">
+            <h2 class="h4 mb-0">@s.ReturnName, @s.YearLabel</h2>
+            <div class="text-muted">@s.ClientName @if (w.Client.AbnDisplay is { Length: > 0 } abn) { <span>&middot; ABN @abn</span> }</div>
+        </div>
+
+        <div class="alert alert-secondary small">
+            <strong>This sheet is not the ATO form.</strong> The ATO doesn't accept printed copies of its income tax return
+            forms, because the forms are scanned. Copy these figures onto the official paper form and post that.
+        </div>
+
+        <h3 class="h6">1. Get the official form</h3>
+        <p class="small">
+            Order <strong>@f.Name (@f.Nat)</strong>
+            @if (f.SupplementaryName is not null) { <span>and, if anything below is listed under the supplementary section, the <strong>@f.SupplementaryName (@f.SupplementaryNat)</strong></span> }
+            for @s.YearLabel, free from the ATO's Publications Ordering Service at <a href="@PaperReturn.OrderingServiceUrl">iorder.com.au</a> or on 1300 720 092.
+            Allow a couple of weeks for it to arrive. Use the form for the right year.
+        </p>
+
+        <h3 class="h6">2. Fill it in</h3>
+        <ul class="small">
+            <li>Black pen, BLOCK LETTERS, one character per box. Don't use correction fluid.</li>
+            <li>Copy each amount to the item and label shown. Where the form shows whole dollars only, leave out the cents (don't round up).</li>
+            <li>A loss is shown here as <span class="badge text-bg-dark">LOSS</span>: write the amount without a minus sign and print L in the form's loss box.</li>
+            <li>Fill in the rest of the form yourself (TFN, contact details, bank account for a refund, and anything this site doesn't track, such as salary or other income).</li>
+            <li><i class="bi bi-exclamation-circle text-warning"></i> marks a figure whose item or label letter should be checked against this year's form or instructions, or that needs splitting further.</li>
+            <li>Attach any schedules the form's instructions ask for.</li>
+        </ul>
+
+        <h3 class="h6">3. Sign and post it</h3>
+        <p class="small mb-1">Sign and date the declaration on the official form (and the tax agent's declaration if an agent prepared it). Keep a copy, then post the form to:</p>
+        <address class="border rounded p-2 d-inline-block fw-semibold mb-1">
+            @foreach (var line in Model.Address.Lines) { @line<br /> }
+        </address>
+        <p class="small text-muted">
+            Use the GPO Box 9845 address in your nearest capital city
+            (@string.Join(", ", PaperReturn.Addresses.Select(a => $"{a.City} {a.State} {a.Postcode}"))). From overseas, use Sydney NSW 2001 Australia.
+        </p>
+
+        <h3 class="h6">Due date</h3>
+        <p class="small mb-0">
+            A return lodged on paper is usually due by 31 October. A tax agent's lodgment program dates only apply to returns lodged
+            electronically, so a paper return lodged by an agent is due on the ordinary date. Paper returns take longer to process
+            than electronic ones (the ATO keys them in by hand).
+        </p>
+    </section>
+
+    <section class="pack-page">
+        <div class="pack-header d-flex justify-content-between">
+            <div><h2 class="h5 mb-0">Figures to copy</h2><span class="small text-muted">@s.ClientName &middot; @s.YearLabel</span></div>
+            <div class="small text-end">@f.Name<br />@f.Nat</div>
+        </div>
+
+        @if (s.Labels.Count == 0)
+        {
+            <p class="text-muted">Nothing to report for this year.</p>
+        }
+        @foreach (var part in Model.Parts)
+        {
+            @if (Model.Parts.Count > 1 || part.Name != PaperReturn.MainPart)
+            {
+                <h3 class="h6 mt-3 text-uppercase">@part.Name</h3>
+            }
+            @foreach (var (heading, labels) in part.Sections)
+            {
+                <table class="table table-sm table-bordered align-middle mb-3 paper-return">
+                    <thead class="table-light"><tr><th colspan="3">@heading</th></tr></thead>
+                    <tbody>
+                        @foreach (var l in labels)
+                        {
+                            <tr>
+                                <td class="fw-semibold text-nowrap" style="width: 5.5rem">@(l.Code.Length > 0 ? l.Code : "—") @if (l.Check) { <i class="bi bi-exclamation-circle text-warning" title="Check the item and label against this year's form"></i> }</td>
+                                <td>@l.Description</td>
+                                <td class="text-end text-nowrap font-monospace" style="width: 11rem">
+                                    $ @PaperReturn.FormAmount(l.Amount) @if (l.Amount < 0) { <span class="badge text-bg-dark">LOSS</span> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+        <p class="small text-muted pack-footer">
+            — means the item or label letter isn't printed on every year's form; find it by its description.
+            Figures from the records as at @DateTime.Today.ToString("d"); where each came from is on Tax &gt; Tax return labels.
+        </p>
+    </section>
+
+    <section class="pack-page">
+        <div class="pack-header"><h2 class="h5 mb-0">Before posting</h2></div>
+        <ul class="small">
+            <li>Every figure above is copied to the right item and label, and checked items have been confirmed.</li>
+            <li>The TFN@(s.Abn is { Length: > 0 } ? ", ABN" : "") and name match the ATO's records.</li>
+            <li>The declaration on the official form is signed and dated by @(s.EntityType == Core.Clients.ClientEntityTypes.Individual ? "the taxpayer" : "a director, trustee or partner, as the form asks").</li>
+            <li>A copy of the form and everything attached is kept for five years.</li>
+        </ul>
+        <div class="pack-signatures">
+            <div class="pack-signature"><div class="pack-sign-line"></div><div class="small">Prepared by</div></div>
+            <div class="pack-signature"><div class="pack-sign-line"></div><div class="small">Date posted</div></div>
+        </div>
+    </section>
+</div>

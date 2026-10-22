@@ -1,0 +1,17 @@
+# Visual Studio and build output
+.vs/
+bin/
+obj/
+*.user
+*.suo
+
+# Leftovers
+*.zip
+UpgradeLog*.htm
+sync.ffs_db
+
+# New ASP.NET Core app: server-only settings (connection string) stay out of git
+appsettings.Production.json
+src/**/appsettings.*.local.json
+publish/
+publish-prices/

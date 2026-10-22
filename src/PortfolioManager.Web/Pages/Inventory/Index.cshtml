@@ -1,0 +1,128 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Inventory";
+    var editing = Model.Id is not null;
+    var taxed = Model.TaxCodes.Count > 0;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Inventory</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/Inventory/Stocktake" class="btn btn-sm btn-outline-secondary">Stocktake</a>
+        <a asp-page="/Inventory/History" class="btn btn-sm btn-outline-secondary">Stock movements</a>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header d-flex justify-content-between"><strong>Items</strong><span>Stock value @Model.StockValue.ToString("C")</span></div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light"><tr><th>Code</th><th>Name</th><th class="text-end">On hand</th><th class="text-end">Average cost</th><th class="text-end">Value</th><th class="text-end">Sells for</th><th></th></tr></thead>
+                    <tbody>
+                        @if (Model.Items.Count == 0)
+                        {
+                            <tr><td colspan="7" class="text-center text-muted p-4">No items yet. Add one on the right, then pick it on a bill or invoice line.</td></tr>
+                        }
+                        @foreach (var i in Model.Items)
+                        {
+                            <tr class="@(i.Active ? "" : "text-muted")">
+                                <td><a asp-page="/Inventory/History" asp-route-item="@i.ItemId">@i.Code</a></td>
+                                <td>@i.Name @if (!i.Tracked) { <span class="badge text-bg-light border">not tracked</span> }</td>
+                                <td class="text-end @(i.Quantity < 0 ? "text-danger" : "")">@(i.Tracked ? i.Quantity.ToString("0.####") : "")</td>
+                                <td class="text-end">@i.AverageCost?.ToString("C")</td>
+                                <td class="text-end">@(i.Tracked ? i.TotalCost.ToString("C") : "")</td>
+                                <td class="text-end">@i.SalePrice?.ToString("C")</td>
+                                <td class="text-end">@if (Model.CanEdit) { <a asp-route-id="@i.ItemId" class="btn btn-sm btn-outline-secondary">Edit</a> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <p class="small text-muted">
+            A tracked item's stock is valued at its moving average cost. A bill for it adds stock (to the inventory account); an approved
+            invoice takes stock out at the average cost then, posting cost of goods sold. A bill entered late for an earlier date works the
+            costs out again from that date (except in a locked period). Selling more than is on hand shows a negative quantity until the bill is entered.
+        </p>
+    </div>
+    @if (Model.CanEdit)
+    {
+        <div class="col-lg-5">
+            <form method="post" asp-page-handler="Save" asp-route-id="@Model.Id" class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6">@(editing ? "Change item" : "Add an item")</h2>
+                    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-sm-4"><label asp-for="Input.Code" class="form-label">Code</label><input asp-for="Input.Code" class="form-control" maxlength="30" required /></div>
+                        <div class="col-sm-8"><label asp-for="Input.Name" class="form-label">Name</label><input asp-for="Input.Name" class="form-control" maxlength="200" required /></div>
+                    </div>
+                    <div class="mb-2"><label asp-for="Input.Description" class="form-label">Description on invoices and bills</label><input asp-for="Input.Description" class="form-control" maxlength="500" /></div>
+                    <div class="form-check mb-2">
+                        <input asp-for="Input.Tracked" class="form-check-input" />
+                        <label asp-for="Input.Tracked" class="form-check-label">Track the quantity on hand (stock)</label>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6"><label asp-for="Input.PurchasePrice" class="form-label">Buy price</label><input asp-for="Input.PurchasePrice" type="number" step="0.01" min="0" class="form-control" /></div>
+                        <div class="col-6"><label asp-for="Input.SalePrice" class="form-label">Sell price</label><input asp-for="Input.SalePrice" type="number" step="0.01" min="0" class="form-control" /></div>
+                    </div>
+                    @{
+                        async Task AccountSelect(string name, int? value, string label, string? type = null)
+                        {
+                            <div class="col-sm-6">
+                                <label class="form-label" for="@name.Replace(".", "_")">@label</label>
+                                <select name="@name" id="@name.Replace(".", "_")" class="form-select form-select-sm">
+                                    <option value="">None</option>
+                                    @foreach (var a in Model.Accounts.Where(a => type is null || a.Type == type))
+                                    {
+                                        <option value="@a.AccountId" selected="@(a.AccountId == value)">@a.Display</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                    }
+                    <div class="row g-2 mb-2">
+                        @{ await AccountSelect("Input.SalesAccountId", Model.Input.SalesAccountId, "Sales account", "Revenue"); }
+                        @{ await AccountSelect("Input.PurchaseAccountId", Model.Input.PurchaseAccountId, "Purchases account (not tracked)", "Expense"); }
+                        @{ await AccountSelect("Input.InventoryAccountId", Model.Input.InventoryAccountId, "Inventory account", "Asset"); }
+                        @{ await AccountSelect("Input.CogsAccountId", Model.Input.CogsAccountId, "Cost of goods sold account", "Expense"); }
+                    </div>
+                    @if (taxed)
+                    {
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label asp-for="Input.SalesTaxCodeId" class="form-label">Tax on sales</label>
+                                <select asp-for="Input.SalesTaxCodeId" class="form-select form-select-sm"><option value="">None</option>@foreach (var c in Model.TaxCodes.Where(c => c.IsSales)) { <option value="@c.TaxCodeId">@c.Code</option> }</select>
+                            </div>
+                            <div class="col-6">
+                                <label asp-for="Input.PurchaseTaxCodeId" class="form-label">Tax on purchases</label>
+                                <select asp-for="Input.PurchaseTaxCodeId" class="form-select form-select-sm"><option value="">None</option>@foreach (var c in Model.TaxCodes.Where(c => !c.IsSales)) { <option value="@c.TaxCodeId">@c.Code</option> }</select>
+                            </div>
+                        </div>
+                    }
+                    <div class="form-check mb-3"><input asp-for="Input.Active" class="form-check-input" /><label asp-for="Input.Active" class="form-check-label">Active</label></div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">@(editing ? "Save" : "Add item")</button>
+                        @if (editing) { <a asp-route-id="" class="btn btn-outline-secondary">Cancel</a> }
+                    </div>
+                </div>
+            </form>
+            @if (editing)
+            {
+                <form method="post" asp-page-handler="Delete" asp-route-itemId="@Model.Id" class="mt-2">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete item</button>
+                    <span class="small text-muted">Only one never used on an invoice or bill. Otherwise untick Active.</span>
+                </form>
+            }
+        </div>
+    }
+</div>

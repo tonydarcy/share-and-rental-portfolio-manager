@@ -1,0 +1,17 @@
+@model AsAtReportModel
+
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <label for="asAt" class="form-label mb-0">As at</label>
+            <input type="date" id="asAt" name="asAt" value="@Model.Date.ToString("yyyy-MM-dd")" class="form-control form-control-sm w-auto" />
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Update report</button>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Report date">
+            @foreach (var (label, date) in AsAtReportModel.Shortcuts)
+            {
+                <a class="btn btn-outline-secondary @(date == Model.Date ? "active" : "")" href="?asAt=@date.ToString("yyyy-MM-dd")">@label</a>
+            }
+        </div>
+    </div>
+</form>

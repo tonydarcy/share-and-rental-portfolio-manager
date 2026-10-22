@@ -1,0 +1,162 @@
+@page
+@model PortfolioManager.Web.Pages.Import.TradesModel
+@{
+    ViewData["Title"] = "Import share trades";
+    var preview = Model.Preview;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Import share trades</h1>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <p class="mb-2">
+            Upload a CSV file of trades for <strong>@Model.Portfolio.Name</strong>: a trade export from your broker, or the standard file,
+            one trade per line with no header:
+        </p>
+        <p class="font-monospace small bg-body-secondary p-2 rounded">
+            Exchange, Code, Name, Buy/Sell, Date, Quantity, Price per unit, Brokerage, Currency, Exchange rate, Comment<br />
+            ASX,ANZ,ANZ Group Holdings,Buy,2024-02-29,147,28.345714,2,AUD,1,Imported 8-Aug-24
+        </p>
+        <p class="small text-muted">
+            Dates can be 2024-02-29, 29-Feb-2024 or 29/02/2024. A blank name is filled in from the share details, a blank currency means @RegionSettings.Current.Currency,
+            and a blank exchange rate means 1. Files up to @(CsvImport.MaxFileBytes / (1024 * 1024)) MB. You'll see a preview before anything is saved.
+        </p>
+        <details class="small mb-3">
+            <summary>Where to get each broker's file</summary>
+            <ul class="mb-0 mt-1">
+                @foreach (var f in BrokerCsv.Formats.Skip(1))
+                {
+                    <li><strong>@f.Name:</strong> @f.HowToExport</li>
+                }
+            </ul>
+            <p class="mt-1 mb-0">Lines that aren't buys or sells (dividends, deposits, fees) are left out. Brokerage is taken from the file, or worked out from the total when there's no brokerage column.</p>
+        </details>
+        <form method="post" asp-page-handler="Preview" enctype="multipart/form-data" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label asp-for="Upload" class="form-label">CSV file</label>
+                <input asp-for="Upload" type="file" accept=".csv,.txt,text/csv" class="form-control" required />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Format" class="form-label">Format</label>
+                <select asp-for="Format" class="form-select">
+                    @foreach (var f in BrokerCsv.Formats)
+                    {
+                        <option value="@f.Id" title="@f.HowToExport">@f.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="DefaultMarket" class="form-label">Exchange if the file doesn't say</label>
+                <input asp-for="DefaultMarket" class="form-control text-uppercase" maxlength="50" />
+            </div>
+            <div class="col-md-10">
+                <div class="form-check">
+                    <input asp-for="WithCash" class="form-check-input" />
+                    <label asp-for="WithCash" class="form-check-label">Also record each settlement in the bank account (T+2)</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Preview</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (preview is not null)
+{
+    if (preview.FileError is not null)
+    {
+        <div class="alert alert-danger">@preview.FileError</div>
+        return;
+    }
+
+    var warnings = preview.Lines.Count(l => l.Warnings.Count > 0);
+    <div class="card shadow-sm">
+        <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+            <div>
+                <strong>@preview.ValidCount</strong> trade@(preview.ValidCount == 1 ? "" : "s") ready,
+                <strong class="@(preview.ErrorCount > 0 ? "text-danger" : "")">@preview.ErrorCount</strong> with errors
+                @if (warnings > 0)
+                {
+                    <span>, <strong class="text-warning-emphasis">@warnings</strong> with warnings</span>
+                }
+            </div>
+            @if (preview.ErrorCount == 0)
+            {
+                <form method="post" asp-page-handler="Import" enctype="multipart/form-data" class="ms-auto"
+                      data-confirm="Import @preview.ValidCount trades into @Model.Portfolio.Name?" onsubmit="return confirm(this.dataset.confirm);">
+                    <input type="hidden" asp-for="Data" />
+                    <input type="hidden" asp-for="WithCash" />
+                    <input type="hidden" asp-for="Format" />
+                    <input type="hidden" asp-for="DefaultMarket" />
+                    <input type="hidden" asp-for="PreviewPortfolioId" />
+                    <button type="submit" class="btn btn-success">Import @preview.ValidCount trade@(preview.ValidCount == 1 ? "" : "s")</button>
+                </form>
+            }
+            else
+            {
+                <span class="ms-auto text-danger small">Fix the lines with errors and upload the file again. Nothing is imported until every line is valid.</span>
+            }
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Line</th>
+                        <th>Code</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th class="text-end">Quantity</th>
+                        <th class="text-end">Price</th>
+                        <th class="text-end">Brokerage</th>
+                        <th>Currency</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in preview.Lines)
+                    {
+                        var t = line.Value;
+                        <tr class="@(line.IsValid ? (line.Warnings.Count > 0 ? "table-warning" : "") : "table-danger")">
+                            <td class="text-muted">@line.LineNumber</td>
+                            @if (t is not null)
+                            {
+                                <td><span class="fw-bold">@t.StockCode</span> <span class="text-muted small">@t.StockExchangeCode</span></td>
+                                <td>@t.Type</td>
+                                <td class="text-nowrap">@t.Date.ToString("d MMM yyyy")</td>
+                                <td class="text-end">@t.Quantity.ToString("N0")</td>
+                                <td class="text-end">@t.Price.ToString("0.00####")</td>
+                                <td class="text-end">@t.Brokerage.ToString("0.00")</td>
+                                <td>@t.Currency @(t.ExchangeRate != 1 ? $"@ {t.ExchangeRate}" : "")</td>
+                            }
+                            else
+                            {
+                                <td colspan="7" class="font-monospace small text-break">@line.Text</td>
+                            }
+                            <td class="small">
+                                @foreach (var e in line.Errors)
+                                {
+                                    <div class="text-danger">@e</div>
+                                }
+                                @foreach (var w in line.Warnings)
+                                {
+                                    <div class="text-warning-emphasis">@w</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

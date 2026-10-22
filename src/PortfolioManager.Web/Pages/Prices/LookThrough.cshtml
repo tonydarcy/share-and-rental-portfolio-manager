@@ -1,0 +1,85 @@
+@page
+@model PortfolioManager.Web.Pages.Prices.LookThroughModel
+@using PortfolioManager.Core.Reports
+@{
+    ViewData["Title"] = "Fund look-through";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Fund look-through</h1>
+    <a asp-page="/Reports/Diversity" class="btn btn-sm btn-outline-secondary">Diversity report</a>
+</div>
+
+@if (Model.LoadError is not null)
+{
+    <div class="alert alert-warning">@Model.LoadError</div>
+    return;
+}
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+@if (Model.Success is not null)
+{
+    <div class="alert alert-success">@Model.Success</div>
+}
+
+<p class="text-muted">What is inside each ETF or managed fund you hold: its sectors, countries (or regions) and largest holdings,
+    from the fund's latest fact sheet. The daily price update can fill these in for listed ETFs when it's turned on; anything you
+    enter here is used for this portfolio instead.</p>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Holding</th><th>Look-through</th></tr></thead>
+                <tbody>
+                    @foreach (var h in Model.Held)
+                    {
+                        var key = (h.ExchangeCode.Trim().ToUpperInvariant(), h.StockCode.Trim().ToUpperInvariant());
+                        var f = Model.Funds.GetValueOrDefault(key);
+                        var has = f?.Weights.Any(w => w.Kind != LookThrough.None) == true;
+                        <tr class="@(Model.Fund?.Equals($"{key.Item1}:{key.Item2}", StringComparison.OrdinalIgnoreCase) == true ? "table-active" : "")">
+                            <td><a asp-route-fund="@($"{key.Item1}:{key.Item2}")">@key.Item2</a> <span class="small text-muted">@key.Item1</span></td>
+                            <td class="small">@(has ? (f!.Own ? "Entered" : $"From {f.Source}") + (f.AsAt is { } d ? $", {d:d MMM yyyy}" : "") : f is not null ? "Not a fund" : "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        @if (Model.Fund is not null)
+        {
+            <form method="post" asp-page-handler="Save" asp-route-fund="@Model.Fund" class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6">@Model.Fund</h2>
+                    @if (Model.Selected is { Own: false } shared && shared.Weights.Any(w => w.Kind != LookThrough.None))
+                    {
+                        <p class="small text-muted">Showing the look-through from @shared.Source. Saving keeps your own copy for this portfolio.</p>
+                    }
+                    <div asp-validation-summary="All" class="text-danger small"></div>
+                    <label class="form-label" asp-for="Weights">One line each: kind, name, weight %, and for a holding its company name</label>
+                    <textarea class="form-control font-monospace" asp-for="Weights" rows="14" placeholder="Sector, Financials, 31.5&#10;Sector, Materials, 22&#10;Country, Australia, 100&#10;Holding, CBA, 10.2, Commonwealth Bank&#10;Holding, BHP, 9.1, BHP Group"></textarea>
+                    <div class="row g-2 mt-1 align-items-end">
+                        <div class="col-auto"><label class="form-label small" asp-for="AsAt">As at</label><input class="form-control" asp-for="AsAt" type="date" /></div>
+                        <div class="col-auto"><button class="btn btn-primary">Save</button></div>
+                    </div>
+                    <p class="small text-muted mt-2 mb-0">Weights of each kind can add up to less than 100%: the rest shows as Unknown (or
+                        "Rest of the fund" for holdings). Kinds are Sector, Country (or Region) and Holding.</p>
+                </div>
+            </form>
+            @if (Model.Selected is { Own: true })
+            {
+                <form method="post" asp-page-handler="Delete" asp-route-fund="@Model.Fund" class="mt-2">
+                    <button class="btn btn-sm btn-outline-danger">Remove my entry</button>
+                </form>
+            }
+        }
+        else
+        {
+            <div class="alert alert-light border">Pick a fund on the left.</div>
+        }
+    </div>
+</div>

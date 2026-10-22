@@ -1,0 +1,180 @@
+@page
+@model PortfolioManager.Web.Pages.CorporateActions.IndexModel
+@{
+    ViewData["Title"] = "Corporate actions";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Corporate actions</h1>
+    <div class="d-flex gap-2 flex-wrap">
+        <a asp-page="./Announced" class="btn btn-sm btn-outline-success"><i class="bi bi-megaphone"></i> Announced</a>
+        <a asp-page="./AddSplit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Split or consolidation</a>
+        <a asp-page="./AddReturnOfCapital" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Return of capital</a>
+        <a asp-page="./AddTransfer" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Demerger, takeover, code change or options</a>
+        <a asp-page="/Payouts/AddDrp" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> DRP</a>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<h2 class="h5">Share splits and consolidations</h2>
+<p class="text-muted small">
+    Recording one changes the trades before its date to the new units: units are multiplied by the ratio and prices divided by it.
+    The total paid, and so the cost base, stays the same, and so do the purchase dates used for the CGT discount.
+</p>
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Effective</th>
+                    <th>Code</th>
+                    <th>Type</th>
+                    <th>Ratio</th>
+                    <th class="text-end">Trades changed</th>
+                    <th>Recorded</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Splits.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No splits or consolidations recorded.</td></tr>
+                }
+                @foreach (var s in Model.Splits)
+                {
+                    <tr>
+                        <td class="text-nowrap">@s.Date.ToString("d MMM yyyy")</td>
+                        <td><span class="fw-bold">@s.StockCode</span> <span class="text-muted small">@s.ExchangeCode</span></td>
+                        <td>@(s.ActionType.Trim().Equals("SPLIT", StringComparison.OrdinalIgnoreCase) ? "Split" : "Consolidation")</td>
+                        <td>@s.RatioText</td>
+                        <td class="text-end">
+                            @(s.CanUndo ? s.TradesAdjusted.ToString("N0") : "Not noted")
+                            @if (s.TradesNotAdjusted > 0)
+                            {
+                                <div class="small text-danger">@s.TradesNotAdjusted.ToString("N0") later-added trade(s) before this date are still in the old units. Delete the split and record it again to include them.</div>
+                            }
+                        </td>
+                        <td class="small text-muted text-nowrap">@s.Applied.ToString("d MMM yyyy")</td>
+                        <td class="text-end">
+                            @if (s.CanUndo)
+                            {
+                                <form method="post" asp-page-handler="DeleteSplit" asp-route-id="@s.ActionId" class="d-inline"
+                                      data-confirm="Delete the @s.StockCode @s.RatioText @(s.ActionType.ToLowerInvariant()) and put the earlier trades back in the old units?"
+                                      onsubmit="return confirm(this.dataset.confirm);">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                                </form>
+                            }
+                            else
+                            {
+                                <span class="small text-muted" title="Recorded before the trades it changed were noted">Can't be undone</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="h5">Returns of capital</h2>
+<p class="text-muted small">
+    A return of capital reduces the cost base of the parcels held on the payment date, by units. Where it's more than a parcel's cost base,
+    the cost base goes to nil and the rest is a capital gain (CGT event G1), shown on the realised capital gains report.
+</p>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Paid</th>
+                    <th>Code</th>
+                    <th class="text-end">Per unit</th>
+                    <th class="text-end">Total</th>
+                    <th>Comment</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.CapitalReturns.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted p-4">No returns of capital recorded.</td></tr>
+                }
+                @foreach (var r in Model.CapitalReturns)
+                {
+                    <tr>
+                        <td class="text-nowrap">@r.Date.ToString("d MMM yyyy")</td>
+                        <td><span class="fw-bold">@r.StockCode</span> <span class="text-muted small">@r.ExchangeCode</span></td>
+                        <td class="text-end">@(r.PerUnit is { } p ? p.ToString("C4") : "")</td>
+                        <td class="text-end fw-bold">@r.Total.ToString("C")</td>
+                        <td class="small text-muted">@r.Comment</td>
+                        <td class="text-end">
+                            <form method="post" asp-page-handler="DeleteReturn" asp-route-id="@r.ReturnId" class="d-inline"
+                                  data-confirm="Delete the @r.StockCode return of capital of @r.Total.ToString("C") on @r.Date.ToString("d MMM yyyy")?"
+                                  onsubmit="return confirm(this.dataset.confirm);">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="h5 mt-4">Demergers, takeovers and code changes</h2>
+<p class="text-muted small">
+    A demerger or a takeover with rollover moves part of the cost base to the new shares, which keep the purchase dates.
+    Deleting one removes the trades it added; a code change is undone by changing the code back.
+</p>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th>
+                    <th>What</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th class="text-end">Cost base share</th>
+                    <th>Comment</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Transfers.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">None recorded.</td></tr>
+                }
+                @foreach (var t in Model.Transfers)
+                {
+                    <tr>
+                        <td class="text-nowrap">@t.Date.ToString("d MMM yyyy")</td>
+                        <td>@t.KindText</td>
+                        <td><span class="fw-bold">@t.FromCode</span> <span class="text-muted small">@t.FromExchangeCode</span></td>
+                        <td>@if (t.ToCode != "") { <span class="fw-bold">@t.ToCode</span> <span class="text-muted small">@t.ToExchangeCode</span> }</td>
+                        <td class="text-end">@(t.CostShare > 0 ? (t.CostShare * 100).ToString("0.##") + "%" : "")</td>
+                        <td class="small text-muted">@t.Comment</td>
+                        <td class="text-end">
+                            @if (t.CanDelete)
+                            {
+                                <form method="post" asp-page-handler="DeleteTransfer" asp-route-id="@t.Id" class="d-inline"
+                                      data-confirm="Delete the @t.FromCode @t.KindText.ToLowerInvariant() on @t.Date.ToString("d MMM yyyy") and the trades it added?"
+                                      onsubmit="return confirm(this.dataset.confirm);">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="text-muted small mt-2">
+    Worthless or delisted shares are recorded as a sale for nil, so they show on Share trades. Dividend reinvestments are recorded as payouts: use <a asp-page="/Payouts/AddDrp">Add a DRP</a>, which adds the dividend and the new units together.
+</p>

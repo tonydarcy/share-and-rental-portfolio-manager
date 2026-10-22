@@ -1,0 +1,120 @@
+@page
+@model TradingStockModel
+@using PortfolioManager.Core.Tax
+@{
+    ViewData["Title"] = "Shares as trading stock";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Shares as trading stock</h1>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_YearPicker" model="Model" />
+
+<p class="text-muted">For someone carrying on a business of share trading. From the year chosen, this portfolio's shares are trading stock:
+    the year's profit is sales plus the closing stock, less the opening stock and purchases, and it's ordinary income instead of capital
+    gains (no CGT discount). The tax reconciliation and return labels use it. Whether someone is a trader depends on how they trade
+    (volume, regularity, a business plan and so on), so check before turning this on.</p>
+
+<form method="post" asp-route-fy="@Model.Year" class="card shadow-sm mb-4 no-print">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-sm-4">
+                <div class="form-check">
+                    <input asp-for="Input.Trader" class="form-check-input" />
+                    <label asp-for="Input.Trader" class="form-check-label">The shares are trading stock</label>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <label asp-for="Input.FromYear" class="form-label">From</label>
+                <select asp-for="Input.FromYear" class="form-select">
+                    @foreach (var y in Model.Years.Concat(Model.Settings.FromYear is { } f ? [f] : []).Distinct().OrderByDescending(y => y))
+                    {
+                        <option value="@y">@FinancialYear.Label(y)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-sm-4">
+                <label asp-for="Input.Valuation" class="form-label">Valued at the year end at</label>
+                <select asp-for="Input.Valuation" class="form-select">
+                    @foreach (var v in TradingStockValuation.All)
+                    {
+                        <option value="@v">@TradingStockValuation.Text(v)</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3" disabled="@Model.Locked">Save</button>
+        <div class="form-text">The same method is used each year, so the opening stock is last year's closing value. In the first year the shares on hand go in at cost.</div>
+    </div>
+</form>
+
+@if (Model.Workpaper?.Trading is not { } t)
+{
+    <div class="alert alert-secondary">The shares aren't trading stock in @FinancialYear.Label(Model.Year), so their gains are capital gains (Reports > Realised capital gains).</div>
+    return;
+}
+
+@foreach (var p in t.Problems)
+{
+    <div class="alert alert-warning py-2">@p</div>
+}
+<div class="card shadow-sm mb-3">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th class="text-end">Opening units</th>
+                    <th class="text-end">Opening stock</th>
+                    <th class="text-end">Purchases</th>
+                    <th class="text-end">Sales</th>
+                    <th class="text-end">Closing units</th>
+                    <th class="text-end">Cost</th>
+                    <th class="text-end">Market value</th>
+                    <th class="text-end">Closing stock</th>
+                    <th class="text-end">Profit / loss</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var l in t.Lines)
+                {
+                    <tr>
+                        <td><span class="fw-bold">@l.StockCode</span> <span class="text-muted small">@l.ExchangeCode</span></td>
+                        <td class="text-end">@l.OpeningUnits.ToString("#,##0.####")</td>
+                        <td class="text-end">@l.OpeningValue.ToString("C")</td>
+                        <td class="text-end">@l.Purchases.ToString("C")</td>
+                        <td class="text-end">@l.Sales.ToString("C")</td>
+                        <td class="text-end">@l.ClosingUnits.ToString("#,##0.####")</td>
+                        <td class="text-end">@l.ClosingCost.ToString("C")</td>
+                        <td class="text-end">@(l.ClosingMarket?.ToString("C") ?? "No price")</td>
+                        <td class="text-end fw-bold">@l.ClosingValue.ToString("C")</td>
+                        <td class="text-end fw-bold @(l.Profit < 0 ? "text-danger" : "text-success")">@l.Profit.ToString("C")</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="table-active fw-bold">
+                    <td colspan="2">Total</td>
+                    <td class="text-end">@t.OpeningValue.ToString("C")</td>
+                    <td class="text-end">@t.Purchases.ToString("C")</td>
+                    <td class="text-end">@t.Sales.ToString("C")</td>
+                    <td colspan="3"></td>
+                    <td class="text-end">@t.ClosingValue.ToString("C")</td>
+                    <td class="text-end @(t.Profit < 0 ? "text-danger" : "text-success")">@t.Profit.ToString("C")</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+<p class="text-muted small">
+    Valued at @TradingStockValuation.Text(t.Valuation).ToLowerInvariant()@(t.FirstYear ? "; this is the first year, so the opening stock is at cost" : "").
+    Purchases and sales are after brokerage. Dividends are income as usual. A holding with no price at the year end is valued at cost.
+</p>

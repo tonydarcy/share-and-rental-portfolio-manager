@@ -1,0 +1,94 @@
+@page
+@model PortfolioManager.Web.Pages.Account.AlertsModel
+@{
+    ViewData["Title"] = "Alerts";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Email alerts</h1>
+    @if (Model.Portfolio is not null)
+    {
+        <span class="text-muted">For @Model.Portfolio.Name</span>
+    }
+</div>
+
+@if (Model.LoadError is not null)
+{
+    <div class="alert alert-warning">@Model.LoadError</div>
+    return;
+}
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">Pick a portfolio first.</div>
+    return;
+}
+@if (Model.Success is not null)
+{
+    <div class="alert alert-success">@Model.Success</div>
+}
+@if (!Model.EmailWorks)
+{
+    <div class="alert alert-warning">Email isn't set up on this site yet, so alerts won't be sent. You can still choose them now.</div>
+}
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <form method="post" asp-page-handler="Settings" class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6">Email me about this portfolio when</h2>
+                <div class="form-check"><input class="form-check-input" asp-for="PriceTargets" /><label class="form-check-label" asp-for="PriceTargets">a price target below is reached</label></div>
+                <div class="form-check"><input class="form-check-input" asp-for="Dividends" /><label class="form-check-label" asp-for="Dividends">a dividend is announced for a stock I hold</label></div>
+                <div class="form-check"><input class="form-check-input" asp-for="SyncFailures" /><label class="form-check-label" asp-for="SyncFailures">the scheduled Navexa sync fails</label></div>
+                <div class="form-check"><input class="form-check-input" asp-for="Unallocated" /><label class="form-check-label" asp-for="Unallocated">imported bank lines are waiting to be allocated (at most once a day)</label></div>
+                <p class="small text-muted mt-2 mb-3">The site checks every 30 minutes and sends one email with everything new.</p>
+                <button class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-3">
+            <div class="card-body pb-0"><h2 class="h6">Price targets</h2></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th>Stock</th><th>When it closes</th><th>Note</th><th>Sent</th><th></th></tr></thead>
+                    <tbody>
+                        @if (Model.PriceAlerts.Count == 0)
+                        {
+                            <tr><td colspan="5" class="text-center text-muted p-4">No price targets yet.</td></tr>
+                        }
+                        @foreach (var a in Model.PriceAlerts)
+                        {
+                            <tr class="@(a.Sent is null ? "" : "text-muted")">
+                                <td>@a.StockCode <span class="small text-muted">@a.ExchangeCode</span></td>
+                                <td>@(a.Direction == "Below" ? "at or below" : "at or above") @a.Target.ToString("0.00##")</td>
+                                <td>@a.Note</td>
+                                <td>@(a.Sent is { } s ? $"{s:d MMM yyyy} at {a.PriceSent:0.00##}" : "Waiting")</td>
+                                <td class="text-end">
+                                    <form method="post" asp-page-handler="Delete" asp-route-id="@a.PriceAlertId" class="d-inline">
+                                        <button class="btn btn-sm btn-outline-danger" title="Delete">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <form method="post" asp-page-handler="Add" class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6">Add a price target</h2>
+                <div asp-validation-summary="All" class="text-danger small"></div>
+                <div class="row g-2">
+                    <div class="col-4 col-md-2"><label class="form-label small" asp-for="Market">Market</label><input class="form-control" asp-for="Market" /></div>
+                    <div class="col-8 col-md-3"><label class="form-label small" asp-for="Code">Code</label><input class="form-control text-uppercase" asp-for="Code" /></div>
+                    <div class="col-6 col-md-3"><label class="form-label small" asp-for="Direction">Closes</label>
+                        <select class="form-select" asp-for="Direction"><option value="Above">at or above</option><option value="Below">at or below</option></select></div>
+                    <div class="col-6 col-md-4"><label class="form-label small" asp-for="Target">Price</label><input class="form-control" asp-for="Target" type="number" step="any" min="0" /></div>
+                    <div class="col-12"><label class="form-label small" asp-for="Note">Note (optional)</label><input class="form-control" asp-for="Note" maxlength="200" /></div>
+                </div>
+                <p class="small text-muted mt-2 mb-3">Checked against each day's closing price. Each target is sent once.</p>
+                <button class="btn btn-primary">Add</button>
+            </div>
+        </form>
+    </div>
+</div>

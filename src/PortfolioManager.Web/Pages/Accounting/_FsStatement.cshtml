@@ -1,0 +1,39 @@
+@using PortfolioManager.Core.Statements
+@model (Statement Statement, int Year, bool ShowNotes)
+@*
+    One statement with this year's and last year's columns. Rows: headings, items (with a note
+    number), subtotals (rule above) and totals (double rule below).
+*@
+<table class="table table-sm fs-table mb-0">
+    <thead>
+        <tr>
+            <th></th>
+            @if (Model.ShowNotes) { <th class="fs-note">Note</th> }
+            <th class="fs-amt">@Model.Year<br /><span class="fw-normal">$</span></th>
+            <th class="fs-amt">@(Model.Year - 1)<br /><span class="fw-normal">$</span></th>
+        </tr>
+    </thead>
+    @foreach (var block in Model.Statement.Blocks)
+    {
+        <tbody>
+            @if (block.Heading is not null)
+            {
+                <tr class="fs-heading"><th colspan="@(Model.ShowNotes ? 4 : 3)">@block.Heading</th></tr>
+            }
+            @foreach (var r in block.Rows)
+            {
+                if (r.IsHeading)
+                {
+                    <tr class="fs-subheading"><td colspan="@(Model.ShowNotes ? 4 : 3)">@r.Label</td></tr>
+                    continue;
+                }
+                <tr class="fs-@r.Style.ToString().ToLowerInvariant()">
+                    <td style="padding-left: @(0.5 + (r.Indent + (block.Heading is null || r.Style != RowStyle.Item ? 0 : 1)) * 1)rem">@r.Label</td>
+                    @if (Model.ShowNotes) { <td class="fs-note">@r.Note</td> }
+                    <td class="fs-amt">@StatementFormat.Amount(r.Current)</td>
+                    <td class="fs-amt">@StatementFormat.Amount(r.Prior)</td>
+                </tr>
+            }
+        </tbody>
+    }
+</table>

@@ -1,0 +1,156 @@
+@page
+@model PortfolioManager.Web.Pages.Reports.ConsolidatedModel
+@{
+    ViewData["Title"] = "Consolidated";
+    var r = Model.Report;
+    string Money(decimal d, string ccy) => r?.OneCurrency == true ? d.ToString("C") : $"{d:N2} {ccy}";
+    string Share(decimal d) => r?.ShareOf(d) is { } s ? (s * 100).ToString("0.0") + "%" : "";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Consolidated view</h1>
+    <span class="text-muted">@Model.Period.Description</span>
+</div>
+
+@if (Model.LoadError is not null)
+{
+    <div class="alert alert-warning">@Model.LoadError</div>
+    return;
+}
+@if (Model.Success is not null)
+{
+    <div class="alert alert-success">@Model.Success</div>
+}
+
+<div class="d-flex flex-wrap gap-2 mb-3 no-print">
+    @foreach (var g in Model.Groups)
+    {
+        <a class="btn btn-sm @(g.GroupId == Model.Selected?.GroupId && !Model.Editing ? "btn-primary" : "btn-outline-primary")"
+           asp-route-group="@g.GroupId" asp-route-fy="@Model.Period.FinancialYear">@g.Name</a>
+    }
+    <a class="btn btn-sm btn-outline-secondary" asp-route-group="0" asp-route-edit="true"><i class="bi bi-plus"></i> New group</a>
+    @if (Model.Selected is not null && !Model.Editing)
+    {
+        <a class="btn btn-sm btn-outline-secondary" asp-route-group="@Model.Selected.GroupId" asp-route-edit="true">Change this group</a>
+    }
+</div>
+
+@if (Model.Editing)
+{
+    var id = Model.Selected?.GroupId ?? 0;
+    <form method="post" asp-page-handler="Save" asp-route-id="@id" class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h2 class="h6">@(id == 0 ? "New family group" : "Change the group")</h2>
+            <p class="small text-muted">Put together the portfolios of one family or client group, for example the individual,
+                the family trust, the company and the SMSF. Only you see your groups.</p>
+            <div asp-validation-summary="All" class="text-danger small"></div>
+            <div class="mb-2" style="max-width: 28rem">
+                <label class="form-label" asp-for="Name">Name</label>
+                <input class="form-control" asp-for="Name" maxlength="100" placeholder="Smith family" />
+            </div>
+            <div class="mb-3">
+                @foreach (var p in Model.Accessible)
+                {
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="Members" value="@p.PortfolioId" id="m@(p.PortfolioId)" checked="@Model.Members.Contains(p.PortfolioId)" />
+                        <label class="form-check-label" for="m@(p.PortfolioId)">@p.Name <span class="small text-muted">@p.EntityType</span></label>
+                    </div>
+                }
+            </div>
+            <button class="btn btn-primary">Save</button>
+            @if (Model.Groups.Count > 0)
+            {
+                <a class="btn btn-link" asp-route-group="@(Model.Selected?.GroupId)">Cancel</a>
+            }
+        </div>
+    </form>
+    @if (id > 0)
+    {
+        <form method="post" asp-page-handler="Delete" asp-route-id="@id" class="mb-3">
+            <button class="btn btn-sm btn-outline-danger">Delete this group</button>
+        </form>
+    }
+    return;
+}
+
+@if (r is null)
+{
+    return;
+}
+
+<partial name="_PeriodFilter" model="Model" />
+
+@if (!r.OneCurrency)
+{
+    <div class="alert alert-info small">These portfolios use different currencies, so each amount is in its own portfolio's currency and the totals aren't added up.</div>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body pb-0"><h2 class="h6">Entities</h2></div>
+    <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+            <tr><th>Entity</th><th>Type</th><th class="text-end">Shares</th><th class="text-end">Cash</th><th class="text-end">Total value</th>
+                <th class="text-end">Share of group</th><th class="text-end">Income (before tax)</th><th class="text-end">Net capital gain</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var e in r.Entities)
+            {
+                <tr>
+                    <td>@e.Name</td>
+                    <td class="small text-muted">@e.EntityType</td>
+                    <td class="text-end">@Money(e.ShareValue, e.Currency)</td>
+                    <td class="text-end">@Money(e.CashValue, e.Currency)</td>
+                    <td class="text-end fw-semibold">@Money(e.TotalValue, e.Currency)</td>
+                    <td class="text-end">@Share(e.TotalValue)</td>
+                    <td class="text-end">@Money(e.Income, e.Currency)</td>
+                    <td class="text-end">@Money(e.NetCapitalGain, e.Currency)</td>
+                </tr>
+            }
+        </tbody>
+        @if (r.OneCurrency)
+        {
+            <tfoot class="table-light fw-semibold">
+                <tr><td colspan="2">Group</td><td class="text-end">@r.ShareValue.ToString("C")</td><td class="text-end">@r.CashValue.ToString("C")</td>
+                    <td class="text-end">@r.TotalValue.ToString("C")</td><td class="text-end">100%</td>
+                    <td class="text-end">@r.Income.ToString("C")</td><td class="text-end">@r.NetCapitalGain.ToString("C")</td></tr>
+            </tfoot>
+        }
+    </table>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body pb-0"><h2 class="h6">Holdings across the group</h2></div>
+    <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Holding</th>
+                @foreach (var e in r.Entities) { <th class="text-end">@e.Name</th> }
+                @if (r.OneCurrency) { <th class="text-end">Total</th><th class="text-end">Share of group</th> }
+            </tr>
+        </thead>
+        <tbody>
+            @if (r.Holdings.Count == 0)
+            {
+                <tr><td colspan="@(r.Entities.Count + 3)" class="text-center text-muted p-4">No shares held.</td></tr>
+            }
+            @foreach (var h in r.Holdings)
+            {
+                <tr>
+                    <td><strong>@h.StockCode</strong> <span class="small text-muted">@h.ExchangeCode</span></td>
+                    @foreach (var e in r.Entities)
+                    {
+                        <td class="text-end">
+                            @if (h.ValueByEntity.TryGetValue(e.PortfolioId, out var v))
+                            {
+                                @Money(v, e.Currency)<div class="small text-muted">@h.UnitsByEntity[e.PortfolioId].ToString("#,##0.####") units</div>
+                            }
+                        </td>
+                    }
+                    @if (r.OneCurrency) { <td class="text-end fw-semibold">@h.Value.ToString("C")</td><td class="text-end">@Share(h.Value)</td> }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<p class="small text-muted">Values use the latest prices on file. Income and net capital gains are for the period chosen, from each
+    entity's own taxable income and capital gains reports. Each entity still lodges its own return.</p>

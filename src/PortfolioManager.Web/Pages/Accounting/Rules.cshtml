@@ -1,0 +1,120 @@
+@page
+@model RulesModel
+@{
+    ViewData["Title"] = "Allocation rules";
+    var editing = Model.Input.RuleId is not null;
+    var taxed = Model.TaxCodes.Count > 0 || Model.Rules.Any(r => r.TaxCodeId is not null);
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Allocation rules</h1>
+    <a asp-page="/Accounting/Unallocated" class="btn btn-sm btn-outline-secondary">Unallocated transactions</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">
+    "Bank lines containing this text go to that account." Rules are tried from the top, and the first match wins. They are applied
+    when a statement is imported, and with <strong>Apply rules</strong> on the Unallocated page. Case and spacing don't matter.
+    Payouts and trades still need matching by hand, so the cash isn't counted twice.
+</p>
+
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr><th class="text-end">Order</th><th>Contains</th><th>Applies to</th><th>Account</th>@if (taxed) { <th>@Model.TaxName code</th> }<th>Description</th><th></th></tr>
+            </thead>
+            <tbody>
+                @if (Model.Rules.Count == 0)
+                {
+                    <tr><td colspan="@(taxed ? 7 : 6)" class="text-center text-muted p-4">No rules yet. Add one below, or tick "make a rule" when you allocate a line.</td></tr>
+                }
+                @foreach (var r in Model.Rules)
+                {
+                    <tr class="@(r.RuleId == Model.Input.RuleId ? "table-active" : "")">
+                        <td class="text-end text-muted">@r.SortOrder</td>
+                        <td class="fw-bold">@r.Contains</td>
+                        <td>@RuleDirection.Label(r.Direction)</td>
+                        <td>@r.AccountName</td>
+                        @if (taxed)
+                        {
+                            <td>@(r.TaxCode ?? "")</td>
+                        }
+                        <td class="text-muted">@(r.Description ?? "The bank's description")</td>
+                        <td class="text-end text-nowrap">
+                            <a asp-route-id="@r.RuleId" class="btn btn-sm btn-outline-secondary">Edit</a>
+                            <form method="post" asp-page-handler="Delete" asp-route-ruleId="@r.RuleId" class="d-inline"
+                                  onsubmit="return confirm('Delete this rule? Lines it already allocated stay as they are.');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="h5">@(editing ? "Edit rule" : "Add a rule")</h2>
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+<form method="post" asp-page-handler="Save" class="card shadow-sm">
+    <input type="hidden" asp-for="Input.RuleId" />
+    <div class="card-body row g-2 align-items-end">
+        <div class="col-md-4">
+            <label asp-for="Input.Contains" class="form-label">Lines containing</label>
+            <input asp-for="Input.Contains" class="form-control" maxlength="200" required placeholder="e.g. ACCOUNT FEE" />
+        </div>
+        <div class="col-md-2">
+            <label asp-for="Input.Direction" class="form-label">Applies to</label>
+            <select asp-for="Input.Direction" class="form-select">
+                @foreach (var d in RuleDirection.All)
+                {
+                    <option value="@d">@RuleDirection.Label(d)</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="Input.AccountId" class="form-label">Go to account</label>
+            <select asp-for="Input.AccountId" class="form-select" required>
+                <option value="">-- Choose an account --</option>
+                @foreach (var a in Model.Accounts)
+                {
+                    <option value="@a.AccountId">@a.DisplayName</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label asp-for="Input.SortOrder" class="form-label">Order</label>
+            <input asp-for="Input.SortOrder" type="number" class="form-control" placeholder="last" />
+        </div>
+        @if (Model.TaxCodes.Count > 0)
+        {
+            <div class="col-md-4">
+                <label asp-for="Input.TaxCodeId" class="form-label">@Model.TaxName code</label>
+                <select asp-for="Input.TaxCodeId" class="form-select">
+                    <option value="">No @Model.TaxName</option>
+                    @foreach (var c in Model.TaxCodes)
+                    {
+                        <option value="@c.TaxCodeId">@c.Display</option>
+                    }
+                </select>
+            </div>
+        }
+        <div class="col-md-@(Model.TaxCodes.Count > 0 ? 4 : 8)">
+            <label asp-for="Input.Description" class="form-label">Description on the allocation (optional)</label>
+            <input asp-for="Input.Description" class="form-control" maxlength="500" placeholder="Leave blank to keep the bank's description" />
+        </div>
+        <div class="col-md-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-grow-1">@(editing ? "Save rule" : "Add rule")</button>
+            @if (editing)
+            {
+                <a asp-page="/Accounting/Rules" class="btn btn-outline-secondary">Cancel</a>
+            }
+        </div>
+    </div>
+</form>

@@ -1,0 +1,40 @@
+@model AccountInput
+@{
+    // The chart of accounts for the parent list; the Edit page also passes the account being edited
+    var accounts = ViewData["Accounts"] as IReadOnlyList<LedgerAccount> ?? [];
+    var editingId = ViewData["EditingId"] as int?;
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-sm-4">
+        <label asp-for="Type" class="form-label">Account type</label>
+        <select asp-for="Type" class="form-select">
+            @foreach (var t in AccountTypes.All)
+            {
+                <option value="@t">@t</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-3">
+        <label asp-for="Number" class="form-label">Account number</label>
+        <input asp-for="Number" type="number" min="1" max="999999" step="1" class="form-control" placeholder="e.g. 6420" required />
+    </div>
+    <div class="col-sm-5">
+        <label asp-for="Name" class="form-label">Account name</label>
+        <input asp-for="Name" class="form-control" maxlength="255" placeholder="e.g. Accounting fees" required />
+    </div>
+</div>
+<div class="mb-3">
+    <label asp-for="ParentId" class="form-label">Parent account (optional)</label>
+    <select asp-for="ParentId" class="form-select">
+        <option value="">-- Top level --</option>
+        @foreach (var a in accounts.Where(a => a.AccountId != editingId))
+        {
+            <option value="@a.AccountId">@a.Display (@a.Type)</option>
+        }
+    </select>
+</div>
+<p class="form-text">
+    Numbers must be unique. By convention assets are 1xxx, liabilities 2xxx, equity 3xxx, revenue 4xxx and expenses 5xxx or 6xxx.
+    Nest an account under a header, for example a bank account under 1100 Cash at Bank.
+</p>

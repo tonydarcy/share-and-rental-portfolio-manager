@@ -1,0 +1,97 @@
+@page "{id:int}"
+@model ViewModel
+@{
+    var d = Model.Document!;
+    var label = QuoteOrderKinds.Label(d.Kind);
+    ViewData["Title"] = $"{label} {d.Number}";
+    var taxed = d.Tax != 0;
+    var cols = taxed ? 4 : 3;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2 d-print-none">
+    <h1 class="h2 mb-0">@label @d.Number <span class="badge fs-6 @IndexModel.Badge(d.Status)">@(d.IsExpired(Model.Today) ? "Expired" : d.Status)</span></h1>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-page="/Orders/Index" asp-route-kind="@d.Kind" class="btn btn-sm btn-outline-secondary">All @(d.IsQuote ? "quotes" : "purchase orders")</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print or save as PDF</button>
+        @if (Model.CanEdit && !d.IsConverted)
+        {
+            <a asp-page="/Orders/Edit" asp-route-id="@d.Id" class="btn btn-sm btn-outline-primary">Edit</a>
+        }
+        @if (d.ConvertedId is { } c)
+        {
+            <a asp-page="@(d.IsQuote ? "/Invoices/View" : "/Bills/View")" asp-route-id="@c" class="btn btn-sm btn-success">Open the @(d.IsQuote ? "invoice" : "bill")</a>
+        }
+    </div>
+</div>
+
+@if (Model.CanEdit && !d.IsConverted)
+{
+    <div class="card shadow-sm mb-3 d-print-none">
+        <div class="card-body d-flex flex-wrap gap-2 align-items-end">
+            @foreach (var s in QuoteOrderStatus.Choices(d.Kind).Where(s => s != d.Status))
+            {
+                <form method="post" asp-page-handler="Status" asp-route-id="@d.Id" asp-route-status="@s">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">Mark @s.ToLowerInvariant()</button>
+                </form>
+            }
+            @if (d.CanConvert && d.IsQuote)
+            {
+                <form method="post" asp-page-handler="Invoice" asp-route-id="@d.Id">
+                    <button type="submit" class="btn btn-sm btn-success">Turn into an invoice</button>
+                </form>
+            }
+            @if (d.CanConvert && !d.IsQuote)
+            {
+                <form method="post" asp-page-handler="Bill" asp-route-id="@d.Id" class="d-flex flex-wrap gap-2 align-items-end">
+                    <div><label class="form-label small mb-0" for="billDate">Supplier's invoice date</label><input type="date" id="billDate" name="billDate" value="@Model.Today.ToString("yyyy-MM-dd")" class="form-control form-control-sm" /></div>
+                    <div><label class="form-label small mb-0" for="supplierNumber">Their invoice number</label><input id="supplierNumber" name="supplierNumber" maxlength="60" class="form-control form-control-sm" /></div>
+                    <button type="submit" class="btn btn-sm btn-success">Turn into a bill</button>
+                </form>
+            }
+            <form method="post" asp-page-handler="Delete" asp-route-id="@d.Id" class="ms-auto">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+        </div>
+    </div>
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="d-flex justify-content-between flex-wrap gap-3 mb-4">
+            <div>
+                <div class="fs-4 fw-bold">@Model.BusinessName</div>
+                @if (Model.Business?.Abn is { Length: > 0 } abn) { <div class="small">ABN @abn</div> }
+            </div>
+            <div class="text-end">
+                <div class="fs-4 text-uppercase">@label</div>
+                <div>@d.Number</div>
+                <div class="small">Date @d.Date.ToString("d")</div>
+                @if (d.Expiry is { } x) { <div class="small">@(d.IsQuote ? "Valid until" : "Deliver by") @x.ToString("d")</div> }
+                @if (d.Reference is not null) { <div class="small">Reference @d.Reference</div> }
+            </div>
+        </div>
+        <div class="mb-3"><span class="text-muted small">@(d.IsQuote ? "For" : "To")</span><div class="fw-semibold">@d.ContactName</div></div>
+        @if (d.Title is not null) { <h2 class="h5">@d.Title</h2> }
+        <table class="table table-sm">
+            <thead><tr><th>Description</th><th class="text-end">Qty</th><th class="text-end">Price</th>@if (taxed) { <th>Tax</th> }<th class="text-end">Amount</th></tr></thead>
+            <tbody>
+                @foreach (var l in d.Lines)
+                {
+                    <tr>
+                        <td>@l.Description</td>
+                        <td class="text-end">@l.Quantity.ToString("0.####")</td>
+                        <td class="text-end">@Money.Format(l.UnitPrice, d.Currency)</td>
+                        @if (taxed) { <td>@l.TaxCode</td> }
+                        <td class="text-end">@Money.Format(d.AmountsIncludeTax ? l.Total : l.Net, d.Currency)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr><td colspan="@cols" class="text-end">Subtotal</td><td class="text-end">@Money.Format(d.Net, d.Currency)</td></tr>
+                @if (taxed) { <tr><td colspan="@cols" class="text-end">@Model.Lists.TaxName</td><td class="text-end">@Money.Format(d.Tax, d.Currency)</td></tr> }
+                <tr class="fw-bold"><td colspan="@cols" class="text-end">Total</td><td class="text-end">@Money.Format(d.Total, d.Currency)</td></tr>
+            </tfoot>
+        </table>
+        @if (d.Notes is not null) { <div style="white-space: pre-line">@d.Notes</div> }
+    </div>
+</div>

@@ -1,0 +1,136 @@
+@page
+@model WorkpapersModel
+@using PortfolioManager.Core.Practice
+@{
+    ViewData["Title"] = "Workpapers and checklist";
+    var n = 0;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Workpapers and year-end checklist</h1>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/Clients/Dashboard" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Practice dashboard</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="d-flex gap-2 align-items-center mb-3 no-print">
+    <select name="fy" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        @foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.Year)">@FinancialYear.Label(y)</option> }
+    </select>
+    <span class="small text-muted">@Model.Portfolio.Name &middot; @ClientEntityTypes.Describe(Model.EntityType)</span>
+</form>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h2 class="h5">Status: <span class="badge @YearStatuses.Badge(Model.EffectiveStatus)">@YearStatuses.Label(Model.EffectiveStatus)</span></h2>
+        @if (Model.Locked)
+        {
+            <p class="mb-0 small text-muted">@FinancialYear.Label(Model.Year) is locked.</p>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Status" asp-route-fy="@Model.Year" class="row g-2 align-items-end no-print">
+                <div class="col-sm-3">
+                    <select asp-for="Status" class="form-select form-select-sm">
+                        @foreach (var s in YearStatuses.Choices) { <option value="@s">@YearStatuses.Label(s)</option> }
+                    </select>
+                </div>
+                <div class="col-sm-6"><input asp-for="StatusNote" class="form-control form-control-sm" maxlength="500" placeholder="Note for the dashboard (optional)" /></div>
+                <div class="col-sm-3"><button type="submit" class="btn btn-sm btn-primary">Set status</button></div>
+            </form>
+        }
+    </div>
+</div>
+
+<h2 class="h4">Checklist</h2>
+<form method="post" asp-page-handler="Checklist" asp-route-fy="@Model.Year" class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <tbody>
+                @for (var i = 0; i < Model.Items.Count; i++)
+                {
+                    var item = Model.Items[i];
+                    var tick = Model.Done.GetValueOrDefault(item.Key);
+                    <tr>
+                        <td style="width:2.5rem">
+                            <input type="hidden" name="Ticks[@i].Key" value="@item.Key" />
+                            <input type="checkbox" name="Ticks[@i].Done" value="true" class="form-check-input" checked="@(tick?.Done == true)" id="tick@(i)" />
+                        </td>
+                        <td>
+                            <label for="tick@(i)">@item.Text</label>
+                            @if (item.Page is not null) { <a href="@Url.Page(item.Page)" class="small ms-1 no-print">open</a> }
+                            @if (tick is { Done: true }) { <div class="small text-muted">@tick.DoneBy, @tick.DoneAt?.ToString("d")</div> }
+                        </td>
+                        <td style="width:40%"><input name="Ticks[@i].Note" value="@tick?.Note" class="form-control form-control-sm" maxlength="500" placeholder="Note" aria-label="Note" /></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer no-print"><button type="submit" class="btn btn-sm btn-success">Save checklist</button></div>
+</form>
+
+<h2 class="h4">Workpapers</h2>
+<p class="text-muted small no-print">One for each balance at @FinancialYear.EndDate(Model.Year).ToString("d MMMM yyyy"). Enter the balance the supporting document
+    shows (bank statement, holding statement, loan statement or schedule), say how it was checked and attach the document. A reviewer then signs it off;
+    changing a workpaper takes the sign-off away.</p>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Account</th><th class="text-end">Ledger</th><th class="text-end">Supported</th><th class="text-end">Difference</th><th>How it was checked</th><th>Prepared</th><th>Reviewed</th></tr></thead>
+            <tbody>
+                @if (Model.Rows.Count == 0) { <tr><td colspan="7" class="text-center text-muted p-4">Nothing has been posted to the ledger at this date.</td></tr> }
+                @foreach (var r in Model.Rows)
+                {
+                    n++;
+                    var p = r.Paper;
+                    <tr id="wp@(r.AccountId)" class="@(r.Reviewed ? "table-success" : r.Prepared ? "" : "table-warning")">
+                        <td><span class="fw-bold">@r.Number</span> @r.Name<div class="small text-muted">@r.Type</div></td>
+                        <td class="text-end">@r.Balance.ToString("C")</td>
+                        <td colspan="3">
+                            <form method="post" asp-page-handler="Prepare" asp-route-fy="@Model.Year" class="d-flex gap-1 align-items-start">
+                                <input type="hidden" name="accountId" value="@r.AccountId" />
+                                <input name="supported" type="number" step="0.01" value="@p?.Supported" class="form-control form-control-sm text-end" style="width:9rem" aria-label="Supported balance" />
+                                <span class="text-end small pt-1 @(r.Difference is not null and not 0 ? "text-danger fw-bold" : "")" style="width:7rem">@r.Difference?.ToString("C")</span>
+                                <textarea name="note" class="form-control form-control-sm" rows="1" maxlength="2000" aria-label="How it was checked">@p?.Note</textarea>
+                                <button type="submit" class="btn btn-sm btn-outline-primary no-print">Save</button>
+                            </form>
+                        </td>
+                        <td class="small text-nowrap">
+                            @if (p?.Prepared is { } prepared) { <div>@p.PreparedBy</div><div class="text-muted">@prepared.ToString("d")</div> }
+                            @if (p is not null)
+                            {
+                                <a asp-page="/Attachments/Index" asp-route-kind="Workpaper" asp-route-target="@p.Id" asp-route-fy="@Model.Year" class="no-print">
+                                    <i class="bi bi-paperclip"></i>@(Model.Files.GetValueOrDefault(p.Id) is > 0 and var c ? $" {c}" : " attach")</a>
+                            }
+                        </td>
+                        <td class="small">
+                            @if (p?.Reviewed is { } reviewed)
+                            {
+                                <div><i class="bi bi-check-circle-fill text-success"></i> @p.ReviewedBy, @reviewed.ToString("d")</div>
+                                @if (p.ReviewNote is not null) { <div class="text-muted">@p.ReviewNote</div> }
+                                <form method="post" asp-page-handler="Review" asp-route-fy="@Model.Year" asp-route-id="@p.Id" asp-route-signOff="false" class="no-print">
+                                    <button type="submit" class="btn btn-link btn-sm p-0">Remove sign-off</button>
+                                </form>
+                            }
+                            else if (p?.Prepared is not null)
+                            {
+                                <form method="post" asp-page-handler="Review" asp-route-fy="@Model.Year" asp-route-id="@p.Id" asp-route-signOff="true" class="d-flex gap-1 no-print">
+                                    <input name="reviewNote" class="form-control form-control-sm" maxlength="1000" placeholder="Review note" aria-label="Review note" />
+                                    <button type="submit" class="btn btn-sm btn-success text-nowrap">Sign off</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,90 @@
+@page
+@model ExportModel
+@using PortfolioManager.Core.Exports
+@{
+    ViewData["Title"] = "Export to Xero or MYOB";
+    var isXero = Model.System == ExportSystems.Xero;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Export to Xero or MYOB</h1>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<ul class="nav nav-tabs mb-3">
+    @foreach (var s in ExportSystems.All)
+    {
+        <li class="nav-item"><a class="nav-link @(s == Model.System ? "active" : "")" asp-route-system="@s" asp-route-shape="@Model.Shape" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")">@s</a></li>
+    }
+</ul>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h2 class="h5">Download</h2>
+        <p class="text-muted small mb-3">
+            @if (isXero)
+            {
+                <text>A CSV for Xero's <strong>Accounting, Manual journals, Import</strong>. Each journal's lines share a narration and date, debits are positive and credits negative.
+                    Journals arrive in Xero as drafts for you to check and post.</text>
+            }
+            else
+            {
+                <text>A tab-delimited file for MYOB AccountRight's <strong>File, Import Data, General Journal Entries</strong>. Match the fields to the file's headings when MYOB asks.</text>
+            }
+            GST goes across as its own lines to the account you map the GST control account to, so @(isXero ? "Xero" : "MYOB") doesn't add it again.
+        </p>
+        <form method="get" class="row g-2 align-items-end">
+            <input type="hidden" asp-for="System" />
+            <input type="hidden" name="handler" value="Download" />
+            <div class="col-md-5">
+                <label asp-for="Shape" class="form-label small mb-1">What to send</label>
+                <select asp-for="Shape" class="form-select form-select-sm">
+                    @foreach (var s in new[] { ExportShapes.Journals, ExportShapes.Monthly, ExportShapes.Balances }) { <option value="@s">@ExportShapes.Label(s)</option> }
+                </select>
+            </div>
+            <div class="col-auto"><label asp-for="From" class="form-label small mb-1">From</label><input asp-for="From" type="date" class="form-control form-control-sm" /></div>
+            <div class="col-auto"><label asp-for="To" class="form-label small mb-1">To</label><input asp-for="To" type="date" class="form-control form-control-sm" /></div>
+            <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-download"></i> Download</button></div>
+        </form>
+        <p class="small text-muted mt-2 mb-0">For opening balances (moving a client across), choose the balances option with the day before the first day in the new system.
+            The "From" date is ignored then. Map the income and expense accounts to retained earnings, or the year's profit lands in them.</p>
+    </div>
+</div>
+
+<form method="post" asp-page-handler="Map">
+    <input type="hidden" asp-for="System" />
+    <input type="hidden" asp-for="Shape" />
+    <input type="hidden" asp-for="From" />
+    <input type="hidden" asp-for="To" />
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold">Account codes in @Model.System</span>
+            <button type="submit" class="btn btn-sm btn-success">Save codes</button>
+        </div>
+        <div class="card-body pb-0"><p class="small text-muted">Blank: the account goes out under its number here. Several accounts can share one code; their amounts are added together.
+            Tax: @(isXero ? "the Xero tax rate name, such as BAS Excluded or GST Free Income" : "the MYOB tax code, such as N-T or FRE") (blank: @ExportSystems.DefaultTax(Model.System)).</p></div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light"><tr><th>Account here</th><th>Type</th><th style="width: 12rem">@Model.System code</th><th style="width: 14rem">Tax</th></tr></thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Accounts.Count; i++)
+                    {
+                        var a = Model.Accounts[i];
+                        var m = Model.Current.GetValueOrDefault(a.AccountId);
+                        <tr>
+                            <td>@a.Display<input type="hidden" name="Map[@i].AccountId" value="@a.AccountId" /></td>
+                            <td class="small text-muted">@a.Type</td>
+                            <td><input name="Map[@i].Code" value="@m?.Code" maxlength="30" class="form-control form-control-sm" placeholder="@a.Number" /></td>
+                            <td><input name="Map[@i].Tax" value="@m?.TaxCode" maxlength="50" class="form-control form-control-sm" placeholder="@ExportSystems.DefaultTax(Model.System)" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</form>

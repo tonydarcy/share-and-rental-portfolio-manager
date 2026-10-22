@@ -1,0 +1,62 @@
+@page "{token}"
+@model PortfolioManager.Web.Pages.Onboard.IndexModel
+@using PortfolioManager.Core.Clients
+@{
+    ViewData["Title"] = "Engagement letter";
+    var o = Model.Item!;
+    var type = o.EntityType;
+}
+
+<div class="mx-auto" style="max-width: 46rem">
+    <h1 class="h2 mb-3">Welcome, @o.ClientName</h1>
+
+    @if (Model.Done)
+    {
+        <div class="alert alert-success">Thank you. Your acceptance and details have been sent. You'll get an email when your portfolio is ready to open.</div>
+        return;
+    }
+
+    <div class="card shadow-sm mb-4"><div class="card-body" style="white-space: pre-line">@o.Letter</div></div>
+
+    <form method="post">
+        <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+        <h2 class="h5">Your details</h2>
+        <div class="row g-2 mb-3">
+            <div class="col-12"><label asp-for="Details.LegalName" class="form-label">Full legal name@(type == ClientEntityTypes.Individual ? "" : " of the " + ClientEntityTypes.Describe(type).ToLowerInvariant())</label>
+                <input asp-for="Details.LegalName" class="form-control" maxlength="500" required /></div>
+            <div class="col-md-6"><label asp-for="Details.Abn" class="form-label">ABN (if any)</label><input asp-for="Details.Abn" class="form-control" inputmode="numeric" maxlength="20" /></div>
+            @if (type == ClientEntityTypes.Company)
+            {
+                <div class="col-md-6"><label asp-for="Details.Acn" class="form-label">ACN</label><input asp-for="Details.Acn" class="form-control" inputmode="numeric" maxlength="20" required /></div>
+            }
+            @if (ClientEntityTypes.HasTrustee(type))
+            {
+                <div class="col-md-6"><label asp-for="Details.TrusteeName" class="form-label">Trustee's name</label><input asp-for="Details.TrusteeName" class="form-control" maxlength="500" /></div>
+            }
+            <div class="col-md-6"><label asp-for="Details.ContactName" class="form-label">Contact person</label><input asp-for="Details.ContactName" class="form-control" maxlength="500" /></div>
+            <div class="col-md-6"><label asp-for="Details.Phone" class="form-label">Phone</label><input asp-for="Details.Phone" class="form-control" maxlength="50" /></div>
+            <div class="col-md-6"><label asp-for="Details.AddressLine1" class="form-label">Postal address</label><input asp-for="Details.AddressLine1" class="form-control" maxlength="500" /></div>
+            <div class="col-md-6"><label asp-for="Details.AddressLine2" class="form-label">Address line 2</label><input asp-for="Details.AddressLine2" class="form-control" maxlength="500" /></div>
+            <div class="col-md-6"><label asp-for="Details.Suburb" class="form-label">Suburb</label><input asp-for="Details.Suburb" class="form-control" maxlength="100" /></div>
+            <div class="col-md-3">
+                <label asp-for="Details.State" class="form-label">State</label>
+                <select asp-for="Details.State" class="form-select"><option value="">--</option>@foreach (var s in AustralianStates.All) { <option value="@s">@s</option> }</select>
+            </div>
+            <div class="col-md-3"><label asp-for="Details.Postcode" class="form-label">Postcode</label><input asp-for="Details.Postcode" class="form-control" maxlength="4" inputmode="numeric" /></div>
+            @if (type != ClientEntityTypes.Individual)
+            {
+                <div class="col-12">
+                    <label asp-for="Details.People" class="form-label">@(type switch { ClientEntityTypes.Company => "Directors", ClientEntityTypes.Smsf => "Members and trustees", ClientEntityTypes.Partnership => "Partners", _ => "Trustees and beneficiaries" }): one a line, "Name, role"</label>
+                    <textarea asp-for="Details.People" class="form-control" rows="3" maxlength="2000"></textarea>
+                </div>
+            }
+            <div class="col-12"><label asp-for="Details.Notes" class="form-label">Anything else we should know (optional)</label><textarea asp-for="Details.Notes" class="form-control" rows="2" maxlength="2000"></textarea></div>
+        </div>
+        <p class="small text-muted">Please don't enter your tax file number here; your accountant will ask for it separately.</p>
+
+        <h2 class="h5">Accept</h2>
+        <div class="form-check mb-2"><input asp-for="Agree" class="form-check-input" /><label asp-for="Agree" class="form-check-label">I have read and agree to the engagement letter above</label></div>
+        <div class="mb-3" style="max-width: 24rem"><label asp-for="AcceptedName" class="form-label">Your full name</label><input asp-for="AcceptedName" class="form-control" maxlength="200" required /></div>
+        <button type="submit" class="btn btn-success">Accept and send</button>
+    </form>
+</div>

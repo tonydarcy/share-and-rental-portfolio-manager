@@ -1,0 +1,55 @@
+@page
+@model PortfolioManager.Web.Pages.Account.LoginModel
+@inject SiteBranding Site
+@{
+    ViewData["Title"] = "Log in";
+}
+
+<div class="row justify-content-center">
+    <div class="col-sm-10 col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h1 class="h4 mb-3">Log in</h1>
+                <form method="post">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+                    @if (Model.NeedsEmailCheck)
+                    {
+                        <p class="small">Can't find it? <a asp-page="/Account/ResendConfirmation" asp-route-email="@Model.Email">Send the link again</a>.</p>
+                    }
+                    <input type="hidden" asp-for="ReturnUrl" />
+                    <div class="mb-3">
+                        <label asp-for="Email" class="form-label"></label>
+                        <input asp-for="Email" class="form-control" autocomplete="username" autofocus />
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Password" class="form-label"></label>
+                        <input asp-for="Password" class="form-control" autocomplete="current-password" />
+                        <span asp-validation-for="Password" class="text-danger small"></span>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input asp-for="RememberMe" class="form-check-input" />
+                        <label asp-for="RememberMe" class="form-check-label"></label>
+                    </div>
+                    <partial name="_Captcha" />
+                    <button type="submit" class="btn btn-primary w-100">Log in</button>
+                </form>
+                @if (Model.CanSendEmail)
+                {
+                    <p class="text-center small mt-3 mb-0"><a asp-page="/Account/ForgotPassword">Forgot your password?</a></p>
+                }
+                @if (Site.HasDemo)
+                {
+                    <form method="post" asp-page-handler="Demo" class="mt-3">
+                        <button type="submit" class="btn btn-outline-secondary w-100">Look around the demo portfolio</button>
+                    </form>
+                }
+                <p class="text-center small mt-3 mb-0">New here? <a asp-page="/Account/Register">Create an account</a></p>
+                @if (!string.IsNullOrWhiteSpace(Site.OldSiteUrl))
+                {
+                    <p class="text-center small mt-2 mb-0"><a href="@Site.OldSiteUrl">@Site.OldSiteLabel</a></p>
+                }
+            </div>
+        </div>
+    </div>
+</div>

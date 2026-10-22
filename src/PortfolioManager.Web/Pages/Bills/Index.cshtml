@@ -1,0 +1,86 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Bills";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Bills</h1>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-page="/Bills/Suppliers" class="btn btn-sm btn-outline-secondary">Suppliers</a>
+        <a asp-page="/Bills/Repeating" class="btn btn-sm btn-outline-secondary">Repeating</a>
+        <a asp-page="/Bills/Aged" class="btn btn-sm btn-outline-secondary">Aged payables</a>
+        <a asp-page="/Orders/Index" asp-route-kind="PurchaseOrder" class="btn btn-sm btn-outline-secondary">Purchase orders</a>
+        <a asp-page="/Reading/Index" class="btn btn-sm btn-outline-secondary">Read a bill</a>
+        @if (Model.CanEdit)
+        {
+            <a asp-page="/Bills/Edit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> New bill</a>
+        }
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (Model.SupplierCount == 0)
+{
+    <div class="alert alert-info">
+        Enter the bills this entity gets from suppliers, so you can see what you owe and when it is due. Start by
+        <a asp-page="/Bills/Suppliers">adding a supplier</a>. An approved bill is posted to the ledger (owed in Accounts Payable,
+        and the expense and any GST, VAT or sales tax), and recording its payment takes it out of the bank.
+    </div>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card shadow-sm"><div class="card-body">
+            <div class="text-muted small">You owe</div>
+            <div class="fs-4 fw-bold">@Model.Owing.ToString("C")</div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card shadow-sm"><div class="card-body">
+            <div class="text-muted small">Overdue</div>
+            <div class="fs-4 fw-bold @(Model.Overdue > 0 ? "text-danger" : "")">@Model.Overdue.ToString("C")</div>
+        </div></div>
+    </div>
+</div>
+
+<ul class="nav nav-pills mb-3">
+    @foreach (var f in IndexModel.Filters)
+    {
+        <li class="nav-item"><a class="nav-link @(Model.Show == f ? "active" : "")" asp-route-show="@f">@f</a></li>
+    }
+</ul>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Supplier</th><th>Their number</th><th>Date</th><th>Due</th><th class="text-end">Total</th><th class="text-end">Owing</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                @if (Model.Bills.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No bills to show.</td></tr>
+                }
+                @foreach (var b in Model.Bills)
+                {
+                    var status = b.DisplayStatus(Model.Today);
+                    <tr>
+                        <td><a asp-page="/Bills/View" asp-route-id="@b.BillId">@b.SupplierName</a>@if (b.IsCredit) { <span class="badge text-bg-info ms-1">credit</span> }</td>
+                        <td>@b.Number @if (b.Reference is not null) { <span class="small text-muted">(@b.Reference)</span> }</td>
+                        <td>@b.IssueDate.ToString("d")</td>
+                        <td>@b.DueDate.ToString("d")</td>
+                        <td class="text-end">@Money.Format(b.Total, b.Currency)</td>
+                        <td class="text-end">@(b.Balance > 0 ? Money.Format(b.Balance, b.Currency) : "")</td>
+                        <td><span class="badge @PortfolioManager.Web.Pages.Invoices.IndexModel.BadgeClass(status)">@status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

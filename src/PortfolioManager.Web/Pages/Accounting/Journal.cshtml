@@ -1,0 +1,125 @@
+@page "{id:int}"
+@model JournalModel
+@{
+    ViewData["Title"] = "Journal";
+    var j = Model.Journal!;
+    var balanced = j.TotalDebit == j.TotalCredit;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">@(string.IsNullOrEmpty(j.Description) ? "Journal" : j.Description)</h1>
+        <div class="text-muted">@j.Date.ToString("d MMMM yyyy") &middot; @JournalRules.SourceLabel(j.SourceModule) &middot; Journal @j.JournalId</div>
+    </div>
+    <div class="d-flex gap-2">
+        @if (j.IsManual)
+        {
+            <a asp-page="/Accounting/JournalEntry" asp-route-id="@j.JournalId" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Edit</a>
+            <form method="post" asp-page-handler="Delete" asp-route-id="@j.JournalId" class="d-inline"
+                  onsubmit="return confirm('Delete this journal? This can\'t be undone.');">
+                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Delete</button>
+            </form>
+            <form method="post" asp-page-handler="Reverse" asp-route-id="@j.JournalId" class="d-inline-flex gap-1">
+                <input type="date" name="date" class="form-control form-control-sm" value="@j.Date.AddDays(1).ToString("yyyy-MM-dd")" aria-label="Reverse on" required />
+                <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-arrow-left-right"></i> Reverse</button>
+            </form>
+        }
+        <a asp-page="/Attachments/Index" asp-route-kind="Journal" asp-route-target="@j.JournalId" class="btn btn-sm btn-outline-secondary"><i class="bi bi-paperclip"></i> Attachments</a>
+        <a asp-page="/Clients/Queries" asp-route-journal="@j.JournalId" class="btn btn-sm btn-outline-secondary"><i class="bi bi-question-circle"></i> Ask the client</a>
+        <a asp-page="/Accounting/Journals" class="btn btn-sm btn-outline-secondary">Back to journals</a>
+    </div>
+</div>
+
+@if (!balanced)
+{
+    <div class="alert alert-warning">
+        This journal is out of balance by @Math.Abs(j.TotalDebit - j.TotalCredit).ToString("C").
+        @if (j.SourceModule == "Payout")
+        {
+            <span>Open the payout and save it to post its journal again.</span>
+        }
+    </div>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 6rem">Account</th>
+                    <th></th>
+                    <th>Description</th>
+                    <th class="text-end">Debit</th>
+                    <th class="text-end">Credit</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (j.Lines.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-center text-muted p-4">This journal has no lines.</td></tr>
+                }
+                @foreach (var l in j.Lines)
+                {
+                    <tr>
+                        <td class="fw-bold">@(Model.AccountNumbers.TryGetValue(l.AccountId, out var n) ? n.ToString() : "")</td>
+                        <td>@l.AccountName</td>
+                        <td class="small text-muted">
+                            @l.Description
+                            @if (l.MatchedJournalId is { } matched)
+                            {
+                                <a asp-page="/Accounting/Journal" asp-route-id="@matched" class="badge text-bg-success text-decoration-none">Allocated</a>
+                            }
+                            @if (l.TaxCodeId is { } taxCodeId)
+                            {
+                                var code = Model.TaxCodes.TryGetValue(taxCodeId, out var c) ? c : "Tax";
+                                <span class="badge text-bg-light border">@(l.IsTaxLine ? $"Tax for {code}" : $"{code}, tax {(l.TaxAmount ?? 0).ToString("C")}")</span>
+                            }
+                        </td>
+                        <td class="text-end">@(l.Debit != 0 ? l.Debit.ToString("C") : "")</td>
+                        <td class="text-end">@(l.Credit != 0 ? l.Credit.ToString("C") : "")</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="table-active fw-bold">
+                    <td colspan="3">Total</td>
+                    <td class="text-end">@j.TotalDebit.ToString("C")</td>
+                    <td class="text-end">@j.TotalCredit.ToString("C")</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<dl class="row small text-muted">
+    @if (j.Created is { } created)
+    {
+        <dt class="col-sm-3">Entered</dt>
+        <dd class="col-sm-9">@created.ToString("d MMM yyyy h:mm tt")</dd>
+    }
+    @if (j.SourceId is { } source)
+    {
+        <dt class="col-sm-3">Source record</dt>
+        <dd class="col-sm-9">
+            @if (j.SourceModule == "Invoice")
+            {
+                <a asp-page="/Invoices/View" asp-route-id="@source">@JournalRules.SourceLabel(j.SourceModule)</a>
+            }
+            else
+            {
+                @:@JournalRules.SourceLabel(j.SourceModule) #@source
+            }
+        </dd>
+    }
+    @if (j.BatchId is { } batch)
+    {
+        <dt class="col-sm-3">Import batch</dt>
+        <dd class="col-sm-9"><a asp-page="/Accounting/ImportHistory">@batch</a></dd>
+    }
+</dl>
+@if (!j.IsManual)
+{
+    <p class="text-muted small">
+        This journal was posted for a @JournalRules.SourceLabel(j.SourceModule).ToLowerInvariant(), so it changes with that record and can't be edited or deleted here.
+    </p>
+}

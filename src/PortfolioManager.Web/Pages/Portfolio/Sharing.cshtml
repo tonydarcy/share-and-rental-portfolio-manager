@@ -1,0 +1,126 @@
+@page
+@model PortfolioManager.Web.Pages.Portfolio.SharingModel
+@using PortfolioManager.Core.Portfolios
+@{
+    ViewData["Title"] = "Sharing";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Share @(Model.Portfolio?.Name ?? "this portfolio")</h1>
+    <a asp-page="/Portfolio/Manage" class="btn btn-sm btn-outline-secondary">All portfolios</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+@if (!Model.Portfolio.CanShare)
+{
+    <div class="alert alert-info">
+        You are @(Model.Portfolio.Access == PortfolioAccess.Edit ? "an editor" : "a read only user") of this portfolio.
+        Only its owners can change who it is shared with.
+    </div>
+    return;
+}
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-3">
+            <div class="card-body pb-0"><h2 class="h6">People who can open it</h2></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+                    <tbody>
+                        @if (Model.Shares.Count == 0)
+                        {
+                            <tr><td colspan="4" class="text-center text-muted p-4">Only you.</td></tr>
+                        }
+                        @foreach (var s in Model.Shares)
+                        {
+                            <tr>
+                                <td>@s.Name @if (s.UserId == Model.UserId) { <span class="badge text-bg-light">You</span> }</td>
+                                <td class="small">@s.Email</td>
+                                <td>@PortfolioService.AccessLabel(s.Access)</td>
+                                <td class="text-end">
+                                    @if (s.UserId != Model.UserId)
+                                    {
+                                        <form method="post" asp-page-handler="Remove" asp-route-permissionId="@s.PermissionId" class="d-inline"
+                                              data-confirm="Stop sharing this portfolio with @s.Email?" onsubmit="return confirm(this.dataset.confirm);">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (Model.Invites.Count > 0)
+        {
+            <div class="card shadow-sm">
+                <div class="card-body pb-0">
+                    <h2 class="h6">Invited, not signed up yet</h2>
+                    <p class="small text-muted mb-2">
+                        @(Model.CanSendEmail ? "We emailed each of them an invitation. You can also send" : "Send") them this link:
+                        <code>@Model.SignUpUrl</code>. When they sign up with the email below and log in, the portfolio opens for them.
+                    </p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light"><tr><th>Email</th><th>Role</th><th>Invited</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var i in Model.Invites)
+                            {
+                                <tr>
+                                    <td class="small">@i.Email</td>
+                                    <td>@PortfolioService.AccessLabel(i.Access)</td>
+                                    <td class="small">@i.Created.ToString("d")</td>
+                                    <td class="text-end">
+                                        <form method="post" asp-page-handler="CancelInvite" asp-route-inviteId="@i.InviteId" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+    <div class="col-lg-5">
+        <form method="post" asp-page-handler="Share" class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6">Share with someone</h2>
+                <p class="text-muted small">
+                    For example the entity's owner, a director or trustee, or their accountant. If they haven't signed up yet,
+                    an invitation is saved and the portfolio opens for them once they sign up with this email.
+                    Sharing again with the same person changes their role.
+                </p>
+                <div class="mb-3">
+                    <label asp-for="Email" class="form-label">Their email</label>
+                    <input asp-for="Email" type="email" class="form-control" maxlength="500" />
+                    <span asp-validation-for="Email" class="text-danger small"></span>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="Access" value="Full" id="accessFull" />
+                        <label class="form-check-label" for="accessFull"><strong>Owner:</strong> view and change everything, and share it with others</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="Access" value="Edit" id="accessEdit" />
+                        <label class="form-check-label" for="accessEdit"><strong>Editor:</strong> view and change everything, for example an accountant or bookkeeper</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="Access" value="View" id="accessView" />
+                        <label class="form-check-label" for="accessView"><strong>Read only:</strong> look at everything but change nothing, for example an auditor</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Share</button>
+            </div>
+        </form>
+    </div>
+</div>

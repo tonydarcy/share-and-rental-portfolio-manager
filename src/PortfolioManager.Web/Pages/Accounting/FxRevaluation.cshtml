@@ -1,0 +1,125 @@
+@page
+@model FxRevaluationModel
+@{
+    ViewData["Title"] = "Foreign exchange revaluation";
+    var home = RegionSettings.Current.Currency;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var currencies = Model.Items.Select(i => i.Currency).Distinct().OrderBy(c => c).ToList();
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Foreign exchange revaluation</h1>
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <label for="date" class="small text-muted">As at</label>
+        <input id="date" name="date" type="date" value="@Model.AsAt.ToString("yyyy-MM-dd")" class="form-control form-control-sm" />
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Show</button>
+    </form>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted small">
+    Open invoices, bills and foreign currency accounts are carried in the books at the rate when they were recorded. Revaluing
+    shows them at the rate on this date and posts the difference to account 4960 (foreign exchange gains and losses).
+    The invoice and bill part reverses the next day, so the real gain or loss is taken when they are paid; the accounts' part stays.
+    Usually done at the end of the financial year or each month.
+</p>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="alert alert-info">Nothing in a foreign currency is open on @Model.AsAt.ToString("d").</div>
+}
+else
+{
+    <form method="post" asp-page-handler="Post" asp-route-date="@Model.AsAt.ToString("yyyy-MM-dd")">
+        <div class="card shadow-sm card-body mb-3">
+            <div class="row g-2">
+                @foreach (var c in currencies)
+                {
+                    <div class="col-sm-4 col-md-3">
+                        <label class="form-label" for="rate_@c">@c per 1 @home</label>
+                        <input id="rate_@c" name="Rates[@c]" type="number" step="any" min="0" value="@(Model.RateFor.TryGetValue(c, out var r) ? r.ToString(inv) : "")"
+                               class="form-control fx-rate" data-currency="@c" required disabled="@(!Model.CanEdit)" />
+                    </div>
+                }
+            </div>
+            @if (currencies.Any(c => !Model.RateFor.ContainsKey(c)))
+            {
+                <p class="small text-warning mt-2 mb-0">No rate is on file near this date for some currencies; enter them.</p>
+            }
+        </div>
+        <div class="card shadow-sm mb-3">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light"><tr><th>What</th><th class="text-end">Open</th><th class="text-end">In the books (@home)</th><th class="text-end">At the rate</th><th class="text-end">Gain / (loss)</th></tr></thead>
+                <tbody>
+                    @foreach (var i in Model.Items)
+                    {
+                        var rate = Model.RateFor.GetValueOrDefault(i.Currency);
+                        var change = rate > 0 ? i.Change(rate) : 0;
+                        // A positive change is a gain for an asset (receivable or account) and a loss for a payable
+                        var gain = i.Kind == "Bill" ? -change : change;
+                        <tr class="fx-item" data-currency="@i.Currency" data-foreign="@i.ForeignAmount.ToString(inv)" data-carrying="@i.CarryingHome.ToString(inv)" data-payable="@(i.Kind == "Bill" ? "1" : "0")">
+                            <td>@i.Kind: @i.Document</td>
+                            <td class="text-end">@Money.Format(i.ForeignAmount, i.Currency)</td>
+                            <td class="text-end">@i.CarryingHome.ToString("N2")</td>
+                            <td class="text-end fx-revalued">@(rate > 0 ? i.Revalued(rate).ToString("N2") : "")</td>
+                            <td class="text-end fx-gain @(gain < 0 ? "text-danger" : "")">@(rate > 0 ? gain.ToString("#,##0.00;(#,##0.00)") : "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.CanEdit)
+        {
+            <button type="submit" class="btn btn-primary">Post revaluation on @Model.AsAt.ToString("d")</button>
+        }
+    </form>
+}
+
+<h2 class="h5 mt-4">Past revaluations</h2>
+<div class="card shadow-sm">
+    <table class="table table-sm align-middle mb-0">
+        <thead class="table-light"><tr><th>Date</th><th>Rates</th><th class="text-end">Journal total</th><th></th></tr></thead>
+        <tbody>
+            @if (Model.History.Count == 0) { <tr><td colspan="4" class="text-center text-muted p-3">None yet.</td></tr> }
+            @foreach (var h in Model.History)
+            {
+                <tr>
+                    <td>@h.Date.ToString("d")</td>
+                    <td class="small">@h.Rates</td>
+                    <td class="text-end">@h.Total.ToString("C")</td>
+                    <td class="text-end">
+                        @if (Model.CanEdit && h == Model.History[0])
+                        {
+                            <form method="post" asp-page-handler="Delete" class="d-inline"><input type="hidden" name="id" value="@h.Id" /><button type="submit" class="btn btn-sm btn-link text-danger p-0">Delete</button></form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        // Recalculate the table as rates are typed
+        document.querySelectorAll('.fx-rate').forEach(input => input.addEventListener('input', () => {
+            const rate = parseFloat(input.value);
+            document.querySelectorAll(`.fx-item[data-currency="${input.dataset.currency}"]`).forEach(row => {
+                const cells = [row.querySelector('.fx-revalued'), row.querySelector('.fx-gain')];
+                if (!(rate > 0)) { cells.forEach(c => c.textContent = ''); return; }
+                const revalued = Math.round(parseFloat(row.dataset.foreign) / rate * 100) / 100;
+                let gain = revalued - parseFloat(row.dataset.carrying);
+                if (row.dataset.payable === '1') gain = -gain;
+                cells[0].textContent = revalued.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const text = Math.abs(gain).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                cells[1].textContent = gain < 0 ? `(${text})` : text;
+                cells[1].classList.toggle('text-danger', gain < 0);
+            });
+        }));
+    </script>
+}

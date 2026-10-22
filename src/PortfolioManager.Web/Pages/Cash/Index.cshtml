@@ -1,0 +1,93 @@
+@page
+@model PortfolioManager.Web.Pages.Cash.IndexModel
+@{
+    ViewData["Title"] = "Cash transactions";
+    var showAccount = Model.Account is null && Model.Accounts.Count > 1;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Cash transactions</h1>
+    <a asp-page="/Cash/Add" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Add cash transaction</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (Model.Accounts.Count > 1)
+{
+    <form method="get" class="card shadow-sm mb-3">
+        <div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <label for="account" class="form-label mb-0">Account</label>
+                <select id="account" name="account" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                    <option value="">All accounts</option>
+                    @foreach (var a in Model.Accounts)
+                    {
+                        <option value="@a" selected="@(a == Model.Account)">@a</option>
+                    }
+                </select>
+            </div>
+            @if (Model.OldestFirst)
+            {
+                <input type="hidden" name="oldestFirst" value="true" />
+            }
+            <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Apply</button></noscript>
+        </div>
+    </form>
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>
+                        <a asp-page="./Index" asp-route-account="@Model.Account" asp-route-oldestFirst="@(!Model.OldestFirst)"
+                           class="link-dark text-decoration-none" title="Change sort order">
+                            Date <i class="bi @(Model.OldestFirst ? "bi-sort-up" : "bi-sort-down")"></i>
+                        </a>
+                    </th>
+                    @if (showAccount)
+                    {
+                        <th>Account</th>
+                    }
+                    <th>Description</th>
+                    <th class="text-end">Withdrawal</th>
+                    <th class="text-end">Deposit</th>
+                    <th class="text-end">Balance</th>
+                    <th>Ccy</th>
+                    <th>Trade</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Transactions.Count == 0)
+                {
+                    <tr><td colspan="8" class="text-center text-muted p-4">No cash transactions found.</td></tr>
+                }
+                @foreach (var c in Model.Transactions)
+                {
+                    <tr>
+                        <td class="text-nowrap">@c.Date.ToString("dd-MMM-yyyy")</td>
+                        @if (showAccount)
+                        {
+                            <td class="small">@c.AccountName</td>
+                        }
+                        <td class="small">@c.Comment</td>
+                        <td class="text-end">@(c.Withdrawal != 0 ? c.Withdrawal.ToString("#,##0.00") : "")</td>
+                        <td class="text-end">@(c.Deposit != 0 ? c.Deposit.ToString("#,##0.00") : "")</td>
+                        <td class="text-end @(c.Balance < 0 ? "text-danger" : "")">@c.Balance.ToString("#,##0.00")</td>
+                        <td class="small">@c.Currency</td>
+                        <td class="small">@(c.TradeId is int id ? $"#{id}" : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="text-muted small mt-2">
+    The balance is the running total for each account. Cash transactions can't be edited or deleted here yet:
+    there's no database procedure for it that also keeps the ledger in step. Deleting a trade removes the cash transaction recorded with it.
+</p>

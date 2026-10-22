@@ -1,0 +1,82 @@
+@page
+@model TrackingModel
+@{
+    ViewData["Title"] = "Tracking categories";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Tracking categories</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/Accounting/TrackingReport" class="btn btn-sm btn-outline-secondary">Profit &amp; loss by tracking</a>
+        <a asp-page="/Accounting/Budgets" class="btn btn-sm btn-outline-secondary">Budgets</a>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">
+    Tag income and expenses with up to two categories, such as Department (Sales, Admin) and Property (12 Smith St, 4 Jones Rd).
+    Each line of an invoice, bill, expense claim or journal can have one option from each, and the profit and loss can be shown by option.
+</p>
+
+<div class="row g-3">
+    @foreach (var c in Model.Setup.Categories)
+    {
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <form method="post" asp-page-handler="Category" class="d-flex gap-2 align-items-center">
+                        <input type="hidden" name="categoryId" value="@c.CategoryId" />
+                        <input name="name" value="@c.Name" class="form-control form-control-sm fw-semibold" maxlength="100" aria-label="Category name" disabled="@(!Model.CanEdit)" />
+                        <div class="form-check text-nowrap"><input class="form-check-input" type="checkbox" name="active" value="true" id="active@(c.CategoryId)" checked="@c.Active" disabled="@(!Model.CanEdit)" /><input type="hidden" name="active" value="false" /><label class="form-check-label small" for="active@(c.CategoryId)">In use</label></div>
+                        @if (Model.CanEdit) { <button type="submit" class="btn btn-sm btn-outline-primary">Save</button> }
+                    </form>
+                </div>
+                <ul class="list-group list-group-flush">
+                    @foreach (var o in c.Options)
+                    {
+                        <li class="list-group-item">
+                            <form method="post" asp-page-handler="Option" class="d-flex gap-2 align-items-center">
+                                <input type="hidden" name="optionId" value="@o.OptionId" />
+                                <input type="hidden" name="categoryId" value="@c.CategoryId" />
+                                <input name="name" value="@o.Name" class="form-control form-control-sm" maxlength="100" aria-label="Option name" disabled="@(!Model.CanEdit)" />
+                                <div class="form-check text-nowrap"><input class="form-check-input" type="checkbox" name="active" value="true" id="opt@(o.OptionId)" checked="@o.Active" disabled="@(!Model.CanEdit)" /><input type="hidden" name="active" value="false" /><label class="form-check-label small" for="opt@(o.OptionId)">In use</label></div>
+                                @if (Model.CanEdit)
+                                {
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                                    <button type="submit" asp-page-handler="DeleteOption" asp-route-optionId="@o.OptionId" class="btn btn-sm btn-outline-danger" title="Delete (only if never used)"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                                }
+                            </form>
+                        </li>
+                    }
+                    @if (Model.CanEdit)
+                    {
+                        <li class="list-group-item">
+                            <form method="post" asp-page-handler="Option" class="d-flex gap-2">
+                                <input type="hidden" name="categoryId" value="@c.CategoryId" />
+                                <input name="name" class="form-control form-control-sm" maxlength="100" placeholder="Add an option" aria-label="New option" />
+                                <button type="submit" class="btn btn-sm btn-primary">Add</button>
+                            </form>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+    @if (Model.CanEdit && Model.Setup.Categories.Count < 2)
+    {
+        <div class="col-md-6">
+            <form method="post" asp-page-handler="Category" class="card shadow-sm card-body">
+                <h2 class="h6">Add a tracking category</h2>
+                <div class="d-flex gap-2">
+                    <input name="name" class="form-control" maxlength="100" placeholder="e.g. Department" aria-label="Category name" required />
+                    <button type="submit" class="btn btn-primary">Add</button>
+                </div>
+            </form>
+        </div>
+    }
+</div>

@@ -1,0 +1,188 @@
+@page
+@model PortfolioManager.Web.Pages.Trades.AddModel
+@{
+    ViewData["Title"] = "Add trade";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Add trade</h1>
+    <a asp-page="/Holdings" class="btn btn-sm btn-outline-secondary">Back to holdings</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (!string.IsNullOrEmpty(Model.Success))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="status">
+        <i class="bi bi-check-circle"></i> @Model.Success
+        <a asp-page="/Holdings" class="alert-link ms-2">View holdings</a>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-lg-8 col-xl-7">
+        <form method="post" id="tradeForm" class="card shadow-sm" novalidate>
+            <div class="card-body">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Date" class="form-label">Trade date</label>
+                        <input asp-for="Input.Date" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" required />
+                        <span asp-validation-for="Input.Date" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Type" class="form-label">Buy or sell</label>
+                        <select asp-for="Input.Type" class="form-select">
+                            <option value="Buy">Buy</option>
+                            <option value="Sell">Sell</option>
+                        </select>
+                        <span asp-validation-for="Input.Type" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Market" class="form-label">Exchange</label>
+                        <input asp-for="Input.Market" class="form-control text-uppercase" maxlength="50" required list="markets" />
+                        <datalist id="markets">
+                            @foreach (var m in new[] { "ASX", "NZX", "NASDAQ", "NYSE", "NYSEARCA", "LSE", "TSX", "TSXV", "NSE", "BSE", "HKEX", "SGX" })
+                            {
+                                <option value="@m"></option>
+                            }
+                            @foreach (var a in PortfolioManager.Core.Prices.AssetTypes.All)
+                            {
+                                <option value="@a.Market">@a.Name</option>
+                            }
+                        </datalist>
+                        <span asp-validation-for="Input.Market" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-8">
+                        <label asp-for="Input.Code" class="form-label">Stock code</label>
+                        <input asp-for="Input.Code" class="form-control text-uppercase" maxlength="50" placeholder="e.g. CBA" required autofocus />
+                        <span asp-validation-for="Input.Code" class="text-danger small"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="Input.Name" class="form-label">Stock name <span class="text-muted small">(optional)</span></label>
+                        <input asp-for="Input.Name" class="form-control" maxlength="500" />
+                        <div class="form-text">Left blank, the name already on file for this code is used.</div>
+                        <span asp-validation-for="Input.Name" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Quantity" class="form-label">Units</label>
+                        <input asp-for="Input.Quantity" type="number" min="1" step="1" class="form-control" required />
+                        <span asp-validation-for="Input.Quantity" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Price" class="form-label">Price per unit</label>
+                        <input asp-for="Input.Price" type="number" min="0" step="any" class="form-control" required />
+                        <span asp-validation-for="Input.Price" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Brokerage" class="form-label">Brokerage</label>
+                        <input asp-for="Input.Brokerage" type="number" min="0" step="0.01" class="form-control" />
+                        <span asp-validation-for="Input.Brokerage" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Currency" class="form-label">Trade currency</label>
+                        <input asp-for="Input.Currency" class="form-control text-uppercase" maxlength="3" required />
+                        <span asp-validation-for="Input.Currency" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-8">
+                        <label asp-for="Input.ExchangeRate" class="form-label">Exchange rate</label>
+                        <input asp-for="Input.ExchangeRate" type="number" min="0" step="any" class="form-control" />
+                        <div class="form-text">Units of trade currency per 1 @Model.PortfolioCurrency, e.g. 0.65 for a USD trade. Use 1 for @Model.PortfolioCurrency trades.
+                            Leave it blank (or 1) on a foreign trade to use the FX close on file for the trade date.</div>
+                        <span asp-validation-for="Input.ExchangeRate" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label asp-for="Input.Comment" class="form-label">Comment <span class="text-muted small">(optional)</span></label>
+                        <textarea asp-for="Input.Comment" class="form-control" rows="2" maxlength="500"></textarea>
+                        <span asp-validation-for="Input.Comment" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="bg-body-tertiary rounded px-3 py-2">
+                            Order total: <strong id="orderTotal">-</strong>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input asp-for="Input.RecordCash" class="form-check-input" />
+                            <label asp-for="Input.RecordCash" class="form-check-label">Also add the matching cash transaction</label>
+                        </div>
+                        <div class="form-text">The bank withdrawal for a buy, or deposit for a sale, in @Model.PortfolioCurrency.</div>
+                    </div>
+                </div>
+
+                <fieldset id="cashFields" class="row g-3 mt-0">
+                    <div class="col-sm-7">
+                        <label asp-for="Input.BankAccount" class="form-label">Bank account</label>
+                        <input asp-for="Input.BankAccount" class="form-control" list="bankAccounts" maxlength="500" placeholder="Most recently used account" />
+                        <datalist id="bankAccounts">
+                            @foreach (var a in Model.BankAccounts.Where(a => a.Currency.Equals(Model.PortfolioCurrency, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                <option value="@a.Name"></option>
+                            }
+                        </datalist>
+                        <span asp-validation-for="Input.BankAccount" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-5">
+                        <label asp-for="Input.SettlementDate" class="form-label">Settlement date</label>
+                        <input asp-for="Input.SettlementDate" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" />
+                        <div class="form-text">Blank means two days after the trade.</div>
+                        <span asp-validation-for="Input.SettlementDate" class="text-danger small"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="Input.CashComment" class="form-label">Cash description <span class="text-muted small">(optional)</span></label>
+                        <input asp-for="Input.CashComment" class="form-control" maxlength="500" placeholder="e.g. Buy Settlement: 100 CBA" />
+                        <span asp-validation-for="Input.CashComment" class="text-danger small"></span>
+                    </div>
+                </fieldset>
+            </div>
+            <div class="card-footer bg-transparent">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Add trade</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const val = id => parseFloat(document.getElementById(id).value);
+            const total = document.getElementById('orderTotal');
+            const recordCash = document.getElementById('Input_RecordCash');
+            const cashFields = document.getElementById('cashFields');
+            const portfolioCurrency = @Json.Serialize(Model.PortfolioCurrency);
+
+            function update() {
+                const qty = val('Input_Quantity'), price = val('Input_Price');
+                const brokerage = val('Input_Brokerage') || 0, rate = val('Input_ExchangeRate');
+                const currency = document.getElementById('Input_Currency').value.trim().toUpperCase();
+                if (!(qty > 0 && price > 0)) { total.textContent = '-'; return; }
+                const sell = document.getElementById('Input_Type').value === 'Sell';
+                const amount = qty * price + (sell ? -brokerage : brokerage);
+                const fmt = n => n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                let text = fmt(amount) + ' ' + currency;
+                if (currency !== portfolioCurrency && rate > 0)
+                    text += ' (' + fmt(amount / rate) + ' ' + portfolioCurrency + ')';
+                total.textContent = text;
+            }
+
+            function toggleCash() { cashFields.disabled = !recordCash.checked; cashFields.hidden = !recordCash.checked; }
+
+            document.getElementById('tradeForm').addEventListener('input', update);
+            recordCash.addEventListener('change', toggleCash);
+            update();
+            toggleCash();
+        })();
+    </script>
+}

@@ -1,0 +1,8 @@
+@model PortfolioManager.Web.Pages.Reports.PeriodReportModel
+@{
+    var current = FinancialYear.EndYearFor(PortfolioManager.Web.Pages.Reports.PeriodReportModel.Today);
+}
+<div class="btn-group btn-group-sm no-print" role="group" aria-label="Financial year">
+    <a class="btn btn-outline-secondary @(Model.Period.FinancialYear == current ? "active" : "")" href="?fy=@current">This FY</a>
+    <a class="btn btn-outline-secondary @(Model.Period.FinancialYear == current - 1 ? "active" : "")" href="?fy=@(current - 1)">Last FY</a>
+</div>

@@ -1,0 +1,129 @@
+@page
+@model PortfolioManager.Web.Pages.Reports.DiversityModel
+@{
+    ViewData["Title"] = "Diversity";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Diversity</h1>
+    <span class="text-muted">Current holdings by sector and industry</span>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (Model.Report.Lines.Count == 0)
+{
+    <div class="alert alert-info">There are no current holdings to report on.</div>
+    return;
+}
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h6">By sector</h2>
+                <div class="chart-box"><canvas id="sectorChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card shadow-sm h-100">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Sector</th>
+                            <th>Industry</th>
+                            <th class="text-end">Value</th>
+                            <th class="text-end">Share</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in Model.Report.Lines)
+                        {
+                            <tr>
+                                <td>@l.Sector</td>
+                                <td class="text-muted">@l.Industry</td>
+                                <td class="text-end">@l.Value.ToString("C")</td>
+                                <td class="text-end">@l.Share.ToString("P1")</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-active fw-bold">
+                            <td colspan="2">Total</td>
+                            <td class="text-end">@Model.Report.Total.ToString("C")</td>
+                            <td class="text-end">@(1m.ToString("P0"))</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<p class="text-muted small mt-2">Values are in the portfolio's currency, using the latest prices on file. Holdings without sector details show as Unknown.</p>
+
+@if (Model.LookThrough is { } lt)
+{
+    <h2 class="h4 mt-4">Looking through ETFs and funds</h2>
+    <p class="text-muted small">Each fund's value is spread over what it holds, so a company you own directly and through a fund shows once.
+        @if (lt.FundsCovered.Count > 0) { <text>Funds looked through: @string.Join(", ", lt.FundsCovered).</text> }
+        <a asp-page="/Prices/LookThrough">Enter or change a fund's look-through</a>.</p>
+    @if (lt.FundsWithoutData.Count > 0)
+    {
+        <div class="alert alert-info small py-2">No look-through yet for @string.Join(", ", lt.FundsWithoutData), so they count as one holding each.</div>
+    }
+    <div class="row g-3">
+        @foreach (var (title, lines, top) in new[] { ("Sector", lt.Sectors, 20), ("Country or region", lt.Countries, 20), ("Largest companies", lt.Companies, 15) })
+        {
+            <div class="col-lg-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body pb-0"><h3 class="h6">@title</h3></div>
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light"><tr><th>@(title == "Largest companies" ? "Company" : title)</th><th class="text-end">Value</th><th class="text-end">Share</th></tr></thead>
+                        <tbody>
+                            @foreach (var l in lines.Take(top))
+                            {
+                                <tr>
+                                    <td>@l.Name @if (l.Label is not null) { <span class="small text-muted">@l.Label</span> }
+                                        @if (l.ThroughFunds > 0 && l.ThroughFunds < l.Value) { <div class="small text-muted">@l.ThroughFunds.ToString("C") through funds</div> }
+                                        else if (l.ThroughFunds > 0) { <div class="small text-muted">through funds</div> }</td>
+                                    <td class="text-end">@l.Value.ToString("C")</td>
+                                    <td class="text-end">@l.Share.ToString("P1")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        const money = v => v.toLocaleString(pmLocale, { style: 'currency', currency: pmCurrency });
+        const sectors = @Json.Serialize(Model.Report.Sectors.Select(s => new { label = s.Sector, value = s.Value, share = s.Share }));
+        const palette = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#20c997', '#dc3545', '#ffc107', '#0dcaf0', '#6c757d', '#d63384', '#6610f2', '#adb5bd'];
+
+        new Chart(document.getElementById('sectorChart'), {
+            type: 'doughnut',
+            data: {
+                labels: sectors.map(s => s.label),
+                datasets: [{ data: sectors.map(s => s.value), backgroundColor: sectors.map((_, i) => palette[i % palette.length]) }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: { callbacks: { label: c => `${c.label}: ${money(c.parsed)} (${(sectors[c.dataIndex].share * 100).toFixed(1)}%)` } }
+                }
+            }
+        });
+    </script>
+}

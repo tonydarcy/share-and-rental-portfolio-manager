@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/appsettings.Production.json
+**/appsettings.*.local.json
+.git/
+.vs/
+publish/
+publish-prices/
+tests/

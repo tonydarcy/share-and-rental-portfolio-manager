@@ -1,0 +1,97 @@
+@page
+@model LockModel
+@{
+    ViewData["Title"] = "Lock periods";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Lock periods</h1>
+    <a asp-page="/Accounting/Statements" class="btn btn-sm btn-outline-secondary">Financial statements</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">
+    Lock a financial year once its statements are signed. Nothing dated in a locked year can be added, changed or deleted:
+    trades, payouts, cash, share splits, bank imports and allocations, journals, revaluations and bank reconciliations. Realised
+    gains on sales in a locked year are no longer recalculated. Locking a year also locks every year before it.
+</p>
+
+<div class="alert @(Model.Lock.LockedTo is null ? "alert-secondary" : "alert-primary")">
+    @if (Model.Lock.LockedTo is { } to)
+    {
+        <i class="bi bi-lock-fill"></i> <strong>Locked up to @to.ToString("d MMM yyyy").</strong>
+        @if (Model.Lock.Changed is { } changed)
+        {
+            <span class="small">Set @changed.ToString("d MMM yyyy")@(Model.Lock.ChangedBy is { } by ? $" by {by}" : "").</span>
+        }
+    }
+    else
+    {
+        <i class="bi bi-unlock"></i> <span>No years are locked.</span>
+    }
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Financial year</th><th>Dates</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var y in Model.Years)
+                {
+                    var locked = Model.Lock.IsYearLocked(y);
+                    var latestLocked = locked && !Model.Lock.IsYearLocked(y + 1);
+                    <tr>
+                        <td class="fw-bold">@FinancialYear.Label(y)</td>
+                        <td class="text-muted">@FinancialYear.StartDate(y).ToString("d MMM yyyy") to @FinancialYear.EndDate(y).ToString("d MMM yyyy")</td>
+                        <td>@(locked ? "Locked" : "Open")</td>
+                        <td class="text-end">
+                            @if (!locked)
+                            {
+                                <form method="post" asp-page-handler="Lock" asp-route-fy="@y" class="d-inline"
+                                      onsubmit="return confirm('Lock @FinancialYear.Label(y) and every year before it?');">
+                                    <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-lock"></i> Lock to here</button>
+                                </form>
+                            }
+                            else if (latestLocked)
+                            {
+                                <form method="post" asp-page-handler="Unlock" asp-route-fy="@y" class="d-inline"
+                                      onsubmit="return confirm('Unlock @FinancialYear.Label(y)? Its signed statements could then change.');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-unlock"></i> Unlock this year</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (Model.Lock.LockedTo is not null)
+{
+    <form method="post" asp-page-handler="Remove" class="mb-4" onsubmit="return confirm('Remove the lock from every year?');">
+        <button type="submit" class="btn btn-sm btn-link text-danger px-0">Remove the lock from every year</button>
+    </form>
+}
+
+@if (Model.History.Count > 0)
+{
+    <h2 class="h5">History</h2>
+    <ul class="list-unstyled small">
+        @foreach (var h in Model.History)
+        {
+            <li>
+                @h.Changed.ToString("d MMM yyyy h:mm tt"):
+                @(h.LockedTo is { } t ? $"locked up to {t:d MMM yyyy}" : "lock removed")
+                @(h.ChangedBy.Length > 0 ? $"by {h.ChangedBy}" : "")
+            </li>
+        }
+    </ul>
+}

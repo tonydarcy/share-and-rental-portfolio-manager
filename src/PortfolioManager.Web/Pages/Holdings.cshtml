@@ -1,0 +1,95 @@
+@page
+@model HoldingsModel
+@{
+    ViewData["Title"] = "Holdings";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Holdings</h1>
+    <a asp-page="/Trades/Add" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Add trade</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="card shadow-sm mb-3">
+    <div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center">
+        @if (Model.Groups.Count > 0)
+        {
+            <div class="d-flex align-items-center gap-2">
+                <label for="group" class="form-label mb-0">Group</label>
+                <select id="group" name="group" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                    <option value="">All holdings</option>
+                    @foreach (var g in Model.Groups)
+                    {
+                        <option value="@g.GroupId" selected="@(g.GroupId == Model.Group)">@g.Name</option>
+                    }
+                </select>
+            </div>
+        }
+        <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="includeSold" name="includeSold" value="true"
+                   checked="@Model.IncludeSold" onchange="this.form.submit()" />
+            <label class="form-check-label" for="includeSold">Include sold holdings</label>
+        </div>
+        <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Apply</button></noscript>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Exch</th>
+                    <th class="text-end">Units</th>
+                    <th class="text-end">Price</th>
+                    <th class="text-end">Market value</th>
+                    <th class="text-end">Capital gain</th>
+                    <th class="text-end">Dividends</th>
+                    <th class="text-end">Total P/L</th>
+                    <th>Trend</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Summary.Holdings.Count == 0)
+                {
+                    <tr><td colspan="9" class="text-center text-muted p-4">No holdings found.</td></tr>
+                }
+                @foreach (var h in Model.Summary.Holdings)
+                {
+                    <tr>
+                        <td class="fw-bold">@h.StockCode</td>
+                        <td class="text-muted small">@h.ExchangeCode</td>
+                        <td class="text-end">@h.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@h.Price.ToString("C")</td>
+                        <td class="text-end">@h.MarketValue.ToString("C")</td>
+                        <td class="text-end @HoldingsModel.ProfitClass(h.CapitalGain)">@h.CapitalGain.ToString("C")</td>
+                        <td class="text-end">@h.Payouts.ToString("C")</td>
+                        <td class="text-end fw-bold @HoldingsModel.ProfitClass(h.TotalProfit)">@h.TotalProfit.ToString("C")</td>
+                        <td><span class="badge bg-light text-dark border">@h.Trend</span></td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Summary.Holdings.Count > 0)
+            {
+                var t = Model.Summary.Total;
+                <tfoot>
+                    <tr class="table-active fw-bold">
+                        <td colspan="4">Total</td>
+                        <td class="text-end">@t.MarketValue.ToString("C")</td>
+                        <td class="text-end @HoldingsModel.ProfitClass(t.CapitalGain)">@t.CapitalGain.ToString("C")</td>
+                        <td class="text-end">@t.Payouts.ToString("C")</td>
+                        <td class="text-end @HoldingsModel.ProfitClass(t.TotalProfit)">@t.TotalProfit.ToString("C")</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>
+<p class="text-muted small mt-2">Values are in the portfolio's currency, using the latest prices on file.</p>

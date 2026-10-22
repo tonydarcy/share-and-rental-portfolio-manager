@@ -1,0 +1,81 @@
+@page
+@model DashboardModel
+@using PortfolioManager.Core.Practice
+@using PortfolioManager.Core.Tax
+@{
+    ViewData["Title"] = "Practice dashboard";
+    var workpapersUrl = Url.Page("/TaxWork/Workpapers", new { fy = Model.Year });
+    var queriesUrl = Url.Page("/Clients/Queries");
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Practice dashboard</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/Clients/Onboarding" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-plus"></i> Onboard a client</a>
+        <a asp-page="/Clients/Index" class="btn btn-sm btn-outline-secondary">All clients</a>
+    </div>
+</div>
+
+<form method="get" class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <select name="fy" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        @foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.Year)">@FinancialYear.Label(y)</option> }
+    </select>
+    <a asp-route-fy="@Model.Year" class="btn btn-sm @(Model.Status is null ? "btn-dark" : "btn-outline-dark")">All (@Model.Counts.Values.Sum())</a>
+    @foreach (var s in YearStatuses.Choices.Append(YearStatuses.Locked))
+    {
+        <a asp-route-fy="@Model.Year" asp-route-status="@s" class="btn btn-sm @(Model.Status == s ? "btn-dark" : "btn-outline-dark")">
+            @YearStatuses.Label(s) (@Model.Counts.GetValueOrDefault(s))
+        </a>
+    }
+</form>
+
+<p class="text-muted small">The status is set on each client's <em>Workpapers and checklist</em> page; a locked year shows as locked. Opening a client switches
+    the site to that portfolio.</p>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Client</th><th>Status</th><th>Checklist</th><th>Workpapers reviewed</th><th>Outstanding</th><th></th></tr></thead>
+            <tbody>
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted p-4">No clients here.</td></tr>
+                }
+                @foreach (var r in Model.Rows)
+                {
+                    <tr>
+                        <td>
+                            <div class="fw-bold">@r.Client.LegalName</div>
+                            <div class="small text-muted">@PortfolioManager.Core.Clients.ClientEntityTypes.Describe(r.Client.EntityType)</div>
+                        </td>
+                        <td>
+                            <span class="badge @YearStatuses.Badge(r.Status)">@YearStatuses.Label(r.Status)</span>
+                            @if (r.StatusNote is not null) { <div class="small text-muted">@r.StatusNote</div> }
+                        </td>
+                        <td class="text-nowrap">@r.ChecklistDone / @r.ChecklistItems</td>
+                        <td class="text-nowrap">@r.WorkpapersReviewed / @r.WorkpapersPrepared</td>
+                        <td class="small">
+                            @if (r.Outstanding.Count == 0) { <span class="text-success">Nothing</span> }
+                            @foreach (var o in r.Outstanding) { <div>@o</div> }
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <form method="post" asp-page="/Portfolio/Select" class="d-inline">
+                                <input type="hidden" name="portfolioId" value="@r.Client.PortfolioId" />
+                                <input type="hidden" name="returnUrl" value="@workpapersUrl" />
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Workpapers</button>
+                            </form>
+                            @if (r.OpenQueries + r.AnsweredQueries > 0)
+                            {
+                                <form method="post" asp-page="/Portfolio/Select" class="d-inline">
+                                    <input type="hidden" name="portfolioId" value="@r.Client.PortfolioId" />
+                                    <input type="hidden" name="returnUrl" value="@queriesUrl" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Queries</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

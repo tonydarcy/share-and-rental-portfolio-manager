@@ -1,0 +1,70 @@
+@page
+@model SettingsModel
+@{
+    ViewData["Title"] = "Invoice settings";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Invoice settings</h1>
+    <a asp-page="/Invoices/Index" class="btn btn-sm btn-outline-secondary">Back to invoices</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="post" class="card shadow-sm" style="max-width: 48rem">
+    <fieldset class="card-body" disabled="@(!Model.Portfolio.CanEdit)">
+        <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+        <div class="row g-3 mb-3">
+            <div class="col-sm-4">
+                <label asp-for="Input.NumberPrefix" class="form-label">Number prefix</label>
+                <input asp-for="Input.NumberPrefix" class="form-control" maxlength="20" />
+            </div>
+            <div class="col-sm-4">
+                <label asp-for="Input.NextNumber" class="form-label">Next number</label>
+                <input asp-for="Input.NextNumber" type="number" min="1" class="form-control" />
+            </div>
+            <div class="col-sm-4">
+                <label asp-for="Input.DueDays" class="form-label">Days to pay</label>
+                <input asp-for="Input.DueDays" type="number" min="0" max="365" class="form-control" />
+            </div>
+        </div>
+        <div class="form-check mb-3">
+            <input asp-for="Input.AmountsIncludeTax" class="form-check-input" />
+            <label asp-for="Input.AmountsIncludeTax" class="form-check-label">Prices on new invoices include GST, VAT or sales tax</label>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Input.PaymentDetails" class="form-label">How to pay (printed on each invoice)</label>
+            <textarea asp-for="Input.PaymentDetails" class="form-control" rows="4" maxlength="1000"
+                      placeholder="e.g. Bank: ... BSB: ... Account: ... Please use the invoice number as the reference."></textarea>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Input.Footer" class="form-label">Footer (optional)</label>
+            <textarea asp-for="Input.Footer" class="form-control" rows="2" maxlength="1000" placeholder="e.g. Thank you for your business."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Save settings</button>
+        <p class="small text-muted mt-3 mb-0">
+            The business name, ABN and address on invoices come from this entity's
+            <a asp-page="/Clients/Details">client details</a>.
+        </p>
+    </fieldset>
+</form>
+
+<form method="post" asp-page-handler="Logo" enctype="multipart/form-data" class="card shadow-sm mt-3" style="max-width: 48rem">
+    <div class="card-body">
+        <h2 class="h5">Logo</h2>
+        @if (Model.HasLogo)
+        {
+            <img src="@Url.Page("/Invoices/Settings", "Logo")" alt="Logo" style="max-height: 80px" class="mb-2 d-block" />
+        }
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <input type="file" name="logo" accept=".png,.jpg,.jpeg,.gif,.webp" class="form-control w-auto" />
+            <button type="submit" class="btn btn-outline-primary">Upload logo</button>
+            @if (Model.HasLogo) { <button type="submit" name="remove" value="true" class="btn btn-outline-danger">Remove</button> }
+        </div>
+        <div class="form-text">PNG, JPEG, GIF or WebP, up to 1 MB. It shows at the top of each invoice and its printout.</div>
+    </div>
+</form>

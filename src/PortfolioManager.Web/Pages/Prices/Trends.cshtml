@@ -1,0 +1,79 @@
+@page
+@model PortfolioManager.Web.Pages.Prices.TrendsModel
+@using PortfolioManager.Core.Prices
+@{
+    ViewData["Title"] = "Share trends";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Share trends</h1>
+    <a asp-page="/Prices/Quote" class="btn btn-sm btn-outline-secondary">Look up a share</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <div class="btn-group btn-group-sm">
+        @foreach (var (scope, label) in new[] { (TrendScope.Holdings, "My holdings"), (TrendScope.Popular, "Popular ASX companies"), (TrendScope.All, "Everything with prices") })
+        {
+            <a class="btn @(Model.Scope == scope ? "btn-secondary" : "btn-outline-secondary")" asp-route-scope="@scope">@label</a>
+        }
+    </div>
+    @if (Model.Rows.Count > 0)
+    {
+        <span class="badge text-bg-success">@Model.Count(ShareTrend.Bullish) bullish</span>
+        <span class="badge text-bg-secondary">@Model.Count(ShareTrend.Neutral) neutral</span>
+        <span class="badge text-bg-danger">@Model.Count(ShareTrend.Bearish) bearish</span>
+    }
+</div>
+
+@if (Model.Rows.Count == 0)
+{
+    <div class="alert alert-info">
+        No trend readings in the last 60 days for this list. Trends need about 200 days of prices, and are worked out when prices are updated.
+    </div>
+    return;
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Stock</th>
+                    <th>Name</th>
+                    <th>Price date</th>
+                    <th class="text-end">Close</th>
+                    <th class="text-end">Week change</th>
+                    <th class="text-end">200-day average</th>
+                    <th class="text-end">SD from average</th>
+                    <th>Trend</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    var t = r.Trend;
+                    <tr>
+                        <td><a asp-page="/Prices/Quote" asp-route-code="@($"{r.Exchange}:{r.Code}")">@r.Exchange:@r.Code</a></td>
+                        <td class="text-muted small">@r.Name</td>
+                        <td>@r.Date.ToString("d MMM yyyy")</td>
+                        <td class="text-end">@r.Close.ToString("N3")</td>
+                        <td class="text-end @(r.WeekChange > 0 ? "text-success" : r.WeekChange < 0 ? "text-danger" : "")">@r.WeekChange?.ToString("+0.0%;-0.0%;0.0%")</td>
+                        <td class="text-end">@r.Sma200?.ToString("N3")</td>
+                        <td class="text-end">@t.StandardDeviations?.ToString("+0.0;-0.0;0.0")</td>
+                        <td><span class="badge @t.BadgeClass">@t.Status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="text-muted small mt-2">
+    Each stock's latest price with a trend reading. Bullish means the close is more than one standard deviation (over 52 weeks)
+    above its 200-day average; Bearish means more than one below. Sorted from the strongest to the weakest trend.
+</p>

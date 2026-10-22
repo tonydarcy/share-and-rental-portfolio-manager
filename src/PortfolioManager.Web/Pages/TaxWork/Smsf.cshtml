@@ -1,0 +1,134 @@
+@page
+@model SmsfModel
+@{
+    ViewData["Title"] = "SMSF members";
+    var w = Model.Workpaper;
+    var data = w?.Smsf ?? SmsfYearData.Empty;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">SMSF member accounts</h1>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/TaxWork/SmsfAudit" asp-route-fy="@Model.Year" class="btn btn-sm btn-primary"><i class="bi bi-folder-check"></i> Audit pack</a>
+        <a asp-page="/TaxWork/Reconciliation" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Tax reconciliation</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || w is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_YearPicker" model="Model" />
+
+@if (w.EntityType != ClientEntityTypes.Smsf)
+{
+    <div class="alert alert-info">This client is set up as @ClientEntityTypes.Describe(w.EntityType).ToLowerInvariant(), not an SMSF. Change the entity type under <a asp-page="/Clients/Details">Client details</a> to use this page.</div>
+    return;
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h5">Members' benefits for @w.YearLabel</h2>
+        <p class="text-muted small">
+            Fund earnings to share (profit before tax less contributions in revenue): <strong>@((w.Ledger.ProfitBeforeTax - w.Ledger.Contributions).ToString("C"))</strong>.
+            Fund income tax after offsets: <strong>@((w.Tax?.TaxAfterOffsets ?? 0).ToString("C"))</strong>
+            (<a asp-page="/TaxWork/Reconciliation" asp-route-fy="@Model.Year">reconciliation</a>).
+        </p>
+        <partial name="_MemberStatements" model="w" />
+    </div>
+</div>
+
+<div class="row g-3 no-print">
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5">Members</h2>
+                <table class="table table-sm">
+                    @foreach (var m in data.Members)
+                    {
+                        <tr>
+                            <td>@m.Name<div class="small text-muted">@(m.BirthDate?.ToString("d MMM yyyy") ?? "No date of birth")</div></td>
+                            <td class="text-end text-nowrap">
+                                <a asp-route-fy="@Model.Year" asp-route-editMember="@m.MemberId" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                <form method="post" asp-page-handler="DeleteMember" asp-route-fy="@Model.Year" asp-route-memberId="@m.MemberId" class="d-inline" onsubmit="return confirm('Delete this member?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </table>
+                <form method="post" asp-page-handler="Member" asp-route-fy="@Model.Year">
+                    <input type="hidden" asp-for="Member.MemberId" />
+                    <div class="mb-2"><input asp-for="Member.Name" class="form-control form-control-sm" placeholder="Member's name" maxlength="200" /></div>
+                    <div class="mb-2"><label asp-for="Member.BirthDate" class="form-label small mb-1">Date of birth</label><input asp-for="Member.BirthDate" type="date" class="form-control form-control-sm" /></div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">@(Model.Member.MemberId is null ? "Add member" : "Save member")</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5">@(Model.Account.MemberAccountId is null ? "Add a member account for" : "Edit member account for") @w.YearLabel</h2>
+                @if (data.Members.Count == 0)
+                {
+                    <p class="text-muted small mb-0">Add a member first.</p>
+                }
+                else
+                {
+                    <form method="post" asp-page-handler="Account" asp-route-fy="@Model.Year">
+                        <input type="hidden" asp-for="Account.MemberAccountId" />
+                        <div class="row g-2 mb-2">
+                            <div class="col-sm-6">
+                                <label asp-for="Account.MemberId" class="form-label small mb-1">Member</label>
+                                <select asp-for="Account.MemberId" class="form-select form-select-sm" asp-items="@(new SelectList(data.Members, nameof(SmsfMember.MemberId), nameof(SmsfMember.Name)))"></select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label asp-for="Account.Phase" class="form-label small mb-1">Phase</label>
+                                <select asp-for="Account.Phase" class="form-select form-select-sm">
+                                    @foreach (var p in SmsfPhases.All)
+                                    {
+                                        <option value="@p">@SmsfPhases.Label(p)</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-sm-4"><label asp-for="Account.Opening" class="form-label small mb-1">Opening balance (1 July)</label><input asp-for="Account.Opening" class="form-control form-control-sm" /></div>
+                            <div class="col-sm-4"><label asp-for="Account.Concessional" class="form-label small mb-1">Concessional contributions</label><input asp-for="Account.Concessional" class="form-control form-control-sm" /></div>
+                            <div class="col-sm-4"><label asp-for="Account.NonConcessional" class="form-label small mb-1">Non-concessional contributions</label><input asp-for="Account.NonConcessional" class="form-control form-control-sm" /></div>
+                            <div class="col-sm-3"><label asp-for="Account.RolloverIn" class="form-label small mb-1">Rollovers in</label><input asp-for="Account.RolloverIn" class="form-control form-control-sm" /></div>
+                            <div class="col-sm-3"><label asp-for="Account.PensionPaid" class="form-label small mb-1">Pensions paid</label><input asp-for="Account.PensionPaid" class="form-control form-control-sm" /></div>
+                            <div class="col-sm-3"><label asp-for="Account.LumpSum" class="form-label small mb-1">Lump sums paid</label><input asp-for="Account.LumpSum" class="form-control form-control-sm" /></div>
+                            <div class="col-sm-3"><label asp-for="Account.Insurance" class="form-label small mb-1">Insurance premiums</label><input asp-for="Account.Insurance" class="form-control form-control-sm" /></div>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary" disabled="@Model.Locked">Save account</button>
+                        @if (Model.Account.MemberAccountId is not null)
+                        {
+                            <a asp-route-fy="@Model.Year" class="btn btn-sm btn-link">Cancel</a>
+                        }
+                    </form>
+                    @if (data.Accounts.Count > 0)
+                    {
+                        <hr />
+                        <ul class="list-unstyled small mb-0">
+                            @foreach (var a in data.Accounts)
+                            {
+                                <li class="mb-1">
+                                    @(data.Members.FirstOrDefault(m => m.MemberId == a.MemberId)?.Name) &middot; @SmsfPhases.Label(a.Phase) &middot; opening @a.Opening.ToString("C")
+                                    <a asp-route-fy="@Model.Year" asp-route-editAccount="@a.MemberAccountId" class="ms-2">Edit</a>
+                                    <form method="post" asp-page-handler="DeleteAccount" asp-route-fy="@Model.Year" asp-route-memberAccountId="@a.MemberAccountId" class="d-inline" onsubmit="return confirm('Delete this account for the year?');">
+                                        <button type="submit" class="btn btn-link btn-sm text-danger p-0 ms-2" disabled="@Model.Locked">Delete</button>
+                                    </form>
+                                </li>
+                            }
+                        </ul>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>

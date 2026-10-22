@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/install-dotnet.sh\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(./Database/CreateDatabase.sql)",
+      "Read(./LICENSE)",
+      "Read(./**/bin/**)",
+      "Read(./**/obj/**)",
+      "Read(//mnt/project-files/db/**)"
+    ]
+  }
+}

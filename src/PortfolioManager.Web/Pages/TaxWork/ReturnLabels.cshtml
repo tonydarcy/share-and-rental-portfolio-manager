@@ -1,0 +1,72 @@
+@page
+@model ReturnLabelsModel
+@{
+    ViewData["Title"] = "Tax return labels";
+    var s = Model.Schedule;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Tax return labels</h1>
+    <div class="d-flex gap-2 no-print">
+        @foreach (var e in TaxReturnExports.All)
+        {
+            <a asp-page-handler="Download" asp-route-fy="@Model.Year" asp-route-format="@e.Key" class="btn btn-sm btn-primary"><i class="bi bi-download"></i> @e.Name</a>
+        }
+        <a asp-page="/TaxWork/PaperReturn" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary"><i class="bi bi-envelope-paper"></i> Paper return</a>
+        <a asp-page="/TaxWork/Reconciliation" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Tax reconciliation</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || s is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_YearPicker" model="Model" />
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h5 mb-0">@s.ReturnName, @s.YearLabel</h2>
+        <p class="text-muted small">@s.ClientName @if (Model.Workpaper!.Client.AbnDisplay is { Length: > 0 } abn) { <span>&middot; ABN @abn</span> }</p>
+        @if (s.Labels.Count == 0)
+        {
+            <p class="text-muted mb-0">Nothing to report for this year.</p>
+        }
+        else
+        {
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light"><tr><th>Section</th><th>Label</th><th>Description</th><th class="text-end">Amount</th><th>From</th></tr></thead>
+                <tbody>
+                    @foreach (var l in s.Labels)
+                    {
+                        <tr>
+                            <td class="small text-muted">@l.Section</td>
+                            <td class="fw-semibold text-nowrap">@l.Code @if (l.Check) { <i class="bi bi-exclamation-circle text-warning" title="Confirm the item and label against this year's return"></i> }</td>
+                            <td>@l.Description</td>
+                            <td class="text-end text-nowrap">@l.Amount.ToString("#,##0.00;(#,##0.00)")</td>
+                            <td class="small text-muted">@l.Source</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<div class="card shadow-sm no-print">
+    <div class="card-body">
+        <h2 class="h6">Using these figures in your tax software</h2>
+        <ul class="small mb-2">
+            @foreach (var (package, import) in TaxReturnExports.Packages)
+            {
+                <li><strong>@package:</strong> @import</li>
+            }
+        </ul>
+        <p class="small text-muted mb-0">
+            <i class="bi bi-exclamation-circle text-warning"></i> marks a figure whose item or label letter should be confirmed against this year's return
+            (the ATO renumbers some items), or that needs splitting further, such as trust distributions by component.
+        </p>
+    </div>
+</div>

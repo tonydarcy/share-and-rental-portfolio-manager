@@ -1,0 +1,100 @@
+@page
+@model EditModel
+@{
+    var editing = Model.Id is not null;
+    var approved = Model.Existing is { IsDraft: false };
+    var taxed = Model.TaxCodes.Count > 0;
+    ViewData["Title"] = editing ? $"Edit invoice {Model.Existing?.Number}" : "New invoice";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">@ViewData["Title"]</h1>
+    <a asp-page="@(editing ? "/Invoices/View" : "/Invoices/Index")" asp-route-id="@Model.Id" class="btn btn-sm btn-outline-secondary">Cancel</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+@if (Model.Customers.Count == 0)
+{
+    <div class="alert alert-info">Add a customer first: <a asp-page="/Invoices/Customers" asp-route-returnTo="invoice">add a customer</a>.</div>
+    return;
+}
+@if (approved)
+{
+    <div class="alert alert-warning">This invoice is approved. Saving changes posts its journal again with the new amounts.</div>
+}
+
+<form method="post" id="invoiceForm">
+    <input type="hidden" asp-for="Id" />
+    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <label asp-for="Input.CustomerId" class="form-label">Customer</label>
+                    <select asp-for="Input.CustomerId" class="form-select" required>
+                        <option value="0">-- Choose a customer --</option>
+                        @foreach (var c in Model.Customers)
+                        {
+                            <option value="@c.CustomerId">@c.Name</option>
+                        }
+                    </select>
+                    <a asp-page="/Invoices/Customers" asp-route-returnTo="invoice" class="small">Add a new customer</a>
+                </div>
+                <div class="col-sm-6 col-md-2">
+                    <label asp-for="Input.IssueDate" class="form-label">Date</label>
+                    <input asp-for="Input.IssueDate" type="date" class="form-control" required />
+                </div>
+                <div class="col-sm-6 col-md-2">
+                    <label asp-for="Input.DueDate" class="form-label">Due</label>
+                    <input asp-for="Input.DueDate" type="date" class="form-control" required />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.Reference" class="form-label">Their reference (optional)</label>
+                    <input asp-for="Input.Reference" class="form-control" maxlength="200" placeholder="e.g. order number" />
+                </div>
+            </div>
+            @if (taxed)
+            {
+                <div class="form-check mt-3">
+                    <input asp-for="Input.AmountsIncludeTax" class="form-check-input" id="includesTax" />
+                    <label asp-for="Input.AmountsIncludeTax" class="form-check-label" for="includesTax">Prices include @Model.TaxName</label>
+                </div>
+            }
+            <partial name="_CurrencyFields" model="new PortfolioManager.Web.Pages.Shared.CurrencyFieldsView(Model.Input.Currency, Model.Input.ExchangeRate, RegionSettings.Current.Currency)" />
+        </div>
+    </div>
+
+    <partial name="_DocumentLines" model="Model.Lists.View(Model.Input.Lines)" />
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <label asp-for="Input.Notes" class="form-label">Notes on the invoice (optional)</label>
+            <textarea asp-for="Input.Notes" class="form-control" rows="2" maxlength="1000"></textarea>
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+        @if (approved)
+        {
+            <button type="submit" asp-page-handler="Approve" class="btn btn-success">Save changes</button>
+        }
+        else
+        {
+            <button type="submit" asp-page-handler="Draft" class="btn btn-outline-primary">Save as draft</button>
+            <button type="submit" asp-page-handler="Approve" class="btn btn-success">Approve and post</button>
+        }
+    </div>
+    <p class="text-muted small mt-2">
+        Approving posts the invoice on its date: the total to Accounts Receivable and each line to its income account@(taxed ? $", with the {Model.TaxName} to the {Model.TaxName} control account so it shows on the {Model.TaxName} report" : "").
+        A draft posts nothing. Blank lines are ignored; a negative price gives a discount line.
+    </p>
+</form>
+
+@section Scripts {
+    <script src="~/js/document-lines.js" asp-append-version="true"></script>
+}

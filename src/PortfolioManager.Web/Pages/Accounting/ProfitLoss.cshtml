@@ -1,0 +1,52 @@
+@page
+@model ProfitLossModel
+@{
+    ViewData["Title"] = "Profit & loss";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">Profit &amp; loss</h1>
+        @if (Model.Portfolio is not null)
+        {
+            <div class="text-muted">@Model.Portfolio.Name &middot; @Model.Period.Description</div>
+        }
+    </div>
+    <div class="d-flex gap-2">
+        <partial name="_FyShortcuts" model="Model" />
+        <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_ModeNotice" model="Model.Mode" />
+<p class="text-muted small no-print">Revenue and expense accounts in the ledger between the dates below.</p>
+<partial name="~/Pages/Reports/_PeriodFilter.cshtml" model="Model" />
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Revenue</div>
+            <div class="kpi-value">@Model.Report.Revenue.ToString("C")</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Expenses</div>
+            <div class="kpi-value">@Model.Report.Expenses.ToString("C")</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Net profit / (loss)</div>
+            <div class="kpi-value @PortfolioManager.Web.Pages.Reports.PeriodReportModel.GainClass(Model.Report.NetProfit)">@Model.Report.NetProfit.ToString("C")</div>
+        </div></div>
+    </div>
+</div>
+
+<partial name="_Statement" model="Model.Report.Lines" />

@@ -1,0 +1,26 @@
+name: Bug or wrong figure
+description: Something broke, or a number looks wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Which page, what you did, and what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: For tax or accounting figures, say why (ruling, worked example, what another package shows).
+    validations:
+      required: true
+  - type: input
+    id: entity
+    attributes:
+      label: Entity type and financial year
+      placeholder: e.g. SMSF, 2025-26
+  - type: markdown
+    attributes:
+      value: Please leave out names, account numbers and other real client details.

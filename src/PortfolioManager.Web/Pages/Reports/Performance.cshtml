@@ -1,0 +1,216 @@
+@page
+@model PortfolioManager.Web.Pages.Reports.PerformanceModel
+@{
+    ViewData["Title"] = "Performance";
+    var r = Model.Result;
+    var bm = Model.BenchmarkResult;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Performance</h1>
+    <span class="text-muted">@Model.Period.Description</span>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_PeriodFilter" model="Model" />
+
+@if (Model.Notice is not null)
+{
+    <div class="alert alert-info">@Model.Notice</div>
+}
+@if (r is null)
+{
+    return;
+}
+
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body py-2">
+        <input type="hidden" name="fy" value="@Model.Period.FinancialYear" />
+        @if (Model.Period.FinancialYear is null)
+        {
+            <input type="hidden" name="from" value="@Model.Period.From.ToString("yyyy-MM-dd")" />
+            <input type="hidden" name="to" value="@Model.Period.To.ToString("yyyy-MM-dd")" />
+        }
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-6 col-md-4">
+                <label for="bm" class="form-label small text-muted mb-1">Compare with</label>
+                <input id="bm" name="bm" class="form-control form-control-sm" list="bmList" value="@Model.Bm"
+                       placeholder="e.g. ASX:STW" />
+                <datalist id="bmList">
+                    @foreach (var c in Model.Choices)
+                    {
+                        <option value="@c.Key">@c.Label</option>
+                    }
+                    <option value="none">No comparison</option>
+                </datalist>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100">Compare</button>
+            </div>
+            <div class="col-md-5 small text-muted">
+                Any share or ETF with prices on file works, such as ASX:STW for the ASX 200.
+            </div>
+        </div>
+    </div>
+</form>
+
+@foreach (var w in r.Warnings)
+{
+    <div class="alert alert-warning py-2 small">@w</div>
+}
+@if (bm is not null && bm.Return is null)
+{
+    <div class="alert alert-warning py-2 small">There are no prices on file for @bm.Choice.Key in this period, so there is nothing to compare with.</div>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Time-weighted return</div>
+            <div class="kpi-value @PortfolioManager.Web.Pages.Reports.PerformanceModel.PctClass(r.Summary.TimeWeightedReturn)">@PortfolioManager.Web.Pages.Reports.PerformanceModel.Pct(r.Summary.TimeWeightedReturn)</div>
+            @if (r.Summary.AnnualisedReturn is { } a)
+            {
+                <div class="small text-muted">@PortfolioManager.Web.Pages.Reports.PerformanceModel.Pct(a) a year</div>
+            }
+        </div></div>
+    </div>
+    @if (bm?.Return is not null)
+    {
+        <div class="col-6 col-lg-3">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small">@bm.Choice.Label (price only)</div>
+                <div class="kpi-value @PortfolioManager.Web.Pages.Reports.PerformanceModel.PctClass(bm.Return)">@PortfolioManager.Web.Pages.Reports.PerformanceModel.Pct(bm.Return)</div>
+                <div class="small text-muted">You were @(r.Summary.TimeWeightedReturn >= bm.Return ? "ahead" : "behind") by @PortfolioManager.Web.Pages.Reports.PerformanceModel.Pct(Math.Abs(r.Summary.TimeWeightedReturn - bm.Return.Value))</div>
+            </div></div>
+        </div>
+    }
+    <div class="col-6 col-lg-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Value at the end</div>
+            <div class="kpi-value">@r.Summary.EndValue.ToString("C0")</div>
+            <div class="small text-muted">from @r.Summary.StartValue.ToString("C0") at the start</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Gain (growth plus income)</div>
+            <div class="kpi-value @PortfolioManager.Web.Pages.Reports.PeriodReportModel.GainClass(r.Summary.TotalGain)">@r.Summary.TotalGain.ToString("C0")</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <h2 class="h6">Portfolio value</h2>
+            <div class="chart-box"><canvas id="valueChart"></canvas></div>
+        </div></div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <h2 class="h6">Return since @r.Summary.From.ToString("d MMM yyyy")</h2>
+            <div class="chart-box"><canvas id="returnChart"></canvas></div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <table class="table table-sm mb-0">
+                <tbody>
+                    <tr><td>Value at the start</td><td class="text-end">@r.Summary.StartValue.ToString("C")</td></tr>
+                    <tr><td>Money added</td><td class="text-end">@r.Summary.MoneyIn.ToString("C")</td></tr>
+                    <tr><td>Money taken out</td><td class="text-end">@((-r.Summary.MoneyOut).ToString("C"))</td></tr>
+                    <tr><td>Growth in value</td><td class="text-end @PortfolioManager.Web.Pages.Reports.PeriodReportModel.GainClass(r.Summary.Growth)">@r.Summary.Growth.ToString("C")</td></tr>
+                    <tr class="fw-bold table-active"><td>Value at the end</td><td class="text-end">@r.Summary.EndValue.ToString("C")</td></tr>
+                    <tr><td>Income (payouts not reinvested)</td><td class="text-end">@r.Summary.Income.ToString("C")</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Month</th>
+                            <th class="text-end">Portfolio</th>
+                            @if (bm?.Return is not null) { <th class="text-end">@bm.Choice.Label</th> }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = r.Months.Count - 1; i >= 0; i--)
+                        {
+                            var m = r.Months[i];
+                            double? b = bm?.Return is not null && i < bm.Months.Count ? bm.Months[i].Return : null;
+                            <tr>
+                                <td>@m.From.ToString("MMM yyyy")</td>
+                                <td class="text-end @PortfolioManager.Web.Pages.Reports.PerformanceModel.PctClass(m.Return)">@PortfolioManager.Web.Pages.Reports.PerformanceModel.Pct(m.Return)</td>
+                                @if (bm?.Return is not null) { <td class="text-end @PortfolioManager.Web.Pages.Reports.PerformanceModel.PctClass(b)">@PortfolioManager.Web.Pages.Reports.PerformanceModel.Pct(b)</td> }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<p class="text-muted small mt-3">
+    The time-weighted return measures how the investments did, leaving out the effect of money you added or took out,
+    so it can be compared with an index. Value is cash plus shares at each day's closing price. Money added or taken out
+    is a cash deposit or withdrawal that isn't a trade's settlement, or a trade with no cash recorded (shares transferred in or out).
+    Payouts count as income. The comparison uses the index or ETF's price, without its dividends.
+</p>
+
+@section Scripts {
+    @{
+        var idx = Model.ChartIndexes().ToList();
+        decimal invested = r.Summary.StartValue;
+        var investedByDay = r.Days.Select(d => invested += d.MoneyIn - d.MoneyOut).ToList();
+        var points = idx.Select(i => new
+        {
+            d = r.Days[i].Date.ToString("yyyy-MM-dd"),
+            v = r.Days[i].Value,
+            n = investedByDay[i],
+            p = Math.Round(r.Days[i].Cumulative * 100, 2),
+            b = bm?.Return is not null && i < bm.Days.Count ? Math.Round(bm.Days[i].Cumulative * 100, 2) : (double?)null,
+        });
+    }
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        const pts = @Json.Serialize(points);
+        const bmLabel = @Json.Serialize(bm?.Return is not null ? bm.Choice.Label : null);
+        const money = v => v.toLocaleString(pmLocale, { style: 'currency', currency: pmCurrency, maximumFractionDigits: 0 });
+        const common = { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, elements: { point: { radius: 0 } } };
+
+        new Chart(document.getElementById('valueChart'), {
+            type: 'line',
+            data: {
+                labels: pts.map(p => p.d),
+                datasets: [
+                    { label: 'Value', data: pts.map(p => p.v), borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,.1)', fill: true },
+                    { label: 'Money put in', data: pts.map(p => p.n), borderColor: '#6c757d', borderDash: [4, 4] }
+                ]
+            },
+            options: { ...common, scales: { y: { ticks: { callback: money } } },
+                plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${money(c.parsed.y)}` } } } }
+        });
+
+        const sets = [{ label: 'Portfolio', data: pts.map(p => p.p), borderColor: '#198754' }];
+        if (bmLabel) sets.push({ label: bmLabel, data: pts.map(p => p.b), borderColor: '#fd7e14' });
+        new Chart(document.getElementById('returnChart'), {
+            type: 'line',
+            data: { labels: pts.map(p => p.d), datasets: sets },
+            options: { ...common, scales: { y: { ticks: { callback: v => v + '%' } } },
+                plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)}%` } } } }
+        });
+    </script>
+}

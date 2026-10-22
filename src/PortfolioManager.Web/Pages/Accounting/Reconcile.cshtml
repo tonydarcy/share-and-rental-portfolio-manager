@@ -1,0 +1,201 @@
+@page
+@model ReconcileModel
+@{
+    ViewData["Title"] = "Bank reconciliation";
+    var sheet = Model.Sheet;
+    var ticked = Model.Input.Ticked.ToHashSet();
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Bank reconciliation</h1>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/Accounting/Unallocated" class="btn btn-sm btn-outline-secondary">Unallocated transactions</a>
+        @if (Model.ReadOnly)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+        }
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+@if (Model.Accounts.Count == 0 || sheet is null)
+{
+    <div class="alert alert-info">There are no bank accounts in the chart of accounts yet.</div>
+    return;
+}
+
+<p class="text-muted no-print">
+    Enter the closing balance from the bank statement, then tick each line that appears on the statement. When the difference is
+    nil, finish it. Lines you don't tick carry forward to the next statement (cheques not yet presented, deposits in transit).
+</p>
+
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body py-2 row g-2 align-items-end">
+        <div class="col-md-6">
+            <label for="accountId" class="form-label small text-muted mb-1">Bank account</label>
+            <select id="accountId" name="accountId" class="form-select form-select-sm" onchange="this.form.submit()">
+                @foreach (var a in Model.Accounts)
+                {
+                    <option value="@a.AccountId" selected="@(a.AccountId == Model.AccountId)">@a.DisplayName</option>
+                }
+            </select>
+        </div>
+        @if (sheet.Current is null)
+        {
+            <div class="col-md-3">
+                <label for="date" class="form-label small text-muted mb-1">Statement date</label>
+                <input id="date" name="date" type="date" class="form-control form-control-sm" value="@sheet.StatementDate.ToString("yyyy-MM-dd")" onchange="this.form.submit()" />
+            </div>
+        }
+    </div>
+</form>
+
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+@if (Model.ReadOnly)
+{
+    var rec = sheet.Current!;
+    var summary = Model.Summary!;
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h2 class="h5">@Model.AccountName: reconciled to @rec.StatementDate.ToString("d MMM yyyy")</h2>
+            <p class="small text-muted mb-3">Finished @rec.Completed?.ToString("d MMM yyyy h:mm tt"). @rec.TickedCount line@(rec.TickedCount == 1 ? "" : "s") ticked.</p>
+            @if (rec.Difference != 0)
+            {
+                <div class="alert alert-warning py-2">
+                    The ticked lines now add up to @rec.Difference.ToString("C") less than when it was finished. A ticked transaction has been
+                    changed or deleted since; reopen it and tick again.
+                </div>
+            }
+            <table class="table table-sm mb-0" style="max-width: 36rem">
+                <tbody>
+                    <tr><td>Balance as per bank statement</td><td class="text-end">@summary.StatementBalance.ToString("C")</td></tr>
+                    <tr><td>Add deposits not yet on the statement</td><td class="text-end">@summary.OutstandingDeposits.ToString("C")</td></tr>
+                    <tr><td>Less withdrawals not yet presented</td><td class="text-end">@((-summary.UnpresentedWithdrawals).ToString("C"))</td></tr>
+                    <tr class="fw-bold"><td>Balance as per ledger (calculated)</td><td class="text-end">@summary.Calculated.ToString("C")</td></tr>
+                    <tr><td>Balance as per ledger (actual)</td><td class="text-end">@summary.LedgerBalance.ToString("C")</td></tr>
+                    @if (summary.Unexplained != 0)
+                    {
+                        <tr class="text-danger"><td>Not explained (usually ledger lines from before the first reconciliation)</td><td class="text-end">@summary.Unexplained.ToString("C")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (Model.Unpresented.Count > 0)
+    {
+        <h3 class="h6">Not yet on the statement</h3>
+        <partial name="_RecLines" model="@(new RecLinesModel(Model.Unpresented, null))" />
+    }
+    <h3 class="h6 mt-3">Ticked on this statement</h3>
+    <partial name="_RecLines" model="@(new RecLinesModel(sheet.Lines, null))" />
+}
+else
+{
+    <form method="post" asp-route-accountId="@Model.AccountId" id="rec">
+        <input type="hidden" asp-for="Input.ReconciliationId" />
+        <input type="hidden" asp-for="Input.AccountId" />
+        <div class="card shadow-sm mb-3">
+            <div class="card-body row g-3 align-items-end">
+                <div class="col-sm-6 col-md-3">
+                    <label asp-for="Input.StatementDate" class="form-label">Statement date</label>
+                    <input asp-for="Input.StatementDate" type="date" class="form-control" required />
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <label asp-for="Input.OpeningBalance" class="form-label">Opening statement balance</label>
+                    <input asp-for="Input.OpeningBalance" type="number" step="0.01" class="form-control text-end" readonly="@sheet.OpeningFixed" data-rec="opening" />
+                    @if (sheet.LastFinished is { } lastDate)
+                    {
+                        <div class="form-text">Closing balance of the @lastDate.ToString("d MMM yyyy") statement.</div>
+                    }
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <label asp-for="Input.StatementBalance" class="form-label">Closing statement balance</label>
+                    <input asp-for="Input.StatementBalance" type="number" step="0.01" class="form-control text-end" required data-rec="closing" />
+                </div>
+                <div class="col-sm-6 col-md-3 text-end">
+                    <div class="text-muted small">Difference</div>
+                    <div class="fs-4 fw-bold" id="recDifference">&nbsp;</div>
+                </div>
+            </div>
+        </div>
+
+        <partial name="_RecLines" model="@(new RecLinesModel(sheet.Lines, ticked))" />
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+            <button type="submit" asp-page-handler="Finish" class="btn btn-primary" id="recFinish"><i class="bi bi-check2-all"></i> Finish reconciliation</button>
+            <button type="submit" asp-page-handler="Save" class="btn btn-outline-secondary">Save and finish later</button>
+        </div>
+    </form>
+    @if (sheet.Current is { } open)
+    {
+        <form method="post" asp-page-handler="Delete" asp-route-accountId="@Model.AccountId" asp-route-recId="@open.ReconciliationId" class="mt-2"
+              onsubmit="return confirm('Delete this reconciliation in progress? The ticks are lost; the transactions are not touched.');">
+            <button type="submit" class="btn btn-sm btn-link text-danger px-0">Delete this reconciliation in progress</button>
+        </form>
+    }
+    <p class="small text-muted mt-2">
+        Only lines dated on or before the statement date are listed. To see more, save, change the statement date and save again.
+        A line missing from the list probably hasn't been imported or allocated yet.
+    </p>
+}
+
+@if (Model.History.Count > 0)
+{
+    <h2 class="h5 mt-4 no-print">Statements</h2>
+    <div class="card shadow-sm no-print">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Statement date</th><th class="text-end">Opening</th><th class="text-end">Closing</th><th>Status</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.History)
+                    {
+                        <tr class="@(r.ReconciliationId == sheet.Current?.ReconciliationId ? "table-active" : "")">
+                            <td><a asp-route-accountId="@Model.AccountId" asp-route-id="@r.ReconciliationId">@r.StatementDate.ToString("d MMM yyyy")</a></td>
+                            <td class="text-end">@r.OpeningBalance.ToString("C")</td>
+                            <td class="text-end">@r.StatementBalance.ToString("C")</td>
+                            <td>@(r.IsComplete ? "Reconciled" : "In progress")</td>
+                            <td class="text-end">
+                                @if (r.IsComplete && r == Model.History.First(h => h.IsComplete) && Model.History.All(h => h.IsComplete))
+                                {
+                                    <form method="post" asp-page-handler="Reopen" asp-route-accountId="@Model.AccountId" asp-route-recId="@r.ReconciliationId" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">Reopen</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        (() => {
+            const form = document.getElementById('rec');
+            if (!form) return;
+            const out = document.getElementById('recDifference');
+            const num = v => Math.round((parseFloat(v) || 0) * 100);
+            const fmt = c => (c / 100).toLocaleString(undefined, { style: 'currency', currency: '@PortfolioManager.Core.Regions.RegionSettings.Current.Currency' });
+            function update() {
+                let cents = num(form.querySelector('[data-rec=closing]').value) - num(form.querySelector('[data-rec=opening]').value);
+                form.querySelectorAll('input[data-amount]:checked').forEach(b => cents -= num(b.dataset.amount));
+                out.textContent = fmt(cents);
+                out.classList.toggle('text-success', cents === 0);
+                out.classList.toggle('text-danger', cents !== 0);
+            }
+            form.addEventListener('input', update);
+            form.addEventListener('change', update);
+            update();
+        })();
+    </script>
+}

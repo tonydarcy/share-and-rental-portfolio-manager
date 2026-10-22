@@ -1,0 +1,46 @@
+@model RecLinesModel
+@{
+    var editable = Model.Ticked is not null;
+}
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    @if (editable)
+                    {
+                        <th style="width: 2.5rem"><input type="checkbox" class="form-check-input" title="Tick all" onclick="document.querySelectorAll('#rec input[data-amount]').forEach(b => b.checked = this.checked); this.form?.dispatchEvent(new Event('change'))" /></th>
+                    }
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>From</th>
+                    <th class="text-end">Deposit</th>
+                    <th class="text-end">Withdrawal</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Lines.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted p-4">No transactions.</td></tr>
+                }
+                @foreach (var l in Model.Lines)
+                {
+                    <tr>
+                        @if (editable)
+                        {
+                            <td>
+                                <input type="checkbox" class="form-check-input" name="Input.Ticked" value="@l.LineId" id="line@(l.LineId)"
+                                       data-amount="@l.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture)" checked="@Model.Ticked!.Contains(l.LineId)" />
+                            </td>
+                        }
+                        <td class="text-nowrap"><label for="line@(l.LineId)">@l.Date.ToString("d MMM yyyy")</label></td>
+                        <td>@l.Description</td>
+                        <td class="small text-muted">@JournalRules.SourceLabel(l.SourceModule)</td>
+                        <td class="text-end text-success">@(l.Deposit != 0 ? l.Deposit.ToString("C") : "")</td>
+                        <td class="text-end text-danger">@(l.Withdrawal != 0 ? l.Withdrawal.ToString("C") : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

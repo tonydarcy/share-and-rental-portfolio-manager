@@ -1,0 +1,81 @@
+@page
+@model PortfolioManager.Web.Pages.Portfolio.ManageModel
+@using PortfolioManager.Core.Portfolios
+@{
+    ViewData["Title"] = "Manage portfolios";
+    var returnUrl = Url.Page("/Index");
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Portfolios</h1>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-body pb-0"><h2 class="h6">Portfolios you can open</h2></div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Portfolios.Count == 0)
+                        {
+                            <tr><td colspan="3" class="text-center text-muted p-4">None yet.</td></tr>
+                        }
+                        @foreach (var p in Model.Portfolios)
+                        {
+                            <tr>
+                                <td class="fw-bold">@p.Name</td>
+                                <td class="text-muted">@p.EntityType @if (!p.CanEdit) { <span class="badge text-bg-warning">Read only</span> } else if (!p.CanShare) { <span class="badge text-bg-info">Editor</span> }</td>
+                                <td class="text-end">
+                                    @if (p.PortfolioId == Model.Selected?.PortfolioId)
+                                    {
+                                        <span class="badge text-bg-primary">Open now</span>
+                                        @if (p.CanShare)
+                                        {
+                                            <a asp-page="/Portfolio/Sharing" class="btn btn-sm btn-outline-secondary ms-1">Share</a>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <form method="post" asp-page="/Portfolio/Select" class="d-inline">
+                                            <input type="hidden" name="portfolioId" value="@p.PortfolioId" />
+                                            <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary">Open</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6">Create a new portfolio</h2>
+                <p class="text-muted small">It uses your current login and starts empty, with double-entry accounting.</p>
+                <form method="post">
+                    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label">Portfolio name</label>
+                        <input asp-for="Name" class="form-control" maxlength="100" required />
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="EntityType" class="form-label">Entity type</label>
+                        <select asp-for="EntityType" asp-items="@(new SelectList(PortfolioService.EntityTypes))" class="form-select"></select>
+                    </div>
+                    <button type="submit" class="btn btn-success">Create portfolio</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

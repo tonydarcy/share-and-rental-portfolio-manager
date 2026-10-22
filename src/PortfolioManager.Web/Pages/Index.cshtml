@@ -1,0 +1,115 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+    var currency = Model.Value.PortfolioCurrency;
+}
+
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Dashboard</h1>
+    @if (!string.IsNullOrWhiteSpace(currency))
+    {
+        <span class="text-muted">All values in @currency</span>
+    }
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total portfolio value</div>
+                <div class="kpi-value">@Model.Value.TotalPortfolioValue.ToString("C")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Shares</div>
+                <div class="kpi-value">@Model.Value.TotalShareValue.ToString("C")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Cash</div>
+                <div class="kpi-value">@Model.Value.TotalCashValue.ToString("C")</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h6">Value over the last @DashboardService.HistoryDays days</h2>
+                @if (Model.HistoryRefreshFailed)
+                {
+                    <p class="text-warning small">The history couldn't be recalculated just now, so recent days may be missing.</p>
+                }
+                @if (Model.History.Count == 0)
+                {
+                    <p class="text-muted">No history yet.</p>
+                }
+                else
+                {
+                    <div class="chart-box"><canvas id="historyChart"></canvas></div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h6">Projected income (next 12 months)</h2>
+                @if (Model.ProjectedIncome.Count == 0)
+                {
+                    <p class="text-muted">No payouts in the last year to project from.</p>
+                }
+                else
+                {
+                    <div class="chart-box"><canvas id="incomeChart"></canvas></div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        const money = v => v.toLocaleString(pmLocale, { style: 'currency', currency: pmCurrency });
+        const history = @Json.Serialize(Model.History.Select(h => new { label = h.Date.ToString("d MMM"), value = h.TotalEquity }));
+        const income = @Json.Serialize(Model.ProjectedIncome.Select(m => new { label = m.Month.ToString("MMM yyyy"), value = m.Amount }));
+
+        if (document.getElementById('historyChart')) {
+            new Chart(document.getElementById('historyChart'), {
+                type: 'line',
+                data: {
+                    labels: history.map(p => p.label),
+                    datasets: [{ label: 'Total value', data: history.map(p => p.value), borderColor: '#0d6efd', pointRadius: 0, tension: 0.2 }]
+                },
+                options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => money(c.parsed.y) } } }, scales: { y: { ticks: { callback: money } } } }
+            });
+        }
+
+        if (document.getElementById('incomeChart')) {
+            new Chart(document.getElementById('incomeChart'), {
+                type: 'bar',
+                data: {
+                    labels: income.map(p => p.label),
+                    datasets: [{ label: 'Projected income', data: income.map(p => p.value), backgroundColor: '#198754' }]
+                },
+                options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => money(c.parsed.y) } } }, scales: { y: { ticks: { callback: money } } } }
+            });
+        }
+    </script>
+}

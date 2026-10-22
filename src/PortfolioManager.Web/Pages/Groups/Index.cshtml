@@ -1,0 +1,66 @@
+@page
+@model PortfolioManager.Web.Pages.Groups.IndexModel
+@{
+    ViewData["Title"] = "Groups";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Groups</h1>
+    <span class="text-muted">Your own way of grouping trades, such as by strategy or by family member</span>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        @if (Model.Groups.Count == 0)
+        {
+            <div class="alert alert-info">There are no groups yet. Create one, then tick the trades that belong in it.</div>
+        }
+        else
+        {
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr><th>Group</th><th class="text-end">Trades</th><th class="text-end">Stocks</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var g in Model.Groups)
+                            {
+                                <tr>
+                                    <td><a asp-page="Edit" asp-route-id="@g.GroupId">@g.Name</a></td>
+                                    <td class="text-end">@g.Trades</td>
+                                    <td class="text-end">@g.Stocks</td>
+                                    <td class="text-end text-nowrap">
+                                        <a class="btn btn-sm btn-outline-secondary" asp-page="/Holdings" asp-route-group="@g.GroupId">Holdings</a>
+                                        <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@g.GroupId">Edit</a>
+                                        <form method="post" asp-page-handler="Delete" asp-route-id="@g.GroupId" class="d-inline"
+                                              data-confirm="Delete the group &quot;@g.Name&quot;? The trades in it are not deleted." onsubmit="return confirm(this.dataset.confirm);">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+    <div class="col-lg-4">
+        <form method="post" asp-page-handler="Create" class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6">New group</h2>
+                <label asp-for="Name" class="form-label">Name</label>
+                <input asp-for="Name" class="form-control" maxlength="100" />
+                <span asp-validation-for="Name" class="text-danger small"></span>
+                <button type="submit" class="btn btn-primary mt-2">Create group</button>
+            </div>
+        </form>
+    </div>
+</div>

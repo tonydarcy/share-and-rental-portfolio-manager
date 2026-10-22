@@ -1,0 +1,35 @@
+@model TaxCalculation
+@* Tax on taxable income for a company or SMSF, down to the amount payable or refundable *@
+<table class="table table-sm mb-0">
+    <tbody>
+        <tr><td>Taxable income (whole dollars)</td><td class="text-end">@Model.TaxableIncome.ToString("C0")</td></tr>
+        <tr><td>Tax at @Model.RatePercent.ToString("0.##")%</td><td class="text-end">@Model.GrossTax.ToString("C")</td></tr>
+        @if (Model.ForeignOffset != 0)
+        {
+            <tr><td>Less foreign income tax offset</td><td class="text-end">(@Model.ForeignOffset.ToString("C"))</td></tr>
+        }
+        @if (Model.FrankingOffset != 0)
+        {
+            <tr><td>Less franking credits tax offset</td><td class="text-end">(@Model.FrankingOffset.ToString("C"))</td></tr>
+        }
+        <tr class="fw-bold border-top"><td>Income tax after offsets</td><td class="text-end">@Model.TaxAfterOffsets.ToString("C")</td></tr>
+        @if (Model.TfnCredits != 0)
+        {
+            <tr><td>Less TFN amounts withheld</td><td class="text-end">(@Model.TfnCredits.ToString("C"))</td></tr>
+        }
+        @if (Model.PaygInstalments != 0)
+        {
+            <tr><td>Less PAYG instalments paid</td><td class="text-end">(@Model.PaygInstalments.ToString("C"))</td></tr>
+        }
+        @if (Model.SupervisoryLevy != 0)
+        {
+            <tr><td>Add SMSF supervisory levy</td><td class="text-end">@Model.SupervisoryLevy.ToString("C")</td></tr>
+        }
+        <tr class="fw-bold border-top border-dark"><td>@(Model.Payable >= 0 ? "Amount payable" : "Refund due")</td><td class="text-end">@Math.Abs(Model.Payable).ToString("C")</td></tr>
+    </tbody>
+</table>
+@if (Model.ExcessFranking != 0)
+{
+    <p class="small text-muted mt-2 mb-0">Franking credits of @Model.ExcessFranking.ToString("C") are more than the tax and aren't refundable to a company.
+        They convert to a tax loss of @Model.ExcessFrankingLoss.ToString("C") to carry forward.</p>
+}

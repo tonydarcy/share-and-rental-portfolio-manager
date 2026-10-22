@@ -1,0 +1,33 @@
+@model IReadOnlyList<StatementLine>
+@{
+    // The legacy pages styled the procs' rows by RowType: headers, items (indented), totals, grand totals and spacers
+    var empty = Model.All(l => l.IsHeader || l.IsSpacer || (l.Amount ?? 0) == 0);
+}
+<div class="card shadow-sm mb-3">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <tbody>
+                @foreach (var l in Model)
+                {
+                    if (l.IsSpacer)
+                    {
+                        <tr><td colspan="2" class="border-0 py-2"></td></tr>
+                        continue;
+                    }
+                    var css = l.IsHeader ? "table-light fw-bold text-uppercase text-secondary small"
+                        : l.IsGrandTotal ? "table-dark fw-bold"
+                        : l.IsTotal ? "table-active fw-bold"
+                        : "";
+                    <tr class="@css">
+                        <td style="padding-left: @(0.5 + l.Indent * 1.5)rem">@l.Label</td>
+                        <td class="text-end text-nowrap @(l.Amount < 0 && !l.IsGrandTotal ? "text-danger" : "")">@(l.Amount?.ToString("C"))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+@if (empty)
+{
+    <p class="text-muted small">Nothing was posted to the ledger in this period.</p>
+}

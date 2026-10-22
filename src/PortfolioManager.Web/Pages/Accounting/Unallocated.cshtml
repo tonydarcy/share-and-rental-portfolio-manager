@@ -1,0 +1,78 @@
+@page
+@model UnallocatedModel
+@{
+    ViewData["Title"] = "Unallocated transactions";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Unallocated transactions</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/Accounting/BankImport" class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Import a statement</a>
+        <a asp-page="/Accounting/ImportHistory" class="btn btn-sm btn-outline-secondary">Import history</a>
+        <a asp-page="/Accounting/Rules" class="btn btn-sm btn-outline-secondary">Allocation rules</a>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">
+    Imported bank transactions still in <strong>Bank Import Suspense</strong>. Assign each one to an account (for example bank fees
+    or interest), or match it to a payout or trade you have recorded so the cash isn't counted twice.
+</p>
+
+@if (Model.Suggested.Count > 0)
+{
+    <form method="post" asp-page-handler="Apply" class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>@Model.Suggested.Count transaction@(Model.Suggested.Count == 1 ? "" : "s") match an allocation rule.</span>
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-magic"></i> Apply rules</button>
+    </form>
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th class="text-end">Amount</th>
+                    <th>Rule</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Lines.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-center text-muted p-4">Everything imported has been allocated.</td></tr>
+                }
+                @foreach (var l in Model.Lines)
+                {
+                    <tr>
+                        <td class="text-nowrap">@l.Date.ToString("d MMM yyyy")</td>
+                        <td>@l.Description</td>
+                        <td class="text-end text-nowrap fw-bold @(l.IsDeposit ? "text-success" : "text-danger")">@l.Amount.ToString("C")</td>
+                        <td class="small text-muted">@(Model.Suggested.TryGetValue(l.LineId, out var rule) ? rule.AccountName : "")</td>
+                        <td class="text-end">
+                            <a asp-page="/Accounting/Allocate" asp-route-id="@l.LineId" class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Allocate</a>
+                            <a asp-page="/Clients/Queries" asp-route-line="@l.LineId" class="btn btn-sm btn-outline-secondary" title="Ask the client what this is"><i class="bi bi-question-circle"></i><span class="visually-hidden">Ask the client</span></a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Lines.Count > 0)
+            {
+                <tfoot>
+                    <tr class="table-active fw-bold">
+                        <td colspan="2">@Model.Lines.Count transaction@(Model.Lines.Count == 1 ? "" : "s")</td>
+                        <td class="text-end">@Model.Lines.Sum(l => l.Amount).ToString("C")</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>

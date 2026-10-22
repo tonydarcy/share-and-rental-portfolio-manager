@@ -1,0 +1,62 @@
+@page
+@model RepeatingModel
+@{
+    ViewData["Title"] = "Repeating bills";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Repeating bills</h1>
+    <a asp-page="/Bills/Index" class="btn btn-sm btn-outline-secondary">Bills</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">To make a bill repeat, open it and use <em>Repeat this bill</em>. Each one is created on its date when you press the button below.</p>
+
+@if (Model.CanEdit && Model.DueCount > 0)
+{
+    <form method="post" asp-page-handler="Create" class="mb-3">
+        <button type="submit" class="btn btn-primary">Create the @Model.DueCount bill@(Model.DueCount == 1 ? "" : "s") due now</button>
+    </form>
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Name</th><th>Supplier</th><th>How often</th><th>Next</th><th class="text-end">Each</th><th>Created</th><th></th></tr></thead>
+            <tbody>
+                @if (Model.Repeating.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No repeating bills.</td></tr>
+                }
+                @foreach (var r in Model.Repeating)
+                {
+                    var each = r.Lines.Sum(l => (l.Quantity ?? 0) * (l.UnitPrice ?? 0));
+                    <tr class="@(r.Active ? "" : "text-muted")">
+                        <td>@r.Name @if (!r.Active) { <span class="badge text-bg-secondary">paused</span> }</td>
+                        <td>@r.SupplierName</td>
+                        <td>@Core.Accounting.RepeatFrequencies.Label(r.Frequency)@(r.Approve ? ", approved" : ", as drafts")</td>
+                        <td>@r.NextDate.ToString("d")</td>
+                        <td class="text-end">@each.ToString("C")</td>
+                        <td>@r.PostedCount@(r.LastCreated is { } l ? $", last {l:d}" : "")</td>
+                        <td class="text-end text-nowrap">
+                            @if (Model.CanEdit)
+                            {
+                                <form method="post" asp-page-handler="Active" asp-route-id="@r.Id" asp-route-active="@(!r.Active)" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">@(r.Active ? "Pause" : "Start")</button>
+                                </form>
+                                <form method="post" asp-page-handler="Delete" asp-route-id="@r.Id" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

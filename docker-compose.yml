@@ -1,0 +1,54 @@
+# Runs the website and SQL Server together, for trying the app, development and small installs.
+#   docker compose up -d        then open http://localhost:8080
+# Change SA_PASSWORD (in a .env file next to this one) before using it for real data.
+# See SETUP.md, "Run it with Docker".
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD:-Choose-A-Strong-Passw0rd}
+      MSSQL_PID: ${MSSQL_PID:-Developer}
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  # Creates the database on first start, then applies any newer migrations (each is safe to run again)
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SA_PASSWORD: ${SA_PASSWORD:-Choose-A-Strong-Passw0rd}
+      DB_NAME: PortfolioManager
+      LOAD_SAMPLE_DATA: ${LOAD_SAMPLE_DATA:-0}
+    volumes:
+      - ./Database:/database:ro
+      - ./docker/init-db.sh:/init-db.sh:ro
+    entrypoint: ["bash", "/init-db.sh"]
+    restart: "no"
+
+  web:
+    build: .
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    environment:
+      ConnectionStrings__Default: "Server=db;Database=PortfolioManager;User Id=sa;Password=${SA_PASSWORD:-Choose-A-Strong-Passw0rd};TrustServerCertificate=true"
+      DataProtection__KeysPath: /keys
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+    volumes:
+      - keys:/keys
+    restart: unless-stopped
+
+volumes:
+  sqldata:
+  keys:

@@ -1,0 +1,75 @@
+@page
+@model RepeatingModel
+@{
+    ViewData["Title"] = "Repeating journals";
+    var due = Model.Journals.Sum(j => j.DueDates(Model.Today).Count);
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Repeating journals</h1>
+    <a asp-page="/Accounting/JournalEntry" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> New journal</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted">To set one up, post a new journal and tick <strong>Repeat this journal</strong>. Each date due up to today is posted
+    as its own manual journal when you press <em>Post what's due</em>; one set to reverse is undone the next day, for accruals and
+    prepayments. A journal in a locked period isn't posted.</p>
+
+<form method="post" asp-page-handler="PostDue" class="mb-3">
+    <button type="submit" class="btn btn-success" disabled="@(due == 0)"><i class="bi bi-play-fill"></i> Post what's due (@due)</button>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Journal</th><th>How often</th><th>Lines</th><th class="text-end">Amount</th><th>Next</th><th>Last posted</th><th></th></tr>
+            </thead>
+            <tbody>
+                @if (Model.Journals.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No repeating journals yet.</td></tr>
+                }
+                @foreach (var j in Model.Journals)
+                {
+                    var n = j.DueDates(Model.Today).Count;
+                    <tr class="@(j.Active ? "" : "text-muted")">
+                        <td>
+                            <div class="fw-bold">@j.Name</div>
+                            @if (j.Name != j.Description) { <div class="small text-muted">@j.Description</div> }
+                            @if (j.Reverse) { <span class="badge text-bg-light border">reverses next day</span> }
+                            @if (!j.Active) { <span class="badge text-bg-secondary">paused</span> }
+                        </td>
+                        <td>@RepeatFrequencies.Label(j.Frequency)@(j.End is { } e ? $" until {e:d}" : "")</td>
+                        <td class="small">
+                            @foreach (var l in j.Lines)
+                            {
+                                <div>@(Model.AccountNames.TryGetValue(l.AccountId, out var name) ? name : $"Account {l.AccountId}"): @(l.Debit is > 0 ? $"Dr {l.Debit:C}" : $"Cr {l.Credit:C}")</div>
+                            }
+                        </td>
+                        <td class="text-end">@j.Lines.Sum(l => l.Debit ?? 0).ToString("C")</td>
+                        <td class="text-nowrap">
+                            @(j.Finished ? "Finished" : j.NextDate.ToString("d"))
+                            @if (n > 0) { <span class="badge text-bg-warning">@n due</span> }
+                        </td>
+                        <td class="text-nowrap">@(j.LastPosted?.ToString("d") ?? "Not yet")</td>
+                        <td class="text-end text-nowrap">
+                            <a asp-page="/Accounting/JournalEntry" asp-route-template="@j.Id" class="btn btn-sm btn-outline-secondary">Change</a>
+                            <form method="post" asp-page-handler="Active" asp-route-id="@j.Id" asp-route-active="@(!j.Active)" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">@(j.Active ? "Pause" : "Start again")</button>
+                            </form>
+                            <form method="post" asp-page-handler="Delete" asp-route-id="@j.Id" class="d-inline" onsubmit="return confirm('Stop this journal repeating? Journals already posted stay.');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

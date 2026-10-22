@@ -1,0 +1,59 @@
+@page "{id:int}"
+@model PortfolioManager.Web.Pages.Trades.DeleteModel
+@{
+    ViewData["Title"] = "Delete trade";
+    var t = Model.Trade!;
+    var check = Model.Check!;
+}
+
+<div class="pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Delete trade</h1>
+</div>
+
+<div class="card shadow-sm mb-3" style="max-width: 40rem">
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-4">Trade</dt>
+            <dd class="col-sm-8">#@t.TradeId</dd>
+            <dt class="col-sm-4">Date</dt>
+            <dd class="col-sm-8">@t.Date.ToString("dd-MMM-yyyy")</dd>
+            <dt class="col-sm-4">Details</dt>
+            <dd class="col-sm-8">@t.Type.Trim().ToUpperInvariant() @t.Quantity.ToString("#,##0.####") × @t.StockCode (@t.ExchangeCode) @@ @t.PricePerUnit.ToString("#,##0.00##")</dd>
+            <dt class="col-sm-4">Order total</dt>
+            <dd class="col-sm-8">@t.OrderTotal.ToString("#,##0.00") @t.Currency</dd>
+            @if (!string.IsNullOrWhiteSpace(t.Comment))
+            {
+                <dt class="col-sm-4">Comment</dt>
+                <dd class="col-sm-8">@t.Comment</dd>
+            }
+        </dl>
+    </div>
+</div>
+
+@if (Model.BlockedReason is not null)
+{
+    <div class="alert alert-warning" style="max-width: 40rem">@Model.BlockedReason</div>
+    <a asp-page="./Index" class="btn btn-outline-secondary">Back to trades</a>
+}
+else
+{
+    <div class="alert alert-danger" style="max-width: 40rem">
+        <p class="mb-1">This permanently deletes the trade. It can't be undone.</p>
+        @if (check.CashTransactions > 0)
+        {
+            <p class="mb-1">The cash transaction recorded with it will be deleted too.</p>
+        }
+        @if (check.Journals > 0)
+        {
+            <p class="mb-1">Its ledger journal entries (the trade and its settlement) will be deleted too, so the ledger stays balanced.</p>
+        }
+        @if (check.Groups > 0)
+        {
+            <p class="mb-1">It will be taken out of its custom group@(check.Groups > 1 ? "s" : "").</p>
+        }
+    </div>
+    <form method="post" class="d-flex gap-2">
+        <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Delete trade</button>
+        <a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>
+    </form>
+}

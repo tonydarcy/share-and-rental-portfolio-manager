@@ -1,0 +1,21 @@
+@page "{id:int}"
+@model PortfolioManager.Web.Pages.Payouts.EditRentalModel
+@{
+    ViewData["Title"] = "Edit rental payout";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Edit rental payout</h1>
+    <a asp-page="/Payouts/Index" class="btn btn-sm btn-outline-secondary">Back to payouts</a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="post">
+            <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+            <partial name="_RentalFields" for="Input" />
+            <p class="form-text">Saving updates the payout's ledger journal (if it has one) to match.</p>
+            <button type="submit" class="btn btn-success">Save changes</button>
+        </form>
+    </div>
+</div>

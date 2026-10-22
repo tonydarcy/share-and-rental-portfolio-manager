@@ -1,0 +1,79 @@
+@page
+@model StatementModel
+@{
+    ViewData["Title"] = "Customer statement";
+    var s = Model.Statement;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom no-print">
+    <h1 class="h2 mb-0">Customer statement</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/Invoices/Aged" class="btn btn-sm btn-outline-secondary">Aged receivables</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print or save as PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="row g-2 align-items-end mb-3 no-print">
+    <div class="col-auto">
+        <label asp-for="Customer" class="form-label small mb-1">Customer</label>
+        <select asp-for="Customer" class="form-select form-select-sm">
+            <option value="">Choose a customer</option>
+            @foreach (var c in Model.Customers) { <option value="@c.CustomerId">@c.Name</option> }
+        </select>
+    </div>
+    <div class="col-auto"><label asp-for="From" class="form-label small mb-1">From</label><input asp-for="From" type="date" class="form-control form-control-sm" /></div>
+    <div class="col-auto"><label asp-for="To" class="form-label small mb-1">To</label><input asp-for="To" type="date" class="form-control form-control-sm" /></div>
+    <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary">Show</button></div>
+</form>
+
+@if (s is null)
+{
+    <p class="text-muted">Choose a customer.</p>
+    return;
+}
+
+<div class="card shadow-sm invoice-sheet">
+    <div class="card-body p-4 p-md-5">
+        <div class="d-flex justify-content-between flex-wrap gap-3 mb-4">
+            <div>
+                @if (Model.HasLogo) { <img src="@Url.Page("/Invoices/Settings", "Logo")" alt="" style="max-height: 90px; max-width: 260px" class="mb-2 d-block" /> }
+                <div class="fs-4 fw-bold">@(Model.Business?.LegalName ?? Model.Portfolio.Name)</div>
+                @if (Model.Business?.Abn is { Length: > 0 } abn) { <div>ABN @abn</div> }
+            </div>
+            <div class="text-sm-end">
+                <div class="fs-3 fw-light text-uppercase">Statement</div>
+                <div>@s.From.ToString("d") to @s.To.ToString("d")</div>
+            </div>
+        </div>
+        <div class="mb-4">
+            <div class="fw-bold">@s.Customer.Name</div>
+            @if (s.Customer.Address is { } address) { <div style="white-space: pre-line">@address</div> }
+        </div>
+        <table class="table table-sm">
+            <thead><tr><th>Date</th><th>Document</th><th>Details</th><th class="text-end">Charged</th><th class="text-end">Paid or credited</th><th class="text-end">Balance</th></tr></thead>
+            <tbody>
+                <tr class="fst-italic"><td>@s.From.ToString("d")</td><td colspan="4">Opening balance</td><td class="text-end">@s.Opening.ToString("C")</td></tr>
+                @foreach (var l in s.Lines)
+                {
+                    <tr><td>@l.Date.ToString("d")</td><td>@l.Document</td><td class="small">@l.Description</td>
+                        <td class="text-end">@(l.Charged > 0 ? l.Charged.ToString("C") : "")</td><td class="text-end">@(l.Paid > 0 ? l.Paid.ToString("C") : "")</td>
+                        <td class="text-end">@l.Balance.ToString("C")</td></tr>
+                }
+            </tbody>
+            <tfoot><tr class="fw-bold"><td colspan="5">Balance owing at @s.To.ToString("d")</td><td class="text-end">@s.Closing.ToString("C")</td></tr></tfoot>
+        </table>
+        @if (s.Aged.FirstOrDefault() is { } a)
+        {
+            <table class="table table-sm table-bordered w-auto mt-3 small">
+                <thead><tr><th>Current</th><th>1 to 30 days overdue</th><th>31 to 60</th><th>61 to 90</th><th>Over 90</th></tr></thead>
+                <tbody><tr><td>@a.Current.ToString("C")</td><td>@a.Days30.ToString("C")</td><td>@a.Days60.ToString("C")</td><td>@a.Days90.ToString("C")</td><td>@a.Older.ToString("C")</td></tr></tbody>
+            </table>
+        }
+    </div>
+</div>

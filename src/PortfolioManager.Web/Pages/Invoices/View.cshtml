@@ -1,0 +1,296 @@
+@page
+@model ViewModel
+@{
+    var i = Model.Invoice!;
+    var status = i.DisplayStatus(Model.Today);
+    var canEdit = Model.Portfolio!.CanEdit;
+    var taxed = i.Tax != 0 || i.Lines.Any(l => l.TaxCodeId is not null);
+    var credit = Model.Kind.IsCreditNote;
+    var docName = credit ? "Credit note" : "Invoice";
+    ViewData["Title"] = $"{docName} {i.Number}";
+    var business = Model.Business;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2 no-print">
+    <h1 class="h2 mb-0">@docName @i.Number <span class="badge fs-6 align-middle @IndexModel.BadgeClass(status)">@status</span></h1>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-page="/Invoices/Index" class="btn btn-sm btn-outline-secondary">All invoices</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print or save as PDF</button>
+        @if (canEdit && Model.CanSendEmail && !i.IsDraft && !i.IsVoid)
+        {
+            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#emailInvoice"
+                    aria-expanded="false" aria-controls="emailInvoice"><i class="bi bi-envelope"></i> Email to customer</button>
+        }
+        @if (canEdit && !i.IsVoid)
+        {
+            <a asp-page="/Invoices/Edit" asp-route-id="@i.InvoiceId" class="btn btn-sm btn-outline-primary">Edit</a>
+            @if (i.Payments.Count == 0)
+            {
+                <form method="post" asp-page-handler="Void" asp-route-id="@i.InvoiceId" class="d-inline"
+                      data-confirm="@(i.IsDraft ? "Delete this draft?" : "Void this invoice? Its journal is removed and it stays in the list marked Void.")"
+                      onsubmit="return confirm(this.dataset.confirm);">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">@(i.IsDraft ? "Delete draft" : "Void")</button>
+                </form>
+            }
+        }
+        @if (canEdit && !credit && !i.IsDraft && !i.IsVoid)
+        {
+            <form method="post" asp-page-handler="CreditNote" asp-route-id="@i.InvoiceId" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Credit note</button>
+            </form>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#repeatInvoice">Repeat</button>
+        }
+        @if (i.JournalId is { } journalId)
+        {
+            <a asp-page="/Accounting/Journal" asp-route-id="@journalId" class="btn btn-sm btn-outline-secondary">Journal</a>
+        }
+    </div>
+</div>
+
+@if (canEdit && !credit && !i.IsDraft && !i.IsVoid)
+{
+    <form method="post" asp-page-handler="Repeat" asp-route-id="@i.InvoiceId" id="repeatInvoice" class="collapse card shadow-sm mb-3 no-print">
+        <div class="card-body row g-2 align-items-end">
+            <div class="col-sm-3"><label class="form-label" asp-for="Repeat.Frequency">How often</label>
+                <select asp-for="Repeat.Frequency" class="form-select">@foreach (var f in RepeatFrequencies.All) { <option value="@f">@RepeatFrequencies.Label(f)</option> }</select></div>
+            <div class="col-sm-3"><label class="form-label" asp-for="Repeat.End">Last date (optional)</label><input asp-for="Repeat.End" type="date" class="form-control" /></div>
+            <div class="col-sm-3"><label class="form-label" asp-for="Repeat.Name">Name (optional)</label><input asp-for="Repeat.Name" class="form-control" maxlength="200" placeholder="e.g. Monthly rent" /></div>
+            <div class="col-sm-3 form-check"><input asp-for="Repeat.Approve" class="form-check-input" /><label asp-for="Repeat.Approve" class="form-check-label">Approve each one (otherwise drafts)</label></div>
+            <div class="col-12"><button type="submit" class="btn btn-primary">Repeat this invoice</button></div>
+        </div>
+    </form>
+}
+@if (canEdit && Model.CanSendEmail && !i.IsDraft && !i.IsVoid)
+{
+    <form method="post" asp-page-handler="Email" asp-route-id="@i.InvoiceId" id="emailInvoice" class="collapse card shadow-sm mb-3 no-print">
+        <div class="card-body row g-2 align-items-end">
+            <div class="col-md-4">
+                <label for="EmailTo" class="form-label">Send to</label>
+                <input id="EmailTo" name="EmailTo" type="email" class="form-control" value="@i.Customer.Email" required maxlength="500" />
+            </div>
+            <div class="col-md-6">
+                <label for="EmailNote" class="form-label">Message (optional)</label>
+                <input id="EmailNote" name="EmailNote" class="form-control" maxlength="1000" placeholder="Thanks for your business." />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Send</button>
+            </div>
+            <div class="form-text">The email shows the invoice's lines, totals, due date and your payment details. Replies go to
+                your email, @User.Identity?.Name.</div>
+        </div>
+    </form>
+}
+
+@if (i.IsDraft)
+{
+    <div class="alert alert-info no-print">This is a draft: nothing is posted to the ledger until it is approved. <a asp-page="/Invoices/Edit" asp-route-id="@i.InvoiceId">Edit and approve it</a>.</div>
+}
+<div asp-validation-summary="All" class="alert alert-danger py-2 no-print" role="alert"></div>
+
+<div class="card shadow-sm mb-3 invoice-sheet">
+    <div class="card-body p-4 p-md-5">
+        <div class="d-flex justify-content-between flex-wrap gap-3 mb-4">
+            <div>
+                @if (Model.HasLogo)
+                {
+                    <img src="@Url.Page("/Invoices/Settings", "Logo")" alt="" style="max-height: 90px; max-width: 260px" class="mb-2 d-block" />
+                }
+                <div class="fs-4 fw-bold">@Model.BusinessName</div>
+                @if (business?.Abn is { Length: > 0 } abn)
+                {
+                    <div>ABN @abn</div>
+                }
+                @if (business is not null)
+                {
+                    @foreach (var line in business.Address.Lines)
+                    {
+                        <div class="small">@line</div>
+                    }
+                }
+            </div>
+            <div class="text-sm-end">
+                <div class="fs-3 fw-light text-uppercase">@(credit ? (taxed && Model.TaxName == "GST" ? "Adjustment note" : "Credit note") : taxed && Model.TaxName == "GST" ? "Tax invoice" : "Invoice")</div>
+                <div><strong>Number:</strong> @i.Number</div>
+                <div><strong>Date:</strong> @i.IssueDate.ToString("d")</div>
+                <div><strong>Due:</strong> @i.DueDate.ToString("d")</div>
+                @if (i.Reference is not null)
+                {
+                    <div><strong>Your reference:</strong> @i.Reference</div>
+                }
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <div class="text-muted small text-uppercase">Bill to</div>
+            <div class="fw-bold">@i.Customer.Name</div>
+            @if (i.Customer.ContactName is not null) { <div>Attention: @i.Customer.ContactName</div> }
+            @if (i.Customer.Address is not null) { <div style="white-space: pre-line">@i.Customer.Address</div> }
+            @if (i.Customer.TaxNumber is not null) { <div>@i.Customer.TaxNumber</div> }
+        </div>
+
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th class="text-end">Qty</th>
+                    <th class="text-end">Price</th>
+                    @if (taxed) { <th class="text-end">@Model.TaxName</th> }
+                    <th class="text-end">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var l in i.Lines)
+                {
+                    <tr>
+                        <td>@l.Description</td>
+                        <td class="text-end">@l.Quantity.ToString("0.####")</td>
+                        <td class="text-end">@l.UnitPrice.ToString("C")</td>
+                        @if (taxed) { <td class="text-end">@(l.TaxCodeId is null ? "" : l.Tax.ToString("C"))</td> }
+                        <td class="text-end">@Money.Format(i.AmountsIncludeTax ? l.Total : l.Net, i.Currency)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr><td colspan="@(taxed ? 4 : 3)" class="text-end">Subtotal@(taxed ? $" (before {Model.TaxName})" : "")</td><td class="text-end">@Money.Format(i.Net, i.Currency)</td></tr>
+                @if (taxed)
+                {
+                    <tr><td colspan="4" class="text-end">@Model.TaxName</td><td class="text-end">@Money.Format(i.Tax, i.Currency)</td></tr>
+                }
+                <tr class="fw-bold"><td colspan="@(taxed ? 4 : 3)" class="text-end">Total</td><td class="text-end">@Money.Format(i.Total, i.Currency)</td></tr>
+                @if (i.Paid > 0)
+                {
+                    <tr><td colspan="@(taxed ? 4 : 3)" class="text-end">Paid</td><td class="text-end">@Money.Format(i.Paid, i.Currency)</td></tr>
+                    <tr class="fw-bold"><td colspan="@(taxed ? 4 : 3)" class="text-end">Amount due</td><td class="text-end">@Money.Format(i.Balance, i.Currency)</td></tr>
+                }
+                @if (i.Currency is not null && i.HomeTotal is { } home)
+                {
+                    <tr class="text-muted"><td colspan="@(taxed ? 4 : 3)" class="text-end">In @RegionSettings.Current.Currency at @i.ExchangeRate?.ToString("0.######")</td><td class="text-end">@home.ToString("C")</td></tr>
+                }
+            </tfoot>
+        </table>
+
+        @if (i.Notes is not null)
+        {
+            <p style="white-space: pre-line">@i.Notes</p>
+        }
+        @if (Model.Settings.PaymentDetails is { } pay)
+        {
+            <div class="mt-4">
+                <div class="text-muted small text-uppercase">How to pay</div>
+                <div style="white-space: pre-line">@pay</div>
+            </div>
+        }
+        @if (Model.Settings.Footer is { } footer)
+        {
+            <p class="text-muted small mt-4 mb-0" style="white-space: pre-line">@footer</p>
+        }
+    </div>
+</div>
+
+@if (!i.IsDraft && !i.IsVoid)
+{
+    <div class="row g-3 no-print">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-body pb-0"><h2 class="h6">Payments</h2></div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light"><tr><th>Date</th><th>Into</th><th>Reference</th><th class="text-end">Amount</th><th></th></tr></thead>
+                        <tbody>
+                            @if (i.Payments.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-center text-muted p-3">None yet.</td></tr>
+                            }
+                            @foreach (var p in i.Payments)
+                            {
+                                <tr>
+                                    <td>@p.Date.ToString("d")</td>
+                                    <td>@p.AccountName</td>
+                                    <td class="small">@p.Reference</td>
+                                    <td class="text-end">@p.Amount.ToString("C")</td>
+                                    <td class="text-end">
+                                        @if (canEdit)
+                                        {
+                                            <form method="post" asp-page-handler="DeletePayment" asp-route-id="@i.InvoiceId" asp-route-paymentId="@p.PaymentId" class="d-inline"
+                                                  data-confirm="Delete this payment and its journal?" onsubmit="return confirm(this.dataset.confirm);">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        @if (canEdit && credit && i.Balance > 0)
+        {
+            <div class="col-lg-5">
+                <form method="post" asp-page-handler="Apply" asp-route-id="@i.InvoiceId" class="card shadow-sm">
+                    <div class="card-body">
+                        <h2 class="h6">Apply to an invoice</h2>
+                        @if (Model.OpenInvoices.Count == 0)
+                        {
+                            <p class="small text-muted mb-0">@i.Customer.Name has no invoices owing. The @i.Balance.ToString("C") left stays as a credit on their account.</p>
+                        }
+                        else
+                        {
+                            <select name="invoiceId" class="form-select mb-2" aria-label="Invoice">
+                                @foreach (var o in Model.OpenInvoices) { <option value="@o.InvoiceId">@o.Number, owing @o.Balance.ToString("C")</option> }
+                            </select>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6"><input type="date" name="date" value="@Model.Today.ToString("yyyy-MM-dd")" class="form-control" aria-label="Date" /></div>
+                                <div class="col-6"><input type="number" name="amount" step="0.01" min="0.01" value="@i.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control text-end" aria-label="Amount" /></div>
+                            </div>
+                            <button type="submit" class="btn btn-success">Apply</button>
+                        }
+                    </div>
+                </form>
+            </div>
+        }
+        @if (canEdit && !credit && i.Balance > 0)
+        {
+            <div class="col-lg-5">
+                <form method="post" asp-page-handler="Payment" asp-route-id="@i.InvoiceId" class="card shadow-sm">
+                    <div class="card-body">
+                        <h2 class="h6">Record a payment</h2>
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label asp-for="Payment.Date" class="form-label">Date paid</label>
+                                <input asp-for="Payment.Date" type="date" class="form-control" required />
+                            </div>
+                            <div class="col-6">
+                                <label asp-for="Payment.Amount" class="form-label">Amount</label>
+                                <input asp-for="Payment.Amount" type="number" step="0.01" min="0.01" class="form-control text-end" required />
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label asp-for="Payment.AccountId" class="form-label">Paid into</label>
+                            <select asp-for="Payment.AccountId" class="form-select">
+                                @foreach (var a in Model.BankAccounts)
+                                {
+                                    <option value="@a.AccountId">@a.DisplayName</option>
+                                }
+                            </select>
+                        </div>
+                        @if (i.Currency is not null)
+                        {
+                            <div class="mb-2">
+                                <label asp-for="Payment.ExchangeRate" class="form-label">Exchange rate on the day (@i.Currency per 1 @RegionSettings.Current.Currency)</label>
+                                <input asp-for="Payment.ExchangeRate" type="number" step="any" min="0" class="form-control" placeholder="@i.ExchangeRate?.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture)" />
+                                <div class="form-text">The amount is in @i.Currency. A different rate from the invoice's gives a foreign exchange gain or loss. Blank uses the invoice's rate.</div>
+                            </div>
+                        }
+                        <div class="mb-3">
+                            <label asp-for="Payment.Reference" class="form-label">Reference (optional)</label>
+                            <input asp-for="Payment.Reference" class="form-control" maxlength="200" />
+                        </div>
+                        <button type="submit" class="btn btn-success">Record payment</button>
+                        <p class="small text-muted mt-2 mb-0">Posts the amount from Accounts Receivable to the bank account. If the same deposit later comes in on an imported bank statement, don't allocate it again: it is already in the ledger.</p>
+                    </div>
+                </form>
+            </div>
+        }
+    </div>
+}

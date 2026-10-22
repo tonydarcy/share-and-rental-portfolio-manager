@@ -1,0 +1,110 @@
+@page
+@model PortfolioManager.Web.Pages.Attachments.IndexModel
+@using PortfolioManager.Core.Tax
+@{
+    ViewData["Title"] = "Attachments";
+    var onRecord = Model.Kind is AttachmentKinds.Trade or AttachmentKinds.Journal or AttachmentKinds.Bill or AttachmentKinds.ExpenseClaim;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Attachments</h1>
+    @if (Model.Kind == AttachmentKinds.Journal && Model.Target is { } j)
+    {
+        <a asp-page="/Accounting/Journal" asp-route-id="@j" class="btn btn-sm btn-outline-secondary">Back to the journal</a>
+    }
+    else if (Model.Kind == AttachmentKinds.Trade)
+    {
+        <a asp-page="/Trades/Index" class="btn btn-sm btn-outline-secondary">Back to trades</a>
+    }
+    else if (Model.Kind == AttachmentKinds.Bill && Model.Target is { } b)
+    {
+        <a asp-page="/Bills/View" asp-route-id="@b" class="btn btn-sm btn-outline-secondary">Back to the bill</a>
+    }
+    else if (Model.Kind == AttachmentKinds.ExpenseClaim)
+    {
+        <a asp-page="/Claims/Index" class="btn btn-sm btn-outline-secondary">Back to expense claims</a>
+    }
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (onRecord)
+{
+    <p class="lead">@Model.TargetText</p>
+}
+else
+{
+    <p class="text-muted">Contract notes, statements, resolutions and workpapers for @Model.Portfolio.Name. Files on a trade or journal are added from
+        that trade or journal; the year's files, with those on its trades, journals and workpapers, are listed in the report pack and the SMSF audit pack.</p>
+    <form method="get" class="d-flex flex-wrap gap-2 mb-3 no-print">
+        <select name="kind" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            <option value="">Every kind</option>
+            @foreach (var k in AttachmentKinds.All) { <option value="@k" selected="@(k == Model.Kind)">@AttachmentKinds.Label(k)</option> }
+        </select>
+        <select name="fy" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            <option value="">Every year</option>
+            @foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.Fy)">@FinancialYear.Label(y)</option> }
+        </select>
+    </form>
+}
+
+<form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-kind="@Model.Kind" asp-route-target="@Model.Target" asp-route-fy="@Model.Fy"
+      class="card shadow-sm mb-3 no-print">
+    <div class="card-body row g-2 align-items-end">
+        <div class="col-md-5">
+            <label class="form-label" for="Upload">File (up to 10 MB)</label>
+            <input type="file" asp-for="Upload" class="form-control" required />
+        </div>
+        <div class="col-md-5">
+            <label class="form-label" asp-for="Note">Note (optional)</label>
+            <input asp-for="Note" class="form-control" maxlength="500" />
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-success w-100"><i class="bi bi-upload"></i> Upload</button>
+        </div>
+        @if (!onRecord && Model.Kind is null or AttachmentKinds.Year)
+        {
+            <div class="col-12 small text-muted">Uploaded here, a file is kept against @(Model.Fy is { } fy ? FinancialYear.Label(fy) : "this financial year").
+                Choose <em>Client (permanent file)</em> above for trust deeds, constitutions and the like.</div>
+        }
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>File</th><th>For</th><th>Year</th><th>Note</th><th>Uploaded</th><th class="text-end">Size</th><th></th></tr></thead>
+            <tbody>
+                @if (Model.Files.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-muted p-4">No files yet.</td></tr>
+                }
+                @foreach (var f in Model.Files)
+                {
+                    <tr>
+                        <td><a asp-page-handler="Download" asp-route-id="@f.Id"><i class="bi bi-file-earmark"></i> @f.FileName</a></td>
+                        <td>
+                            @if (f.Kind == AttachmentKinds.Journal && f.TargetId is { } jid) { <a asp-page="/Accounting/Journal" asp-route-id="@jid">Journal @jid</a> }
+                            else if (f.Kind == AttachmentKinds.Trade) { <span>Trade @f.TargetId</span> }
+                            else { @AttachmentKinds.Label(f.Kind) }
+                        </td>
+                        <td>@(f.Year is { } y ? FinancialYear.Label(y) : "")</td>
+                        <td class="small">@f.Note</td>
+                        <td class="small text-nowrap">@f.Uploaded.ToString("g")<br /><span class="text-muted">@f.UploadedBy</span></td>
+                        <td class="text-end">@f.SizeText</td>
+                        <td class="text-end">
+                            <form method="post" asp-page-handler="Delete" asp-route-id="@f.Id" asp-route-kind="@Model.Kind" asp-route-target="@Model.Target" asp-route-fy="@Model.Fy"
+                                  onsubmit="return confirm('Delete @f.FileName?');" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

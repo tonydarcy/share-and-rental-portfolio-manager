@@ -1,0 +1,71 @@
+@page
+@model Div7aModel
+@{
+    ViewData["Title"] = "Division 7A calculator";
+    string M(decimal x) => x.ToString("#,##0.00;(#,##0.00);-");
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Division 7A loan calculator</h1>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+
+<p class="text-muted">
+    The minimum yearly repayment on a complying loan agreement from a private company to a shareholder or associate. Enter the loan balance
+    at the end of the income year it was made (or at the start of the year you're working out), and the first year a repayment is due.
+</p>
+
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-3"><label asp-for="Balance" class="form-label small mb-1">Loan balance</label><input asp-for="Balance" class="form-control form-control-sm" /></div>
+            <div class="col-sm-3">
+                <label asp-for="FirstYear" class="form-label small mb-1">First repayment year</label>
+                <select asp-for="FirstYear" class="form-select form-select-sm">
+                    @foreach (var y in FinancialYear.Recent(DateOnly.FromDateTime(DateTime.Today).AddYears(1), 11))
+                    {
+                        <option value="@y">@FinancialYear.Label(y)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-sm-2">
+                <label asp-for="Term" class="form-label small mb-1">Term</label>
+                <select asp-for="Term" class="form-select form-select-sm">
+                    <option value="7">7 years (unsecured)</option>
+                    <option value="25">25 years (secured by real property)</option>
+                </select>
+            </div>
+            <div class="col-sm-2"><label asp-for="Rate" class="form-label small mb-1">Rate for later years %</label><input asp-for="Rate" class="form-control form-control-sm" placeholder="@Div7a.LatestRate" /></div>
+            <div class="col-sm-2"><button type="submit" class="btn btn-sm btn-primary">Work out</button></div>
+        </div>
+    </div>
+</form>
+
+@if (Model.Schedule.Count > 0)
+{
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <table class="table table-sm">
+                <thead class="table-light"><tr><th>Income year</th><th class="text-end">Opening balance</th><th class="text-end">Benchmark rate</th><th class="text-end">Interest</th><th class="text-end">Minimum repayment</th><th class="text-end">Closing balance</th></tr></thead>
+                <tbody>
+                    @foreach (var y in Model.Schedule)
+                    {
+                        <tr>
+                            <td>@FinancialYear.Label(y.Year)</td>
+                            <td class="text-end">@M(y.Opening)</td>
+                            <td class="text-end">@y.RatePercent.ToString("0.00")%@(y.RateKnown ? "" : "*")</td>
+                            <td class="text-end">@M(y.Interest)</td>
+                            <td class="text-end fw-semibold">@M(y.MinimumRepayment)</td>
+                            <td class="text-end">@M(y.Closing)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <p class="small text-muted mb-0">
+                * No benchmark rate on file for that year yet; the rate entered (or the latest, @Div7a.LatestRate.ToString("0.00")%) is used, so later years are estimates.
+                Interest assumes each repayment is made on 30 June; repayments made earlier reduce that year's interest but not the minimum repayment.
+                A shortfall in a year's minimum repayment is a deemed dividend.
+            </p>
+        </div>
+    </div>
+}

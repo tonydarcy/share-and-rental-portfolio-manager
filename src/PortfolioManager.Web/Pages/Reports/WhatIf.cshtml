@@ -1,0 +1,179 @@
+@page
+@model PortfolioManager.Web.Pages.Reports.WhatIfModel
+@using PortfolioManager.Core.Tax
+@{
+    ViewData["Title"] = "What-if sale";
+    var r = Model.Result;
+    var au = Model.Region.IsAustralia;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">What-if sale</h1>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted small">
+    See the capital gain@(au ? ", discount" : "") and tax on a sale before you make it. Nothing is saved.
+    The year's figures include the sales already made this year and any losses carried forward.
+</p>
+
+<form method="get" class="card shadow-sm mb-3">
+    <div class="card-body row g-2 align-items-end">
+        <div class="col-md-3">
+            <label asp-for="Holding" class="form-label">Holding</label>
+            <select asp-for="Holding" class="form-select" required>
+                <option value="">Choose...</option>
+                @foreach (var h in Model.Holdings)
+                {
+                    <option value="@h.Key">@h.Key (@h.Units.ToString("#,##0.####") units)</option>
+                }
+            </select>
+        </div>
+        <div class="col-6 col-md-2">
+            <label asp-for="Units" class="form-label">Units to sell</label>
+            <input asp-for="Units" type="number" step="any" min="0" class="form-control" placeholder="All" />
+        </div>
+        <div class="col-6 col-md-2">
+            <label asp-for="Price" class="form-label">Price a unit</label>
+            <input asp-for="Price" type="number" step="any" min="0" class="form-control" placeholder="Latest" />
+        </div>
+        <div class="col-6 col-md-1">
+            <label asp-for="Brokerage" class="form-label">Brokerage</label>
+            <input asp-for="Brokerage" type="number" step="0.01" min="0" class="form-control" placeholder="0" />
+        </div>
+        <div class="col-6 col-md-2">
+            <label asp-for="Date" class="form-label">Sale date</label>
+            <input asp-for="Date" type="date" class="form-control" />
+        </div>
+        <div class="col-6 col-md-2">
+            <label asp-for="TaxRate" class="form-label">Tax rate %</label>
+            <input asp-for="TaxRate" type="number" step="0.5" min="0" max="100" class="form-control" />
+        </div>
+        <div class="col-md-6">
+            <span class="form-label d-block">Parcels</span>
+            @foreach (var m in new[] { ParcelMethod.Fifo, ParcelMethod.MinGain, ParcelMethod.MaxGain })
+            {
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" asp-for="Method" value="@m" id="m-@m" />
+                    <label class="form-check-label" for="m-@m">@ParcelChoices.Label(m)</label>
+                </div>
+            }
+        </div>
+        <div class="col-md-2 ms-auto">
+            <button class="btn btn-primary w-100">Work it out</button>
+        </div>
+    </div>
+</form>
+
+@if (Model.Holding is not null && r is null)
+{
+    <div class="alert alert-warning">There's no price on file for @Model.Holding. Enter the price to sell at.</div>
+}
+@if (r is null)
+{
+    return;
+}
+@if (r.Error is not null)
+{
+    <div class="alert alert-warning">@r.Error</div>
+    return;
+}
+
+@if (Model.PriceDate is { } pd)
+{
+    <p class="small text-muted">Using the last close on file, @pd.ToString("d MMM yyyy").</p>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted">Proceeds</div>
+            <div class="fs-5">@r.Sale.Proceeds.ToString("C")</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted">Capital gain (before @(au ? "discount" : "losses"))</div>
+            <div class="fs-5 @(r.Gain < 0 ? "text-danger" : "")">@r.Gain.ToString("C")</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted">Change to the @r.Year.YearLabel net capital gain</div>
+            <div class="fs-5">@r.NetGainChange.ToString("C")</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted">Tax at @Model.TaxRate?.ToString("0.##")%</div>
+            <div class="fs-5 @(r.TaxChange < 0 ? "text-success" : "")">@r.TaxChange.ToString("C")</div>
+        </div></div>
+    </div>
+</div>
+@if (r.LossCarriedForwardChange != 0)
+{
+    <p>The net capital loss carried forward to next year changes by <strong>@r.LossCarriedForwardChange.ToString("C")</strong>.</p>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Parcel bought</th>
+                    <th class="text-end">Units</th>
+                    <th class="text-end">Cost base</th>
+                    <th class="text-end">Proceeds</th>
+                    <th class="text-end">Gain</th>
+                    @if (au) { <th>Discount</th> }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in r.Events)
+                {
+                    <tr>
+                        <td>@e.Acquired.ToString("d MMM yyyy")</td>
+                        <td class="text-end">@e.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@e.CostBase.ToString("N2")</td>
+                        <td class="text-end">@e.Proceeds.ToString("N2")</td>
+                        <td class="text-end @(e.Gain < 0 ? "text-danger" : "")">@e.Gain.ToString("N2")</td>
+                        @if (au)
+                        {
+                            <td class="small">@(e.Gain <= 0 ? "" : e.DiscountEligible ? "Eligible" : $"From {CgtDiscount.EligibleFrom(e.Acquired):d MMM yyyy}")</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="h6">@r.Year.YearLabel capital gains</h2>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th></th><th class="text-end">Without this sale</th><th class="text-end">With it</th></tr></thead>
+            <tbody>
+                <tr><td>@(au ? "Discount gains" : "Gains held over a year")</td><td class="text-end">@r.Before.DiscountGains.ToString("N2")</td><td class="text-end">@r.After.DiscountGains.ToString("N2")</td></tr>
+                <tr><td>Other gains</td><td class="text-end">@r.Before.OtherGains.ToString("N2")</td><td class="text-end">@r.After.OtherGains.ToString("N2")</td></tr>
+                <tr><td>Losses this year</td><td class="text-end">@r.Before.CurrentYearLosses.ToString("N2")</td><td class="text-end">@r.After.CurrentYearLosses.ToString("N2")</td></tr>
+                <tr><td>Losses from earlier years</td><td class="text-end">@r.Before.PriorYearLosses.ToString("N2")</td><td class="text-end">@r.After.PriorYearLosses.ToString("N2")</td></tr>
+                @if (au)
+                {
+                    <tr><td>Discount (@Model.Rate.RateText)</td><td class="text-end">@r.Before.Discount.ToString("N2")</td><td class="text-end">@r.After.Discount.ToString("N2")</td></tr>
+                }
+                <tr class="fw-bold"><td>Net capital gain</td><td class="text-end">@r.Before.NetCapitalGain.ToString("N2")</td><td class="text-end">@r.After.NetCapitalGain.ToString("N2")</td></tr>
+                <tr><td>Loss carried forward</td><td class="text-end">@r.Before.LossCarriedForward.ToString("N2")</td><td class="text-end">@r.After.LossCarriedForward.ToString("N2")</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="small text-muted mt-2">
+    The tax is the change in net capital gain times the rate you entered, a rough guide only: the real figure depends on the rest of the
+    return. @(au ? "Selling a parcel before its discount date usually costs more tax; the Discount column shows when each one qualifies." : "")
+</p>

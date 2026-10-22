@@ -1,0 +1,231 @@
+@page "{id:int}"
+@model AllocateModel
+@{
+    ViewData["Title"] = "Allocate transaction";
+    var line = Model.Line!;
+    var postsJournals = AccountingMode.PostsJournals(Model.Mode);
+    string Show(string section) => Model.Open == section ? "show" : "";
+    string Collapsed(string section) => Model.Open == section ? "" : "collapsed";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Allocate transaction</h1>
+    <a asp-page="/Accounting/Unallocated" class="btn btn-sm btn-outline-secondary">Back to unallocated</a>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body d-flex flex-wrap gap-4 align-items-center">
+        <div><div class="text-muted small">Date</div><div class="fw-bold">@line.Date.ToString("d MMM yyyy")</div></div>
+        <div class="flex-grow-1"><div class="text-muted small">Description</div><div class="fw-bold">@line.Description</div></div>
+        <div class="text-end">
+            <div class="text-muted small">@(line.IsDeposit ? "Deposit" : "Withdrawal")</div>
+            <div class="fs-4 fw-bold @(line.IsDeposit ? "text-success" : "text-danger")">@line.Amount.ToString("C")</div>
+        </div>
+    </div>
+</div>
+
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+<div class="accordion mb-3" id="allocate">
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button @Collapsed("account")" type="button" data-bs-toggle="collapse" data-bs-target="#toAccount">
+                Assign to an account
+            </button>
+        </h2>
+        <div id="toAccount" class="accordion-collapse collapse @Show("account")" data-bs-parent="#allocate">
+            <div class="accordion-body">
+                <p class="small text-muted">
+                    For anything that isn't a payout or trade: bank fees, interest, transfers, capital contributions and so on.
+                    The amount moves out of Bank Import Suspense into the account you choose, on the transaction's date.
+                </p>
+                <form method="post" asp-page-handler="Account" asp-route-id="@line.LineId" class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label asp-for="AccountId" class="form-label">Account</label>
+                        <select asp-for="AccountId" class="form-select" required>
+                            <option value="">-- Choose an account --</option>
+                            @foreach (var a in Model.Accounts.Where(a => !a.DisplayName.Contains(BankImportService.SuspenseAccountName)))
+                            {
+                                <option value="@a.AccountId">@a.DisplayName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="Description" class="form-label">Description</label>
+                        <input asp-for="Description" class="form-control" maxlength="500" />
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-success w-100">Assign</button>
+                    </div>
+                    @if (Model.TaxCodes.Count > 0)
+                    {
+                        <div class="col-md-6">
+                            <label asp-for="TaxCodeId" class="form-label">@Model.TaxName code</label>
+                            <select asp-for="TaxCodeId" class="form-select" id="allocTaxCode">
+                                <option value="">No @Model.TaxName</option>
+                                @foreach (var c in Model.TaxCodes)
+                                {
+                                    <option value="@c.TaxCodeId" data-rate="@c.Rate.ToString(System.Globalization.CultureInfo.InvariantCulture)">@c.Display</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Tax" class="form-label">@Model.TaxName in the @Math.Abs(line.Amount).ToString("C")</label>
+                            <input asp-for="Tax" type="number" step="0.01" min="0" class="form-control text-end" id="allocTax" data-gross="@Math.Abs(line.Amount).ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                            <div class="form-text">Blank works it out from the rate.</div>
+                        </div>
+                    }
+                    <div class="col-12 d-flex flex-wrap align-items-center gap-2 small">
+                        <div class="form-check mb-0">
+                            <input asp-for="MakeRule" class="form-check-input" />
+                            <label asp-for="MakeRule" class="form-check-label">Make a rule: lines containing</label>
+                        </div>
+                        <input asp-for="RuleText" class="form-control form-control-sm w-auto flex-grow-1" maxlength="200" style="max-width: 24rem" />
+                        <span class="text-muted">go to this account from now on (<a asp-page="/Accounting/Rules">rules</a>)</span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button @Collapsed("payout")" type="button" data-bs-toggle="collapse" data-bs-target="#toPayout">
+                Match to a payout already recorded <span class="badge text-bg-secondary ms-2">@Model.Payouts.Count</span>
+            </button>
+        </h2>
+        <div id="toPayout" class="accordion-collapse collapse @Show("payout")" data-bs-parent="#allocate">
+            <div class="accordion-body">
+                @if (!line.IsDeposit)
+                {
+                    <p class="text-muted mb-0">Only a deposit can be a payout.</p>
+                }
+                else if (Model.Payouts.Count == 0)
+                {
+                    <p class="text-muted mb-0">
+                        No payout of exactly @line.Amount.ToString("C") with a ledger journal is waiting to be matched.
+                        @(postsJournals ? "Record it below instead." : "This portfolio is single-entry, so payouts don't post journals to match.")
+                    </p>
+                }
+                else
+                {
+                    <p class="small text-muted">
+                        The payout already recorded the income and the cash. Matching moves the cash to the imported bank account,
+                        so it's counted once. Closest dates first.
+                    </p>
+                    <partial name="_MatchList" model="new MatchList(Model.Payouts, line.LineId, MatchList.Payout)" />
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button @Collapsed("trade")" type="button" data-bs-toggle="collapse" data-bs-target="#toTrade">
+                Match to a trade <span class="badge text-bg-secondary ms-2">@Model.Trades.Count</span>
+            </button>
+        </h2>
+        <div id="toTrade" class="accordion-collapse collapse @Show("trade")" data-bs-parent="#allocate">
+            <div class="accordion-body">
+                @if (Model.Trades.Count == 0)
+                {
+                    <p class="text-muted mb-0">
+                        No @(line.IsDeposit ? "sell" : "buy") of exactly @Math.Abs(line.Amount).ToString("C") with a ledger journal is waiting to be matched.
+                        Add the trade first (<a asp-page="/Trades/Add">Add a trade</a>), then come back to match it.
+                    </p>
+                }
+                else
+                {
+                    <p class="small text-muted">
+                        A trade recorded with its settlement moves the cash to the imported bank account; one recorded without it is
+                        settled from Trade Clearing. Closest dates first.
+                    </p>
+                    <partial name="_MatchList" model="new MatchList(Model.Trades, line.LineId, MatchList.Trade)" />
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (line.IsDeposit && Model.InvoiceMatches.Count > 0)
+    {
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button @Collapsed("invoice")" type="button" data-bs-toggle="collapse" data-bs-target="#toInvoice">
+                    Match to an invoice <span class="badge text-bg-secondary ms-2">@Model.InvoiceMatches.Count</span>
+                </button>
+            </h2>
+            <div id="toInvoice" class="accordion-collapse collapse @Show("invoice")" data-bs-parent="#allocate">
+                <div class="accordion-body">
+                    <p class="small text-muted">Records the deposit as a payment of the invoice: the bank goes up and the amount the customer owes comes down.
+                        Exact amounts first. A deposit paying several invoices: record the payments on each invoice instead.</p>
+                    <table class="table table-sm align-middle mb-0">
+                        <thead><tr><th>Invoice</th><th>Customer</th><th>Due</th><th class="text-end">Owing</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var m in Model.InvoiceMatches)
+                            {
+                                <tr>
+                                    <td><a asp-page="/Invoices/View" asp-route-id="@m.InvoiceId">@m.Number</a></td>
+                                    <td>@m.Customer</td>
+                                    <td>@m.DueDate.ToString("d")</td>
+                                    <td class="text-end">@m.Balance.ToString("C") @if (m.Exact) { <span class="badge text-bg-success">exact</span> }</td>
+                                    <td class="text-end">
+                                        <form method="post" asp-page-handler="Invoice" asp-route-id="@line.LineId" asp-route-invoiceId="@m.InvoiceId">
+                                            <button type="submit" class="btn btn-sm btn-primary">Match</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (line.IsDeposit)
+    {
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button @Collapsed("new")" type="button" data-bs-toggle="collapse" data-bs-target="#newPayout">
+                    Record a new payout for this deposit
+                </button>
+            </h2>
+            <div id="newPayout" class="accordion-collapse collapse @Show("new")" data-bs-parent="#allocate">
+                <div class="accordion-body">
+                    @if (!postsJournals)
+                    {
+                        <p class="text-muted mb-0">This portfolio is single-entry, so a payout wouldn't post a journal to match. Assign the deposit to an income account instead.</p>
+                    }
+                    else
+                    {
+                        <p class="small text-muted">
+                            Records a dividend, distribution or interest payment of @line.Amount.ToString("C") (as on Add a payout) and matches this deposit to it.
+                            Split the cash received into its parts below.
+                        </p>
+                        <form method="post" asp-page-handler="NewPayout" asp-route-id="@line.LineId">
+                            <partial name="~/Pages/Payouts/_PayoutFields.cshtml" for="PayoutInput" />
+                            <button type="submit" class="btn btn-success">Save payout and match</button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            // The tax box shows the tax the code's rate gives, as a hint; typing a figure overrides it
+            const code = document.getElementById('allocTaxCode'), tax = document.getElementById('allocTax');
+            if (!code || !tax)
+                return;
+            const hint = () => {
+                const rate = parseFloat(code.selectedOptions[0]?.dataset.rate), gross = parseFloat(tax.dataset.gross);
+                tax.placeholder = rate > 0 ? (Math.round(gross * rate / (100 + rate) * 100) / 100).toFixed(2) : '';
+            };
+            code.addEventListener('change', hint);
+            hint();
+        })();
+    </script>
+}

@@ -1,0 +1,128 @@
+@page
+@model PortfolioManager.Web.Pages.CorporateActions.AddReturnOfCapitalModel
+@{
+    ViewData["Title"] = "Record a return of capital";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Record a return of capital</h1>
+    <a asp-page="./Index" class="btn btn-sm btn-outline-secondary">Back to corporate actions</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row">
+    <div class="col-lg-9 col-xl-8">
+        <form method="post" class="card shadow-sm" novalidate>
+            <div class="card-body">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+                <p class="text-muted">
+                    For <strong>@Model.Portfolio.Name</strong>. The cash received reduces the cost base of the parcels held at the end of the payment date,
+                    shared by units. If you bought or sold between the record date and the payment date, use the record date.
+                </p>
+
+                <div class="row g-3">
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Market" class="form-label">Exchange</label>
+                        <input asp-for="Input.Market" class="form-control text-uppercase" maxlength="50" required />
+                        <span asp-validation-for="Input.Market" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Code" class="form-label">Stock code</label>
+                        <input asp-for="Input.Code" class="form-control text-uppercase" maxlength="50" list="holdings" placeholder="e.g. TLS" required />
+                        <datalist id="holdings">
+                            @foreach (var h in Model.Holdings)
+                            {
+                                <option value="@h.Code">@h.Exchange</option>
+                            }
+                        </datalist>
+                        <span asp-validation-for="Input.Code" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Date" class="form-label">Payment date</label>
+                        <input asp-for="Input.Date" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" required />
+                        <span asp-validation-for="Input.Date" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="Input.PerUnit" class="form-label">Amount per unit</label>
+                        <input asp-for="Input.PerUnit" type="number" min="0" step="any" class="form-control" />
+                        <div class="form-text">Per unit held on the day, as on the statement.</div>
+                        <span asp-validation-for="Input.PerUnit" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Total" class="form-label">Or the total received</label>
+                        <input asp-for="Input.Total" type="number" min="0" step="0.01" class="form-control" />
+                        <span asp-validation-for="Input.Total" class="text-danger small"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="Input.Comment" class="form-label">Comment <span class="text-muted small">(optional)</span></label>
+                        <input asp-for="Input.Comment" class="form-control" maxlength="500" />
+                        <span asp-validation-for="Input.Comment" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                @if (Model.Preview is { } p && Model.Return is { } r)
+                {
+                    <div class="border rounded p-3 mt-3 bg-body-tertiary">
+                        <h2 class="h6">@r.Code return of capital of @p.Total.ToString("C") on @r.Date.ToString("d MMM yyyy")</h2>
+                        <p class="small mb-2">
+                            @p.UnitsOnTheDay.ToString("#,##0.####") units held
+                            @if (p.UnitsOnTheDay != p.UnitsHeld)
+                            {
+                                <span>(@p.UnitsHeld.ToString("#,##0.####") in today's units, after later splits)</span>
+                            }
+                            @if (r.PerUnit is { } perUnit)
+                            {
+                                <span>&times; @perUnit.ToString("C4")</span>
+                            }
+                        </p>
+                        <table class="table table-sm mb-2">
+                            <thead>
+                                <tr>
+                                    <th>Parcel bought</th>
+                                    <th class="text-end">Units</th>
+                                    <th class="text-end">Cost base</th>
+                                    <th class="text-end">Share of return</th>
+                                    <th class="text-end">Cost base after</th>
+                                    <th class="text-end">Capital gain (G1)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var parcel in p.Parcels)
+                                {
+                                    <tr>
+                                        <td>@parcel.Acquired.ToString("d MMM yyyy")</td>
+                                        <td class="text-end">@parcel.Share.Units.ToString("#,##0.####")</td>
+                                        <td class="text-end">@parcel.Share.CostBaseBefore.ToString("C")</td>
+                                        <td class="text-end">@parcel.Share.Share.ToString("C")</td>
+                                        <td class="text-end">@parcel.Share.CostBaseAfter.ToString("C")</td>
+                                        <td class="text-end @(parcel.Share.Excess > 0 ? "fw-bold text-success" : "text-muted")">@parcel.Share.Excess.ToString("C")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        @if (p.Excess > 0)
+                        {
+                            <div class="alert alert-info small py-2 mb-0">
+                                @p.Excess.ToString("C") is more than the cost base, so it's a capital gain in the year it was paid (CGT event G1).
+                                Parcels held more than 12 months get the CGT discount on it. It will show on the realised capital gains report.
+                            </div>
+                        }
+                        <div class="small text-muted mt-2">In a double-entry portfolio the cash is posted to the bank and taken off the stock's cost base account.</div>
+                    </div>
+                }
+            </div>
+            <div class="card-footer bg-transparent d-flex gap-2">
+                <button type="submit" asp-page-handler="Preview" class="btn btn-outline-primary">Preview</button>
+                @if (Model.Preview is not null)
+                {
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Record it</button>
+                }
+            </div>
+        </form>
+    </div>
+</div>

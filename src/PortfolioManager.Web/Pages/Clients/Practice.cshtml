@@ -1,0 +1,77 @@
+@page
+@model PracticeModel
+@{
+    ViewData["Title"] = "Practice details";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Practice details</h1>
+    <a asp-page="/Clients/Index" class="btn btn-sm btn-outline-secondary">All clients</a>
+</div>
+
+<p class="text-muted">
+    These belong to your login (@User.Identity!.Name), not to a client. They sign off the compilation report in every client's report pack.
+</p>
+
+<form method="post">
+    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="Input.PracticeName" class="form-label">Practice name</label>
+                    <input asp-for="Input.PracticeName" class="form-control" maxlength="200" required />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Input.PreparerName" class="form-label">Preparer's name</label>
+                    <input asp-for="Input.PreparerName" class="form-control" maxlength="200" required />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Input.TaxAgentNumber" class="form-label">Registered tax agent number</label>
+                    <input asp-for="Input.TaxAgentNumber" class="form-control" maxlength="11" inputmode="numeric" />
+                </div>
+                <div class="col-md-8">
+                    <label asp-for="Input.ProfessionalBody" class="form-label">Professional body or designation (optional)</label>
+                    <input asp-for="Input.ProfessionalBody" class="form-control" maxlength="100" placeholder="e.g. CPA, CA, IPA" />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Input.AddressLine1" class="form-label">Address line 1</label>
+                    <input asp-for="Input.AddressLine1" class="form-control" maxlength="200" />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Input.AddressLine2" class="form-label">Address line 2</label>
+                    <input asp-for="Input.AddressLine2" class="form-control" maxlength="200" />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Input.Suburb" class="form-label">Suburb</label>
+                    <input asp-for="Input.Suburb" class="form-control" maxlength="100" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.State" class="form-label">State</label>
+                    <select asp-for="Input.State" class="form-select">
+                        <option value="">--</option>
+                        @foreach (var s in AustralianStates.All)
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.Postcode" class="form-label">Postcode</label>
+                    <input asp-for="Input.Postcode" class="form-control" maxlength="4" inputmode="numeric" />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Input.Phone" class="form-label">Phone</label>
+                    <input asp-for="Input.Phone" class="form-control" maxlength="50" />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Input.Email" class="form-label">Email</label>
+                    <input asp-for="Input.Email" type="email" class="form-control" maxlength="200" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-success">@(Model.Saved ? "Save practice details" : "Add practice details")</button>
+</form>

@@ -1,0 +1,141 @@
+@page
+@model TaxableIncomeModel
+@{
+    ViewData["Title"] = "Taxable income";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">Taxable income</h1>
+        @if (Model.Portfolio is not null)
+        {
+            <div class="text-muted">@Model.Portfolio.Name &middot; @Model.Period.Description</div>
+        }
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<p class="text-muted small no-print">Dividends, distributions and interest recorded as payouts between the dates below, plus the net capital gain on shares sold.</p>
+
+<partial name="_PeriodFilter" model="Model" />
+
+@{
+    var s = Model.Report.Summary;
+    // Franking and the CGT discount are Australian; elsewhere dividends are one figure
+    var au = RegionSettings.Current.IsAustralia;
+}
+<h2 class="h5">Summary</h2>
+<div class="card shadow-sm mb-4">
+    <table class="table table-sm mb-0">
+        <tbody>
+            @if (au)
+            {
+                <tr><td>Unfranked amounts</td><td class="text-end">@s.Unfranked.ToString("C")</td></tr>
+                <tr><td>Franked amounts</td><td class="text-end">@s.Franked.ToString("C")</td></tr>
+                <tr><td>Franking credits</td><td class="text-end">@s.FrankingCredits.ToString("C")</td></tr>
+            }
+            else
+            {
+                <tr><td>Dividends</td><td class="text-end">@((s.Unfranked + s.Franked).ToString("C"))</td></tr>
+            }
+            <tr><td>Interest</td><td class="text-end">@s.Interest.ToString("C")</td></tr>
+            <tr><td>Trust income</td><td class="text-end">@s.TrustIncome.ToString("C")</td></tr>
+            <tr><td>Foreign tax paid</td><td class="text-end">@s.ForeignTaxPaid.ToString("C")</td></tr>
+            <tr><td>@(au ? "TFN amounts withheld" : "Tax withheld")</td><td class="text-end">@s.TaxWithheld.ToString("C")</td></tr>
+        </tbody>
+        <tfoot>
+            <tr class="table-active fw-bold"><td>Gross income@(au ? " (cash received + franking credits)" : "")</td><td class="text-end">@s.GrossIncome.ToString("C")</td></tr>
+            @if (Model.CapitalGains is { } cg)
+            {
+                <tr>
+                    <td>
+                        Net capital gain (after losses@(cg.Summary.Rate.Applies ? $" and the {cg.Summary.Rate.RateText} CGT discount" : ""))
+                        <a class="small no-print" asp-page="/Reports/CapitalGains" asp-route-fy="@Model.Period.FinancialYear" asp-route-from="@(Model.Period.FinancialYear is null ? Model.Period.From.ToString("yyyy-MM-dd") : null)" asp-route-to="@(Model.Period.FinancialYear is null ? Model.Period.To.ToString("yyyy-MM-dd") : null)">details</a>
+                    </td>
+                    <td class="text-end">@cg.Summary.NetCapitalGain.ToString("C")</td>
+                </tr>
+                <tr class="table-active fw-bold"><td>Gross income including net capital gain</td><td class="text-end">@((s.GrossIncome + cg.Summary.NetCapitalGain).ToString("C"))</td></tr>
+            }
+        </tfoot>
+    </table>
+</div>
+
+@if (Model.CapitalGains is { } note)
+{
+    <p class="text-muted small">
+        Capital gains are the net figure from the realised capital gains report, not the gross gains.
+        @if (note.Summary.LossCarriedForward > 0)
+        {
+            <text>Capital losses exceeded gains: @note.Summary.LossCarriedForward.ToString("C") is carried forward.</text>
+        }
+        @if (note.Summary.Rate.Assumed)
+        {
+            <text>The entity type isn't set to one the discount rules recognise, so the 50% discount was used.</text>
+        }
+    </p>
+}
+
+<h2 class="h5">By holding</h2>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Exch</th>
+                    <th class="text-end">Payments</th>
+                    <th class="text-end">Cash received</th>
+                    @if (au)
+                    {
+                        <th class="text-end">Unfranked</th>
+                        <th class="text-end">Franked</th>
+                        <th class="text-end">Franking credits</th>
+                    }
+                    else
+                    {
+                        <th class="text-end">Dividends</th>
+                    }
+                    <th class="text-end">Interest</th>
+                    <th class="text-end">Trust income</th>
+                    <th class="text-end">Foreign tax</th>
+                    <th class="text-end">Gross income</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Report.Lines.Count == 0)
+                {
+                    <tr><td colspan="@(au ? 11 : 9)" class="text-center text-muted p-4">No payouts recorded between these dates.</td></tr>
+                }
+                @foreach (var l in Model.Report.Lines)
+                {
+                    <tr>
+                        <td class="fw-bold">@l.StockCode</td>
+                        <td class="text-muted small">@l.ExchangeCode</td>
+                        <td class="text-end">@l.PaymentCount</td>
+                        <td class="text-end">@l.CashReceived.ToString("C")</td>
+                        @if (au)
+                        {
+                            <td class="text-end">@l.Unfranked.ToString("C")</td>
+                            <td class="text-end">@l.Franked.ToString("C")</td>
+                            <td class="text-end">@l.FrankingCredits.ToString("C")</td>
+                        }
+                        else
+                        {
+                            <td class="text-end">@((l.Unfranked + l.Franked).ToString("C"))</td>
+                        }
+                        <td class="text-end">@l.Interest.ToString("C")</td>
+                        <td class="text-end">@l.TrustIncome.ToString("C")</td>
+                        <td class="text-end">@l.ForeignTaxPaid.ToString("C")</td>
+                        <td class="text-end fw-bold">@l.GrossIncome.ToString("C")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

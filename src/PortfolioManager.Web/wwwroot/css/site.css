@@ -1,0 +1,192 @@
+.kpi-value {
+    font-size: 1.75rem;
+    font-weight: 600;
+}
+
+/* Validation summaries stay hidden until there is something to say */
+.validation-summary-valid {
+    display: none;
+}
+
+.chart-box {
+    position: relative;
+    height: 300px;
+}
+
+/* Reports print on plain paper without the navbar or filters */
+@media print {
+    nav.navbar,
+    .no-print {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+    }
+
+    main.container {
+        max-width: none;
+        padding: 0;
+    }
+
+    .card {
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+    }
+
+    .table-responsive {
+        overflow: visible !important;
+    }
+}
+
+/* Financial statements: right-aligned amount columns, rules above subtotals and under totals */
+.fs-table {
+    font-variant-numeric: tabular-nums;
+}
+
+.fs-table th, .fs-table td {
+    border-bottom: 0;
+}
+
+.fs-table thead th {
+    border-bottom: 1px solid #adb5bd;
+    vertical-align: bottom;
+}
+
+.fs-table .fs-amt {
+    text-align: right;
+    white-space: nowrap;
+    width: 9rem;
+}
+
+.fs-table .fs-note {
+    text-align: center;
+    width: 3.5rem;
+}
+
+.fs-table .fs-heading th {
+    padding-top: 0.9rem;
+    font-weight: 600;
+}
+
+.fs-table .fs-subheading td {
+    font-style: italic;
+}
+
+.fs-table .fs-subtotal td {
+    font-weight: 600;
+}
+
+.fs-table .fs-subtotal .fs-amt {
+    border-top: 1px solid #212529;
+}
+
+.fs-table .fs-total td {
+    font-weight: 700;
+}
+
+.fs-table .fs-total .fs-amt {
+    border-top: 1px solid #212529;
+    border-bottom: 3px double #212529;
+}
+
+/* Report pack: A4 sheets on screen, one section per printed page */
+.pack-page {
+    background: #fff;
+    max-width: 210mm;
+    margin: 0 auto 1.5rem;
+    padding: 16mm 15mm;
+    box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.12);
+}
+
+.pack-header {
+    border-bottom: 2px solid #212529;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.pack-cover {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 260mm;
+    text-align: center;
+    padding-top: 70mm;
+}
+
+.pack-contents li {
+    padding: 0.35rem 0;
+    border-bottom: 1px dotted #adb5bd;
+}
+
+.pack-footer {
+    margin-top: 1.5rem;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.pack-signatures {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.5rem 3rem;
+    margin-top: 3rem;
+}
+
+.pack-signature {
+    max-width: 18rem;
+}
+
+.pack-sign-line {
+    border-bottom: 1px solid #212529;
+    height: 2.5rem;
+    margin-bottom: 0.25rem;
+}
+
+@media print {
+    @page {
+        size: A4;
+        margin: 15mm 14mm;
+    }
+
+    .pack-page {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        break-after: page;
+        font-size: 10.5pt;
+    }
+
+    .pack-page:last-child {
+        break-after: auto;
+    }
+
+    .pack-cover {
+        min-height: 255mm;
+        padding-top: 60mm;
+    }
+
+    .pack h2, .pack h3, .pack-header {
+        break-after: avoid;
+    }
+
+    .fs-table tr, .pack-signature {
+        break-inside: avoid;
+    }
+
+    .fs-note-section {
+        break-inside: avoid-page;
+    }
+}
+
+/* Phones: no sideways page scroll, inputs big enough that iOS doesn't zoom in, tighter cards and tables */
+@media (max-width: 575.98px) {
+    .form-control, .form-select { font-size: 16px; }
+    main h1, main .h2 { font-size: 1.4rem; }
+    .card-body { padding: .75rem; }
+    .table-sm > :not(caption) > * > * { padding: .25rem .35rem; }
+    /* The first column (usually the code or date) stays in view while a wide table scrolls sideways */
+    .table-responsive > .table > :not(caption) > tr > :first-child:not([colspan]) { position: sticky; left: 0; z-index: 1; background-color: var(--bs-body-bg); }
+    .table-responsive > .table > thead > tr > :first-child:not([colspan]), .table-responsive > .table > tfoot > tr > :first-child:not([colspan]) { background-color: var(--bs-tertiary-bg); }
+    .btn-toolbar, .d-flex.flex-wrap { gap: .5rem; }
+}

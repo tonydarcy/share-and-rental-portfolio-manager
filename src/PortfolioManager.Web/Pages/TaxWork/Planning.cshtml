@@ -1,0 +1,94 @@
+@page
+@model PlanningModel
+@using PortfolioManager.Core.TaxWork
+@{
+    ViewData["Title"] = "Tax planning";
+    var a = Model.Now;
+    var b = Model.Plan;
+    string Diff(decimal x, decimal y) => x == y ? "" : (y - x).ToString("C");
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Tax planning</h1>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+
+@if (Model.Portfolio is null || Model.Workpaper is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+<partial name="_YearPicker" model="Model" />
+@if (!Model.IsIndividual || a is null || b is null)
+{
+    <div class="alert alert-info">Tax planning is for individuals. Companies, trusts and super funds have their own tax pages under Tax work.</div>
+    return;
+}
+
+<p class="text-muted small">Starts from this year's investment income, capital gains and rental figures as recorded so far. Add the income from outside the portfolio,
+    then try a sale, a deductible super contribution or extra deductions. Nothing is saved; the page address keeps the figures, so you can bookmark it.
+    @if (!Model.Rates.Known) { <strong>The rates for @FinancialYear.Label(Model.Year) aren't known yet, so the nearest year's are used.</strong> }</p>
+
+<form method="get" class="no-print">
+    <input type="hidden" name="fy" value="@Model.Year" />
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <h2 class="h6">Outside the portfolio</h2>
+                <div class="row g-2">
+                    <div class="col-sm-4"><label asp-for="OtherIncome" class="form-label small mb-1">Salary and other income</label><input asp-for="OtherIncome" type="number" step="1" class="form-control form-control-sm" /></div>
+                    <div class="col-sm-4"><label asp-for="Payg" class="form-label small mb-1">PAYG withheld</label><input asp-for="Payg" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                    <div class="col-sm-4"><label asp-for="OtherDeductions" class="form-label small mb-1">Other deductions</label><input asp-for="OtherDeductions" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                </div>
+            </div></div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <h2 class="h6">What if</h2>
+                <div class="row g-2">
+                    <div class="col-sm-4"><label asp-for="SaleProceeds" class="form-label small mb-1">Sell shares for</label><input asp-for="SaleProceeds" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                    <div class="col-sm-4"><label asp-for="SaleCost" class="form-label small mb-1">with a cost base of</label><input asp-for="SaleCost" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                    <div class="col-sm-4 d-flex align-items-end"><div class="form-check"><input asp-for="SaleLong" class="form-check-input" /><label asp-for="SaleLong" class="form-check-label small">Held more than 12 months</label></div></div>
+                    <div class="col-sm-6"><label asp-for="Contribution" class="form-label small mb-1">Personal super contribution to claim</label><input asp-for="Contribution" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                    <div class="col-sm-6"><label asp-for="ExtraDeductions" class="form-label small mb-1">Extra deductions (prepaid interest, donations)</label><input asp-for="ExtraDeductions" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                </div>
+                <p class="small text-muted mt-2 mb-0">The concessional cap for @FinancialYear.Label(Model.Year) is @Model.Caps.Concessional.ToString("C0"), including the employer's super.
+                    Unused cap from the last 5 years can be added if the total super balance was under $500,000 at the previous 30 June.</p>
+            </div></div>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary mb-4">Work it out</button>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th></th><th class="text-end">As things stand</th><th class="text-end">With the changes</th><th class="text-end">Difference</th></tr></thead>
+            <tbody>
+                <tr><td>Salary and other income</td><td class="text-end">@a.In.OtherIncome.ToString("C")</td><td class="text-end">@b.In.OtherIncome.ToString("C")</td><td></td></tr>
+                <tr><td>Investment income (dividends grossed up, interest, distributions, less expenses)</td><td class="text-end">@a.In.InvestmentIncome.ToString("C")</td><td class="text-end">@b.In.InvestmentIncome.ToString("C")</td><td></td></tr>
+                <tr><td>Net rent</td><td class="text-end">@a.In.RentalNet.ToString("C")</td><td class="text-end">@b.In.RentalNet.ToString("C")</td><td></td></tr>
+                <tr><td>Net capital gain</td><td class="text-end">@a.In.NetCapitalGain.ToString("C")</td><td class="text-end">@b.In.NetCapitalGain.ToString("C")</td><td class="text-end">@Diff(a.In.NetCapitalGain, b.In.NetCapitalGain)</td></tr>
+                <tr><td>Deductions</td><td class="text-end">@((-a.In.Deductions).ToString("C"))</td><td class="text-end">@((-b.In.Deductions).ToString("C"))</td><td class="text-end">@Diff(-a.In.Deductions, -b.In.Deductions)</td></tr>
+                <tr><td>Personal super contribution claimed</td><td class="text-end">@((-a.In.ConcessionalDeduction).ToString("C"))</td><td class="text-end">@((-b.In.ConcessionalDeduction).ToString("C"))</td><td class="text-end">@Diff(-a.In.ConcessionalDeduction, -b.In.ConcessionalDeduction)</td></tr>
+                <tr class="fw-bold"><td>Taxable income</td><td class="text-end">@a.TaxableIncome.ToString("C0")</td><td class="text-end">@b.TaxableIncome.ToString("C0")</td><td class="text-end">@Diff(a.TaxableIncome, b.TaxableIncome)</td></tr>
+                <tr><td>Tax on taxable income</td><td class="text-end">@a.IncomeTax.ToString("C")</td><td class="text-end">@b.IncomeTax.ToString("C")</td><td class="text-end">@Diff(a.IncomeTax, b.IncomeTax)</td></tr>
+                <tr><td>Low income tax offset</td><td class="text-end">@((-a.Lito).ToString("C"))</td><td class="text-end">@((-b.Lito).ToString("C"))</td><td class="text-end">@Diff(-a.Lito, -b.Lito)</td></tr>
+                <tr><td>Foreign income tax offset</td><td class="text-end">@((-a.In.ForeignTaxOffset).ToString("C"))</td><td class="text-end">@((-b.In.ForeignTaxOffset).ToString("C"))</td><td></td></tr>
+                <tr><td>Medicare levy (@Model.Rates.MedicarePercent.ToString("0.#")%)</td><td class="text-end">@a.Medicare.ToString("C")</td><td class="text-end">@b.Medicare.ToString("C")</td><td class="text-end">@Diff(a.Medicare, b.Medicare)</td></tr>
+                <tr><td>Franking credits (refundable)</td><td class="text-end">@((-a.In.FrankingCredits).ToString("C"))</td><td class="text-end">@((-b.In.FrankingCredits).ToString("C"))</td><td></td></tr>
+                <tr><td>PAYG and TFN amounts withheld</td><td class="text-end">@((-a.In.Withheld).ToString("C"))</td><td class="text-end">@((-b.In.Withheld).ToString("C"))</td><td></td></tr>
+                <tr class="fw-bold table-active"><td>@(b.Payable >= 0 ? "Tax to pay" : "Refund") at lodgment</td><td class="text-end">@a.Payable.ToString("C")</td><td class="text-end">@b.Payable.ToString("C")</td><td class="text-end">@Diff(a.Payable, b.Payable)</td></tr>
+                <tr><td>Contributions tax paid by the super fund (@(b.Division293 ? "30%, Division 293" : "15%"))</td><td class="text-end">@a.ContributionsTax.ToString("C")</td><td class="text-end">@b.ContributionsTax.ToString("C")</td><td class="text-end">@Diff(a.ContributionsTax, b.ContributionsTax)</td></tr>
+                <tr class="fw-bold"><td>Total tax, yours and the fund's</td><td class="text-end">@a.TotalTax.ToString("C")</td><td class="text-end">@b.TotalTax.ToString("C")</td><td class="text-end">@Diff(a.TotalTax, b.TotalTax)</td></tr>
+                <tr class="small text-muted"><td>Marginal rate (before Medicare)</td><td class="text-end">@a.MarginalRate.ToString("P0")</td><td class="text-end">@b.MarginalRate.ToString("P0")</td><td></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+@if (b.In.ConcessionalDeduction > Model.Caps.Concessional)
+{
+    <div class="alert alert-warning mt-3">The contribution is over the @Model.Caps.Concessional.ToString("C0") concessional cap, before counting the employer's super.</div>
+}
+<p class="small text-muted mt-3">An estimate for a resident individual. It leaves out the Medicare levy low-income reduction and surcharge, the senior and pensioner offset,
+    HELP repayments and the foreign tax offset limit above $1,000. To claim a personal contribution the fund must acknowledge a notice of intent before the return is lodged.</p>

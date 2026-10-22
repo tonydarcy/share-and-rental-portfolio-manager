@@ -1,0 +1,94 @@
+@page
+@model PortfolioManager.Web.Pages.CorporateActions.AddSplitModel
+@{
+    ViewData["Title"] = "Record a split or consolidation";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Record a split or consolidation</h1>
+    <a asp-page="./Index" class="btn btn-sm btn-outline-secondary">Back to corporate actions</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row">
+    <div class="col-lg-8 col-xl-7">
+        <form method="post" class="card shadow-sm" novalidate>
+            <div class="card-body">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+                <p class="text-muted">
+                    For <strong>@Model.Portfolio.Name</strong>. Every trade in the holding before the effective date is changed to the new units.
+                    Trades on or after it should already be in the new units.
+                </p>
+
+                <div class="row g-3">
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Market" class="form-label">Exchange</label>
+                        <input asp-for="Input.Market" class="form-control text-uppercase" maxlength="50" required />
+                        <span asp-validation-for="Input.Market" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-8">
+                        <label asp-for="Input.Code" class="form-label">Stock code</label>
+                        <input asp-for="Input.Code" class="form-control text-uppercase" maxlength="50" list="holdings" placeholder="e.g. CBA" required />
+                        <datalist id="holdings">
+                            @foreach (var h in Model.Holdings)
+                            {
+                                <option value="@h.Code">@h.Exchange</option>
+                            }
+                        </datalist>
+                        <span asp-validation-for="Input.Code" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Date" class="form-label">Effective date</label>
+                        <input asp-for="Input.Date" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" required />
+                        <div class="form-text">The first day the shares traded on the new basis (the ex-date).</div>
+                        <span asp-validation-for="Input.Date" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="Input_NewUnits">Ratio</label>
+                        <div class="input-group">
+                            <input asp-for="Input.NewUnits" type="number" min="1" step="1" class="form-control" aria-label="New units" required />
+                            <span class="input-group-text">new for every</span>
+                            <input asp-for="Input.OldUnits" type="number" min="1" step="1" class="form-control" aria-label="Old units" required />
+                        </div>
+                        <div class="form-text">2 for 1 is a split (twice as many units); 1 for 10 is a consolidation.</div>
+                        <span asp-validation-for="Input.NewUnits" class="text-danger small"></span>
+                        <span asp-validation-for="Input.OldUnits" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                @if (Model.Preview is { } p && Model.Split is { } s)
+                {
+                    <div class="border rounded p-3 mt-3 bg-body-tertiary">
+                        <h2 class="h6">@s.Ratio.Kind of @s.Code (@s.Ratio) from @s.Date.ToString("d MMM yyyy")</h2>
+                        <table class="table table-sm mb-2">
+                            <thead><tr><th></th><th class="text-end">Before</th><th class="text-end">After</th></tr></thead>
+                            <tbody>
+                                <tr><td>Units held the day before</td><td class="text-end">@p.UnitsBefore.ToString("#,##0.####")</td><td class="text-end fw-bold">@p.UnitsAfter.ToString("#,##0.####")</td></tr>
+                                <tr><td>Cost base of those units</td><td class="text-end">@p.CostBaseBefore.ToString("C")</td><td class="text-end">@p.CostBaseAfter.ToString("C")</td></tr>
+                            </tbody>
+                        </table>
+                        <div class="small">@p.TradesAdjusted.ToString("N0") trade(s) will change. Purchase dates stay the same, so parcels keep their CGT discount dates.</div>
+                        @if (p.HasFractionalUnits)
+                        {
+                            <div class="alert alert-warning small py-2 mt-2 mb-0">
+                                This leaves part of a unit. The registry will have rounded your holding; the fraction is kept here, so the unit count may differ slightly from your statement.
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="card-footer bg-transparent d-flex gap-2">
+                <button type="submit" asp-page-handler="Preview" class="btn btn-outline-primary">Preview</button>
+                @if (Model.Preview is not null)
+                {
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Record it</button>
+                }
+            </div>
+        </form>
+    </div>
+</div>

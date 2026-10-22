@@ -1,0 +1,26 @@
+@model PortfolioManager.Web.Pages.Shared.CurrencyFieldsView
+@{
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var foreign = Model.Currency is not null;
+}
+<details class="mt-3" open="@foreign">
+    <summary class="small">In another currency</summary>
+    <div class="row g-3 mt-0">
+        <div class="col-sm-4 col-md-2">
+            <label class="form-label" for="currencyCode">Currency</label>
+            <input name="@(Model.Prefix).Currency" id="currencyCode" value="@Model.Currency" class="form-control text-uppercase" maxlength="3"
+                   placeholder="@Model.HomeCurrency" pattern="[A-Za-z]{3}" />
+        </div>
+        <div class="col-sm-8 col-md-4">
+            <label class="form-label" for="exchangeRate">Exchange rate</label>
+            <div class="input-group">
+                <input name="@(Model.Prefix).ExchangeRate" id="exchangeRate" value="@Model.ExchangeRate?.ToString(inv)" type="number" step="any" min="0" class="form-control" />
+                <span class="input-group-text">per 1 @Model.HomeCurrency</span>
+            </div>
+        </div>
+        <div class="col-md-6 small text-muted align-self-end">
+            Leave blank for @Model.HomeCurrency. Prices are then in that currency; the ledger gets the @Model.HomeCurrency amount at this rate,
+            and any difference when it is paid goes to Foreign Exchange Gains and Losses.
+        </div>
+    </div>
+</details>

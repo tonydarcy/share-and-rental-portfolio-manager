@@ -1,0 +1,66 @@
+@page
+@model AgedModel
+@{
+    ViewData["Title"] = "Aged receivables";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Aged receivables</h1>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/Invoices/Index" class="btn btn-sm btn-outline-secondary">All invoices</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="d-flex gap-2 align-items-end mb-3 no-print">
+    <div><label asp-for="AsAt" class="form-label small mb-1">Aged at</label><input asp-for="AsAt" type="date" class="form-control form-control-sm" /></div>
+    <button type="submit" class="btn btn-sm btn-primary">Show</button>
+</form>
+<p class="text-muted small">What each customer owes now on approved invoices dated up to @Model.AsAt?.ToString("d"), by days past the due date. Unapplied credit notes
+    reduce the current column.</p>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Customer</th><th class="text-end">Current</th><th class="text-end">1 to 30 days</th><th class="text-end">31 to 60</th>
+                <th class="text-end">61 to 90</th><th class="text-end">Over 90</th><th class="text-end">Total</th><th class="no-print"></th></tr></thead>
+            <tbody>
+                @if (Model.Rows.Count == 0) { <tr><td colspan="8" class="text-center text-muted p-4">Nothing is owing.</td></tr> }
+                @foreach (var r in Model.Rows)
+                {
+                    <tr>
+                        <td>@r.Customer</td>
+                        <td class="text-end">@r.Current.ToString("C")</td>
+                        <td class="text-end">@r.Days30.ToString("C")</td>
+                        <td class="text-end">@r.Days60.ToString("C")</td>
+                        <td class="text-end">@r.Days90.ToString("C")</td>
+                        <td class="text-end @(r.Older > 0 ? "text-danger fw-bold" : "")">@r.Older.ToString("C")</td>
+                        <td class="text-end fw-bold">@r.Total.ToString("C")</td>
+                        <td class="text-end no-print"><a asp-page="/Invoices/Statement" asp-route-customer="@r.CustomerId" class="btn btn-sm btn-outline-secondary">Statement</a></td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Rows.Count > 0)
+            {
+                <tfoot class="table-active fw-bold">
+                    <tr>
+                        <td>Total</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Current).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Days30).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Days60).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Days90).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Older).ToString("C")</td>
+                        <td class="text-end">@Model.Rows.Sum(r => r.Total).ToString("C")</td>
+                        <td class="no-print"></td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>

@@ -1,0 +1,167 @@
+@page
+@model PortfolioManager.Web.Pages.Payouts.IndexModel
+@{
+    ViewData["Title"] = "Payouts";
+    var t = Model.Summary.Total;
+    var anyRental = Model.Summary.Payouts.Any(p => p.IsRental);
+    // Franked, unfranked and franking credits are Australian; elsewhere dividends are one column
+    var au = RegionSettings.Current.IsAustralia;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Payouts</h1>
+    <div class="d-flex gap-2">
+        <a asp-page="/Payouts/Add" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Add payout</a>
+        <a asp-page="/Payouts/AddRental" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Add rental payout</a>
+        <a asp-page="/Payouts/AddDrp" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Add DRP</a>
+        <a asp-page="/CorporateActions/Announced" class="btn btn-sm btn-outline-success"><i class="bi bi-megaphone"></i> Announced dividends</a>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="card shadow-sm mb-3">
+    <div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <label for="from" class="form-label mb-0">From</label>
+            <input type="date" id="from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control form-control-sm w-auto" />
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <label for="to" class="form-label mb-0">To</label>
+            <input type="date" id="to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control form-control-sm w-auto" />
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Show</button>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Financial year">
+            <a class="btn btn-outline-secondary" asp-page="/Payouts/Index"
+               asp-route-from="@Model.ThisYear.Start.ToString("yyyy-MM-dd")" asp-route-to="@Model.ThisYear.End.ToString("yyyy-MM-dd")">This FY</a>
+            <a class="btn btn-outline-secondary" asp-page="/Payouts/Index"
+               asp-route-from="@Model.LastYear.Start.ToString("yyyy-MM-dd")" asp-route-to="@Model.LastYear.End.ToString("yyyy-MM-dd")">Last FY</a>
+            <a class="btn btn-outline-secondary" asp-page="/Payouts/Index">All</a>
+        </div>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th>
+                    <th>Code</th>
+                    <th class="text-end">Cash received</th>
+                    @if (au)
+                    {
+                        <th class="text-end">Franked</th>
+                        <th class="text-end">Unfranked</th>
+                        <th class="text-end">Franking credit</th>
+                    }
+                    else
+                    {
+                        <th class="text-end">Dividends</th>
+                    }
+                    <th class="text-end">Interest</th>
+                    <th class="text-end">Trust income</th>
+                    <th class="text-end">Tax withheld</th>
+                    <th class="text-end">Other</th>
+                    @if (anyRental)
+                    {
+                        <th class="text-end">Rental income</th>
+                        <th class="text-end">Rental expenses</th>
+                    }
+                    <th>Comment</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Summary.Payouts.Count == 0)
+                {
+                    <tr><td colspan="@(au ? 14 : 12)" class="text-center text-muted p-4">No payouts in this period.</td></tr>
+                }
+                @foreach (var p in Model.Summary.Payouts)
+                {
+                    <tr>
+                        <td class="text-nowrap">@p.Date?.ToString("d MMM yyyy")</td>
+                        <td>
+                            <span class="fw-bold">@p.StockCode</span> <span class="text-muted small">@p.StockExchangeCode</span>
+                            @if (!p.Confirmed)
+                            {
+                                <span class="badge text-bg-warning">Unconfirmed</span>
+                            }
+                            @if (p.IsRental)
+                            {
+                                <span class="badge text-bg-secondary">Rental</span>
+                            }
+                        </td>
+                        <td class="text-end fw-bold">@p.Total.ToString("C")</td>
+                        @if (au)
+                        {
+                            <td class="text-end">@p.Franked.ToString("C")</td>
+                            <td class="text-end">@p.Unfranked.ToString("C")</td>
+                            <td class="text-end">@p.FrankingCredit.ToString("C")</td>
+                        }
+                        else
+                        {
+                            <td class="text-end">@((p.Franked + p.Unfranked).ToString("C"))</td>
+                        }
+                        <td class="text-end">@p.Interest.ToString("C")</td>
+                        <td class="text-end">@p.TrustIncome.ToString("C")</td>
+                        <td class="text-end">@((p.TaxWithheld + p.ForeignTax).ToString("C"))</td>
+                        <td class="text-end">@p.Other.ToString("C")</td>
+                        @if (anyRental)
+                        {
+                            <td class="text-end">@p.RentalIncome.ToString("C")</td>
+                            <td class="text-end">@p.RentalExpenses.ToString("C")</td>
+                        }
+                        <td class="small text-muted">@p.Comment</td>
+                        <td class="text-nowrap text-end">
+                            <a asp-page="@(p.IsRental ? "/Payouts/EditRental" : "/Payouts/Edit")" asp-route-id="@p.PayoutId" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i><span class="visually-hidden">Edit</span></a>
+                            <form method="post" asp-page-handler="Delete" asp-route-id="@p.PayoutId"
+                                  asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" class="d-inline"
+                                  data-confirm="Delete the @p.StockCode payout of @p.Total.ToString("C") on @p.Date?.ToString("d MMM yyyy")?"
+                                  onsubmit="return confirm(this.dataset.confirm);">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i><span class="visually-hidden">Delete</span></button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Summary.Payouts.Count > 0)
+            {
+                <tfoot>
+                    <tr class="table-active fw-bold">
+                        <td colspan="2">Total</td>
+                        <td class="text-end">@t.Total.ToString("C")</td>
+                        @if (au)
+                        {
+                            <td class="text-end">@t.Franked.ToString("C")</td>
+                            <td class="text-end">@t.Unfranked.ToString("C")</td>
+                            <td class="text-end">@t.FrankingCredit.ToString("C")</td>
+                        }
+                        else
+                        {
+                            <td class="text-end">@((t.Franked + t.Unfranked).ToString("C"))</td>
+                        }
+                        <td class="text-end">@t.Interest.ToString("C")</td>
+                        <td class="text-end">@t.TrustIncome.ToString("C")</td>
+                        <td class="text-end">@((t.TaxWithheld + t.ForeignTax).ToString("C"))</td>
+                        <td class="text-end">@t.Other.ToString("C")</td>
+                        @if (anyRental)
+                        {
+                            <td class="text-end">@Model.Summary.Payouts.Sum(p => p.RentalIncome).ToString("C")</td>
+                            <td class="text-end">@Model.Summary.Payouts.Sum(p => p.RentalExpenses).ToString("C")</td>
+                        }
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>
+<p class="text-muted small mt-2">
+    Tax withheld includes TFN and foreign tax. Editing a payout updates its ledger journal to match, and deleting it removes the journal.
+    Deleting a DRP payout also deletes the units it bought.
+</p>

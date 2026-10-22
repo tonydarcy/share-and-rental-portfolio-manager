@@ -1,0 +1,78 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Read a receipt or bill";
+    var r = Model.Result;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Read a receipt or bill</h1>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <form method="post" enctype="multipart/form-data" class="card shadow-sm">
+            <div class="card-body">
+                <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+                <div class="mb-3">
+                    <label asp-for="Upload" class="form-label">The PDF or photo</label>
+                    <input asp-for="Upload" type="file" accept="application/pdf,image/*" capture="environment" class="form-control" required />
+                </div>
+                <fieldset class="mb-3">
+                    <legend class="form-label fs-6">Make</legend>
+                    @foreach (var (value, label) in IndexModel.Makes)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="Make" id="make@(value)" value="@value" checked="@(Model.Make == value)" />
+                            <label class="form-check-label" for="make@(value)">@label</label>
+                        </div>
+                    }
+                </fieldset>
+                <button type="submit" class="btn btn-primary">Read it</button>
+                <p class="small text-muted mt-3 mb-0">
+                    @if (Model.UsesClaude)
+                    {
+                        <text>The file is sent to Claude (Anthropic) to read, then kept here as an attachment. Claude reads scans and photos as well as PDFs.</text>
+                    }
+                    else
+                    {
+                        <text>The built-in reader reads PDFs with text in them (most emailed bills and statements). To read photos and scans as well, the site's administrator can add a Claude API key (see SETUP.md).</text>
+                    }
+                    Whatever is made is a draft: check every figure before you approve it.
+                </p>
+            </div>
+        </form>
+    </div>
+    @if (r is not null)
+    {
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header"><strong>What it says</strong> <span class="small text-muted">(@(r.Source == "Claude" ? "read by Claude" : "built-in reader"), looks like a @r.Kind.ToLowerInvariant())</span></div>
+                <table class="table table-sm mb-0">
+                    <tr><th>From</th><td>@r.Payee</td></tr>
+                    @if (r.TaxNumber is not null) { <tr><th>ABN / tax number</th><td>@r.TaxNumber</td></tr> }
+                    <tr><th>Date</th><td>@r.Date?.ToString("d")</td></tr>
+                    @if (r.DueDate is not null) { <tr><th>Due</th><td>@r.DueDate?.ToString("d")</td></tr> }
+                    <tr><th>Number</th><td>@r.Reference</td></tr>
+                    @if (r.Description is not null) { <tr><th>For</th><td>@r.Description</td></tr> }
+                    <tr><th>Total</th><td>@(r.Total is { } t ? Money.Format(t, r.Currency) : "")</td></tr>
+                    <tr><th>Tax in it</th><td>@(r.Tax is { } x ? Money.Format(x, r.Currency) : "")</td></tr>
+                    @if (r.TradeCode is not null)
+                    {
+                        <tr><th>Trade</th><td>@r.TradeSide @r.Units?.ToString("0.####") @r.TradeCode at @r.Price, brokerage @r.Brokerage</td></tr>
+                    }
+                </table>
+                @if (r.Notes is { Count: > 0 } notes)
+                {
+                    <div class="card-body small text-muted">@string.Join(" ", notes)</div>
+                }
+            </div>
+        </div>
+    }
+</div>

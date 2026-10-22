@@ -1,0 +1,175 @@
+@page
+@model RentalModel
+@using PortfolioManager.Core.TaxWork
+@{
+    ViewData["Title"] = "Rental properties";
+    var s = Model.Schedule;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Rental properties</h1>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/TaxWork/ReturnLabels" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Return labels</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<form method="get" class="d-flex gap-2 align-items-end mb-3 no-print">
+    <div>
+        <label for="fy" class="form-label small text-muted mb-1">Financial year</label>
+        <select id="fy" name="fy" class="form-select form-select-sm" onchange="this.form.submit()">
+            @foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.Year)">@FinancialYear.Label(y)</option> }
+        </select>
+    </div>
+</form>
+@if (Model.Locked)
+{
+    <div class="alert alert-secondary py-2 no-print"><i class="bi bi-lock-fill"></i> @FinancialYear.Label(Model.Year) is locked, so its figures can't be changed.</div>
+}
+
+<p class="text-muted small">Enter each property's figures for the whole property; the schedule takes the owner's share. They go to item 21 of the individual return
+    (Tax work &gt; Return labels). Rental figures are kept here, not in the ledger, so they don't change the ledger or the tax reconciliation.</p>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header fw-bold">Item 21 Rent, @FinancialYear.Label(Model.Year)</div>
+    <table class="table table-sm mb-0">
+        <tbody>
+            <tr><td style="width: 4rem">21P</td><td>Gross rent</td><td class="text-end">@s.GrossRent.ToString("C")</td></tr>
+            <tr><td>21Q</td><td>Interest deductions</td><td class="text-end">@s.Interest.ToString("C")</td></tr>
+            <tr><td>21F</td><td>Capital works deductions</td><td class="text-end">@s.CapitalWorks.ToString("C")</td></tr>
+            <tr><td>21U</td><td>Other rental deductions (including decline in value)</td><td class="text-end">@s.OtherDeductions.ToString("C")</td></tr>
+            <tr class="fw-bold table-active"><td></td><td>Net rent @(s.Net < 0 ? "(a loss)" : "")</td><td class="text-end">@s.Net.ToString("C")</td></tr>
+        </tbody>
+    </table>
+</div>
+
+@foreach (var py in s.Properties)
+{
+    var p = py.Property;
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between flex-wrap gap-2 align-items-center">
+            <div><span class="fw-bold">@p.Address</span> @if (!p.Active) { <span class="badge text-bg-secondary">no longer rented</span> }
+                <span class="small text-muted ms-2">@p.OwnershipPct.ToString("0.##")% owned@(p.FirstEarned is { } fe ? $", first rented {fe:d}" : "")</span></div>
+            <div class="no-print">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit@(p.Id)">Change</button>
+                <form method="post" asp-page-handler="DeleteProperty" asp-route-id="@p.Id" asp-route-fy="@Model.Year" class="d-inline" onsubmit="return confirm('Delete this property and all its figures and assets?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+        <div class="collapse no-print" id="edit@(p.Id)">
+            <div class="card-body border-bottom">
+                <partial name="_RentalPropertyForm" model="(new RentalModel.PropertyInput { Id = p.Id, Address = p.Address, FirstEarned = p.FirstEarned, OwnershipPct = p.OwnershipPct, Active = p.Active, Note = p.Note }, Model.Year)" />
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="post" asp-page-handler="Amounts" asp-route-id="@p.Id" asp-route-fy="@Model.Year">
+                <div class="row g-4">
+                    <div class="col-lg-5">
+                        <h3 class="h6">Income</h3>
+                        @foreach (var c in RentalCategories.Income)
+                        {
+                            <div class="row g-1 mb-1 align-items-center">
+                                <label class="col-7 col-form-label col-form-label-sm" for="a@(p.Id)@c.Key" title="@c.Hint">@c.Name</label>
+                                <div class="col-5"><input id="a@(p.Id)@c.Key" name="Amounts[@c.Key]" type="number" step="0.01" class="form-control form-control-sm text-end" value="@(py.Amounts.TryGetValue(c.Key, out var v) ? v.ToString("0.00") : "")" disabled="@Model.Locked" /></div>
+                            </div>
+                        }
+                        <div class="row g-1 mb-3 align-items-center">
+                            <label class="col-7 col-form-label col-form-label-sm" for="a@(p.Id)weeks">Weeks rented</label>
+                            <div class="col-5"><input id="a@(p.Id)weeks" name="Amounts[@RentalCategories.Weeks]" type="number" step="1" min="0" max="53" class="form-control form-control-sm text-end" value="@(py.Weeks > 0 ? py.Weeks.ToString("0") : "")" disabled="@Model.Locked" /></div>
+                        </div>
+                        <h3 class="h6">Worked out from the assets below</h3>
+                        <table class="table table-sm small">
+                            <tr><td>Capital allowances (decline in value)</td><td class="text-end">@py.CapitalAllowances.ToString("C")</td></tr>
+                            <tr><td>Capital works deductions</td><td class="text-end">@py.CapitalWorks.ToString("C")</td></tr>
+                        </table>
+                        <table class="table table-sm small">
+                            <thead><tr><th>Owner's share</th><th class="text-end">@p.OwnershipPct.ToString("0.##")%</th></tr></thead>
+                            <tr><td>21P Gross rent</td><td class="text-end">@py.GrossRent.ToString("C")</td></tr>
+                            <tr><td>21Q Interest</td><td class="text-end">@py.Interest.ToString("C")</td></tr>
+                            <tr><td>21F Capital works</td><td class="text-end">@py.CapitalWorksShare.ToString("C")</td></tr>
+                            <tr><td>21U Other deductions</td><td class="text-end">@py.OtherDeductions.ToString("C")</td></tr>
+                            <tr class="fw-bold"><td>Net rent</td><td class="text-end">@py.Net.ToString("C")</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-lg-7">
+                        <h3 class="h6">Expenses</h3>
+                        @foreach (var c in RentalCategories.Expenses)
+                        {
+                            <div class="row g-1 mb-1 align-items-center">
+                                <label class="col-7 col-form-label col-form-label-sm" for="a@(p.Id)@c.Key">@c.Name @if (c.Hint is not null) { <i class="bi bi-info-circle text-muted" title="@c.Hint"></i> }</label>
+                                <div class="col-5"><input id="a@(p.Id)@c.Key" name="Amounts[@c.Key]" type="number" step="0.01" class="form-control form-control-sm text-end" value="@(py.Amounts.TryGetValue(c.Key, out var v) ? v.ToString("0.00") : "")" disabled="@Model.Locked" /></div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                @if (!Model.Locked) { <button type="submit" class="btn btn-sm btn-success mt-2 no-print">Save @FinancialYear.Label(Model.Year) figures</button> }
+            </form>
+
+            <h3 class="h6 mt-4">Depreciating assets (Division 40) and capital works (Division 43)</h3>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle small">
+                    <thead class="table-light"><tr><th>Asset</th><th>From</th><th class="text-end">Cost</th><th>How</th><th class="text-end">Opening value</th><th class="text-end">Days</th><th class="text-end">Deduction</th><th class="text-end">Closing value</th><th class="no-print"></th></tr></thead>
+                    <tbody>
+                        @if (py.Assets.Count == 0) { <tr><td colspan="9" class="text-muted">None for this year.</td></tr> }
+                        @foreach (var ay in py.Assets)
+                        {
+                            var a = ay.Asset;
+                            <tr>
+                                <td>@a.Description <span class="text-muted">@(a.IsPlant ? "Div 40" : "Div 43")</span>@if (a.Disposed is { } d) { <div class="text-muted">disposed @d.ToString("d")</div> }</td>
+                                <td>@a.Start.ToString("d")</td>
+                                <td class="text-end">@a.Cost.ToString("C")</td>
+                                <td>@(a.IsPlant ? $"{(a.Method == RentalAssetKinds.DiminishingValue ? "Diminishing value" : "Prime cost")}, {a.LifeYears:0.##} years" : $"{a.Rate:0.##}% a year")</td>
+                                <td class="text-end">@ay.Opening.ToString("C")</td>
+                                <td class="text-end">@ay.Days</td>
+                                <td class="text-end fw-bold">@ay.Deduction.ToString("C")</td>
+                                <td class="text-end">@ay.Closing.ToString("C")</td>
+                                <td class="text-end no-print">
+                                    <form method="post" asp-page-handler="DeleteAsset" asp-route-id="@a.Id" asp-route-fy="@Model.Year" onsubmit="return confirm('Delete this asset for every year?');">
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <details class="no-print">
+                <summary class="small">Add an asset or capital works</summary>
+                <form method="post" asp-page-handler="Asset" asp-route-fy="@Model.Year" class="row g-2 align-items-end mt-1">
+                    <input type="hidden" name="Asset.PropertyId" value="@p.Id" />
+                    <div class="col-md-3"><label class="form-label small mb-1">Kind</label>
+                        <select name="Asset.Kind" class="form-select form-select-sm">
+                            <option value="@RentalAssetKinds.Plant">Depreciating asset (Div 40)</option>
+                            <option value="@RentalAssetKinds.Building">Capital works (Div 43)</option>
+                        </select></div>
+                    <div class="col-md-3"><label class="form-label small mb-1">What</label><input name="Asset.Description" maxlength="200" class="form-control form-control-sm" placeholder="Oven, carpet, building" required /></div>
+                    <div class="col-md-2"><label class="form-label small mb-1">First used or held for rent</label><input name="Asset.Start" type="date" class="form-control form-control-sm" required /></div>
+                    <div class="col-md-2"><label class="form-label small mb-1">Cost</label><input name="Asset.Cost" type="number" step="0.01" min="0.01" class="form-control form-control-sm" required /></div>
+                    <div class="col-md-2"><label class="form-label small mb-1">Disposed (if so)</label><input name="Asset.Disposed" type="date" class="form-control form-control-sm" /></div>
+                    <div class="col-md-3"><label class="form-label small mb-1">Div 40: effective life (years)</label><input name="Asset.LifeYears" type="number" step="0.01" min="0" class="form-control form-control-sm" /></div>
+                    <div class="col-md-3"><label class="form-label small mb-1">Div 40: method</label>
+                        <select name="Asset.Method" class="form-select form-select-sm">
+                            <option value="@RentalAssetKinds.DiminishingValue">Diminishing value (200% / life)</option>
+                            <option value="@RentalAssetKinds.PrimeCost">Prime cost (100% / life)</option>
+                        </select></div>
+                    <div class="col-md-2"><label class="form-label small mb-1">Div 43: rate %</label><input name="Asset.Rate" type="number" step="0.01" value="2.5" class="form-control form-control-sm" /></div>
+                    <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary">Add</button></div>
+                    <div class="col-12 small text-muted">Residential properties: second-hand depreciating assets bought from 9 May 2017 can't be claimed by individuals (they go into the
+                        cost base instead). Capital works are usually 2.5% a year for 40 years from construction; your quantity surveyor's report gives the figures.</div>
+                </form>
+            </details>
+        </div>
+    </div>
+}
+
+<div class="card shadow-sm no-print">
+    <div class="card-header fw-bold">Add a property</div>
+    <div class="card-body"><partial name="_RentalPropertyForm" model="(new RentalModel.PropertyInput(), Model.Year)" /></div>
+</div>

@@ -1,0 +1,61 @@
+@page
+@model BalanceSheetModel
+@{
+    ViewData["Title"] = "Balance sheet";
+    var r = Model.Report;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">Balance sheet</h1>
+        @if (Model.Portfolio is not null)
+        {
+            <div class="text-muted">@Model.Portfolio.Name &middot; as at @Model.Date.ToString("d MMMM yyyy")</div>
+        }
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<partial name="_ModeNotice" model="Model.Mode" />
+<p class="text-muted small no-print">
+    Ledger balances at the date below. Shares are at their cost base as posted by the trades, not market value.
+    Equity includes the profit to date (revenue less expenses).
+</p>
+<partial name="_AsAtFilter" model="Model" />
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Total assets</div>
+            <div class="kpi-value">@r.Assets.ToString("C")</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Total liabilities</div>
+            <div class="kpi-value">@r.Liabilities.ToString("C")</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Net assets</div>
+            <div class="kpi-value">@r.NetAssets.ToString("C")</div>
+        </div></div>
+    </div>
+</div>
+
+@if (r.Difference != 0)
+{
+    <div class="alert alert-warning">
+        Net assets and total equity differ by @Math.Abs(r.Difference).ToString("C"). Some journals don't balance; see the
+        <a asp-page="/Accounting/TrialBalance" asp-route-asAt="@Model.Date.ToString("yyyy-MM-dd")">trial balance</a>.
+    </div>
+}
+
+<partial name="_Statement" model="r.Lines" />

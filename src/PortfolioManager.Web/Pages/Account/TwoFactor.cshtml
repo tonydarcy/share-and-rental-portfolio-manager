@@ -1,0 +1,84 @@
+@page
+@model PortfolioManager.Web.Pages.Account.TwoFactorModel
+@{
+    ViewData["Title"] = "Two-factor sign-in";
+}
+
+<h1 class="h3 mb-3">Two-factor sign-in</h1>
+<div class="row">
+    <div class="col-lg-7">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+
+        @if (Model.NewRecoveryCodes.Count > 0)
+        {
+            <div class="alert alert-warning">
+                <h2 class="h5">Your recovery codes</h2>
+                <p>If you lose your phone, each of these codes lets you log in once in place of an authenticator code.
+                    Print them or keep them in your password manager now: they won't be shown again.</p>
+                <pre class="bg-white border rounded p-3 mb-0 fs-6">@string.Join("\n", Model.NewRecoveryCodes)</pre>
+            </div>
+        }
+
+        @if (Model.IsOn)
+        {
+            <p><span class="badge text-bg-success">On</span> After your password, you're asked for a code from your authenticator app.
+                You have @Model.RecoveryCodesLeft recovery codes left.</p>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <form method="post" class="row g-2 align-items-end">
+                        <div class="col-sm-6">
+                            <label asp-for="Code" class="form-label">Code from your authenticator app</label>
+                            <input asp-for="Code" class="form-control" autocomplete="one-time-code" />
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" asp-page-handler="RecoveryCodes" class="btn btn-outline-primary">Make new recovery codes</button>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" asp-page-handler="Disable" class="btn btn-outline-danger">Turn off</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        }
+        else
+        {
+            <p>Two-factor sign-in protects your portfolios if someone learns your password: after the password, you also
+                enter a 6-digit code from an authenticator app on your phone (Google Authenticator, Microsoft Authenticator,
+                1Password and similar apps all work).</p>
+            <ol>
+                <li>In your authenticator app, add an account and scan this QR code.
+                    <div id="qr" class="my-2" data-uri="@Model.AuthenticatorUri"></div>
+                    Can't scan it? Enter this key instead: <code class="user-select-all">@Model.Secret</code>
+                </li>
+                <li>Enter the 6-digit code the app shows, to check it's working.</li>
+            </ol>
+            <form method="post" asp-page-handler="Enable" class="row g-2 align-items-end">
+                <input type="hidden" asp-for="Secret" />
+                <div class="col-sm-5">
+                    <label asp-for="Code" class="form-label">Code</label>
+                    <input asp-for="Code" class="form-control" autocomplete="one-time-code" inputmode="numeric" />
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">Turn on</button>
+                </div>
+            </form>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    @if (!Model.IsOn)
+    {
+        <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+        <script>
+            (function () {
+                var el = document.getElementById('qr');
+                if (!el || typeof qrcode === 'undefined') return;
+                var qr = qrcode(0, 'M');
+                qr.addData(el.dataset.uri);
+                qr.make();
+                el.innerHTML = qr.createSvgTag(4, 8);
+            })();
+        </script>
+    }
+}

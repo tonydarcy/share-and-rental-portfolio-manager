@@ -1,0 +1,27 @@
+@page
+@model PortfolioManager.Web.Pages.Payouts.AddModel
+@{
+    ViewData["Title"] = "Add payout";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Add a payout</h1>
+    <a asp-page="/Payouts/Index" class="btn btn-sm btn-outline-secondary">Back to payouts</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p class="text-muted">A dividend, distribution or interest payment for <strong>@Model.Portfolio.Name</strong>.</p>
+        <form method="post">
+            <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+            <partial name="_PayoutFields" for="Input" />
+            <button type="submit" class="btn btn-success">Save payout</button>
+        </form>
+    </div>
+</div>

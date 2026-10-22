@@ -1,0 +1,27 @@
+@page "{id:int}"
+@model AccountEditModel
+@{
+    ViewData["Title"] = "Edit account";
+    ViewData["Accounts"] = Model.Accounts;
+    ViewData["EditingId"] = Model.Account?.AccountId;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Edit account</h1>
+    <a asp-page="/Accounting/Accounts" class="btn btn-sm btn-outline-secondary">Back to chart of accounts</a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p class="text-muted">@Model.Account!.Display in <strong>@Model.Portfolio!.Name</strong>.</p>
+        <form method="post">
+            <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+            <partial name="_AccountFields" for="Input" />
+            <p class="form-text">
+                An account with transactions keeps its type. Bank accounts, the suspense and clearing accounts and share cost base
+                accounts keep their names, because trades, cash transactions and imports find them by name.
+            </p>
+            <button type="submit" class="btn btn-success">Save account</button>
+        </form>
+    </div>
+</div>

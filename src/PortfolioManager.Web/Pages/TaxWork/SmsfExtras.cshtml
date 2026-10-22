@@ -1,0 +1,233 @@
+@page
+@model SmsfExtrasModel
+@using PortfolioManager.Core.TaxWork
+@{
+    ViewData["Title"] = "SMSF extras";
+    var w = Model.Workpaper;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">SMSF extras</h1>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/TaxWork/Smsf" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Members</a>
+        <a asp-page="/TaxWork/ReturnLabels" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Return labels</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+    </div>
+</div>
+
+@if (Model.Portfolio is null || w is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+<partial name="_YearPicker" model="Model" />
+@if (!Model.IsSmsf)
+{
+    <div class="alert alert-info">This page is for self-managed super funds. Set the entity type on the client details page.</div>
+    return;
+}
+@{
+    var members = w.Members ?? [];
+    var names = (w.Smsf?.Members ?? []).ToDictionary(m => m.MemberId, m => m.Name);
+    var caps = ContributionCaps.For(Model.Year);
+    var balances = Tbar.Balances(Model.Events, Model.YearEnd);
+    var yearEvents = Model.Events.Where(e => e.Date >= FinancialYear.StartDate(Model.Year) && e.Date <= Model.YearEnd).ToList();
+    var overdue = Model.Events.Where(e => e.Reported is null && e.Due < SmsfExtrasModel.Today).ToList();
+}
+
+@* ---------- TBAR ---------- *@
+<div class="card shadow-sm mb-4">
+    <div class="card-header fw-bold">Transfer balance account report (TBAR) events</div>
+    <div class="card-body">
+        <p class="small text-muted">Every SMSF reports these to the ATO each quarter, by 28 days after the end of the quarter the event happened in. A credit
+            (a pension starting) adds to the member's transfer balance account; a debit (a commutation) takes it down.
+            The general transfer balance cap for @FinancialYear.Label(Model.Year) is @caps.TransferBalanceCap.ToString("C0"); a member's personal cap can be lower if
+            their first pension started in an earlier year.</p>
+        @if (overdue.Count > 0) { <div class="alert alert-warning py-2">@overdue.Count event@(overdue.Count == 1 ? " is" : "s are") past the reporting date and not marked as reported.</div> }
+        <div class="table-responsive">
+            <table class="table table-sm align-middle small">
+                <thead class="table-light"><tr><th>Member</th><th class="text-end">Balance at @Model.YearEnd.ToString("d")</th><th class="text-end">Space left in the general cap</th></tr></thead>
+                <tbody>
+                    @foreach (var (id, name) in names)
+                    {
+                        var b = balances.GetValueOrDefault(id);
+                        <tr class="@(b > caps.TransferBalanceCap ? "table-danger" : "")"><td>@name</td><td class="text-end">@b.ToString("C")</td><td class="text-end">@((caps.TransferBalanceCap - b).ToString("C"))</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <h3 class="h6">Events in @FinancialYear.Label(Model.Year)</h3>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle small">
+                <thead class="table-light"><tr><th>Date</th><th>Member</th><th>Event</th><th class="text-end">Credit</th><th class="text-end">Debit</th><th>Report by</th><th>Reported</th><th class="no-print"></th></tr></thead>
+                <tbody>
+                    @if (yearEvents.Count == 0) { <tr><td colspan="8" class="text-muted">None.</td></tr> }
+                    @foreach (var e in yearEvents)
+                    {
+                        <tr>
+                            <td>@e.Date.ToString("d")</td>
+                            <td>@names.GetValueOrDefault(e.MemberId)</td>
+                            <td>@TbarEventTypes.Label(e.Type)@if (e.Note is { } n) { <div class="text-muted">@n</div> }</td>
+                            <td class="text-end">@(e.IsCredit ? e.Amount.ToString("C") : "")</td>
+                            <td class="text-end">@(e.IsCredit ? "" : e.Amount.ToString("C"))</td>
+                            <td class="@(e.Reported is null && e.Due < SmsfExtrasModel.Today ? "text-danger fw-bold" : "")">@e.Due.ToString("d")</td>
+                            <td>
+                                @if (e.Reported is { } r) { @r.ToString("d") }
+                                else
+                                {
+                                    <form method="post" asp-page-handler="Reported" asp-route-id="@e.Id" asp-route-fy="@Model.Year" class="d-flex gap-1 no-print">
+                                        <input type="date" name="reported" class="form-control form-control-sm" style="width: 9rem" />
+                                        <button type="submit" class="btn btn-sm btn-outline-success">Reported</button>
+                                    </form>
+                                }
+                            </td>
+                            <td class="text-end no-print">
+                                <form method="post" asp-page-handler="DeleteEvent" asp-route-id="@e.Id" asp-route-fy="@Model.Year" onsubmit="return confirm('Delete this event?');">
+                                    <button type="submit" class="btn btn-sm btn-link text-danger p-0">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (names.Count == 0)
+        {
+            <p class="small text-muted mb-0">Add the fund's members first (<a asp-page="/TaxWork/Smsf" asp-route-fy="@Model.Year">Members</a>).</p>
+        }
+        else
+        {
+            <details class="no-print">
+                <summary class="small">Add an event</summary>
+                <form method="post" asp-page-handler="Event" asp-route-fy="@Model.Year" class="row g-2 align-items-end mt-1">
+                    <div class="col-md-3"><label class="form-label small mb-1">Member</label>
+                        <select name="Event.MemberId" class="form-select form-select-sm">@foreach (var (id, name) in names) { <option value="@id">@name</option> }</select></div>
+                    <div class="col-md-2"><label class="form-label small mb-1">Date</label><input name="Event.Date" type="date" class="form-control form-control-sm" required /></div>
+                    <div class="col-md-4"><label class="form-label small mb-1">Event</label>
+                        <select name="Event.Type" class="form-select form-select-sm">@foreach (var t in TbarEventTypes.All) { <option value="@t">@TbarEventTypes.Label(t)</option> }</select></div>
+                    <div class="col-md-3"><label class="form-label small mb-1">Amount</label><input name="Event.Amount" type="number" step="0.01" min="0.01" class="form-control form-control-sm" required /></div>
+                    <div class="col-md-6"><label class="form-label small mb-1">Note</label><input name="Event.Note" maxlength="500" class="form-control form-control-sm" /></div>
+                    <div class="col-md-3"><label class="form-label small mb-1">Reported on (if already)</label><input name="Event.Reported" type="date" class="form-control form-control-sm" /></div>
+                    <div class="col-md-3"><button type="submit" class="btn btn-sm btn-primary">Add event</button></div>
+                </form>
+            </details>
+        }
+    </div>
+</div>
+
+@* ---------- ECPI ---------- *@
+<div class="card shadow-sm mb-4">
+    <div class="card-header fw-bold">Exempt current pension income (ECPI) and the actuary's certificate</div>
+    <div class="card-body">
+        <p class="small mb-2"><span class="badge text-bg-info">Suggested</span> @Model.Suggested.Reason</p>
+        @if (Model.Extras.ActuaryPct is { } ap && w.Data.Settings.EcpiPercent is { } sp && ap != sp)
+        {
+            <div class="alert alert-warning py-2 small">The actuary's @ap.ToString("0.####")% differs from the @sp.ToString("0.####")% in the tax settings, which the return uses.</div>
+        }
+        else if (Model.Extras.ActuaryPct is not null && w.Data.Settings.EcpiPercent is null)
+        {
+            <div class="alert alert-warning py-2 small">The tax settings have no ECPI percentage yet, so the return doesn't use the actuary's figure.</div>
+        }
+        <form method="post" asp-page-handler="Ecpi" asp-route-fy="@Model.Year" class="row g-2 align-items-end">
+            <div class="col-md-3"><label class="form-label small mb-1">Method</label>
+                <select asp-for="Ecpi.Method" class="form-select form-select-sm" disabled="@Model.Locked">
+                    <option value="">Not chosen</option>
+                    @foreach (var m in EcpiMethods.All) { <option value="@m">@(m == EcpiMethods.Both ? "Segregated for part of the year, proportionate for the rest" : m)</option> }
+                </select></div>
+            <div class="col-md-2"><label class="form-label small mb-1">Actuary's exempt %</label><input asp-for="Ecpi.ActuaryPct" type="number" step="0.0001" min="0" max="100" class="form-control form-control-sm" disabled="@Model.Locked" /></div>
+            <div class="col-md-3"><label class="form-label small mb-1">Actuary</label><input asp-for="Ecpi.Actuary" maxlength="200" class="form-control form-control-sm" disabled="@Model.Locked" /></div>
+            <div class="col-md-2"><label class="form-label small mb-1">Certificate date</label><input asp-for="Ecpi.Certificate" type="date" class="form-control form-control-sm" disabled="@Model.Locked" /></div>
+            <div class="col-md-2">@if (!Model.Locked) { <button type="submit" class="btn btn-sm btn-success">Save</button> }</div>
+        </form>
+        <p class="small text-muted mt-2 mb-0">The actuary needs each member's opening balance, contributions, pensions, lump sums and rollovers with their dates
+            (the Members page has them), and the fund's assessable income.</p>
+    </div>
+</div>
+
+@* ---------- Pension minute ---------- *@
+<div class="card shadow-sm mb-4">
+    <div class="card-header fw-bold">Pension payments for @FinancialYear.Label(Model.Year): trustee minute</div>
+    <div class="card-body">
+        @{ var pensions = members.Where(m => m.MinimumPension is not null).ToList(); }
+        @if (pensions.Count == 0)
+        {
+            <p class="text-muted mb-0">No member has a retirement phase account this year.</p>
+        }
+        else
+        {
+            <p>The trustees of <strong>@w.Client.LegalName</strong> resolved that the account-based pensions below be paid for the year
+                @FinancialYear.StartDate(Model.Year).ToString("d MMMM yyyy") to @Model.YearEnd.ToString("d MMMM yyyy"), at least the minimum amount under the
+                Superannuation Industry (Supervision) Regulations, worked out from each account's balance at the start of the year and the member's age then.</p>
+            <table class="table table-sm">
+                <thead><tr><th>Member</th><th class="text-end">Age at the start</th><th class="text-end">Opening pension balance</th><th class="text-end">Minimum</th><th class="text-end">Paid</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var m in pensions)
+                    {
+                        var opening = m.Accounts.Where(a => a.Account.IsPension).Sum(a => a.Account.Opening);
+                        <tr class="@(m.PensionShort ? "table-warning" : "")">
+                            <td>@m.Member.Name</td>
+                            <td class="text-end">@m.Age</td>
+                            <td class="text-end">@opening.ToString("C")</td>
+                            <td class="text-end">@m.MinimumPension?.ToString("C0") @if (m.Age is { } age) { <span class="text-muted small">(@MinimumPension.Factor(age)%)</span> }</td>
+                            <td class="text-end">@m.PensionPaid.ToString("C")</td>
+                            <td>@(m.PensionShort ? "Below the minimum" : "Paid")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <p class="small text-muted">A pension that started during the year has a pro-rata minimum (nil if it started on or after 1 June). Check those by hand.</p>
+            <div class="row mt-4"><div class="col-6">Signed: ______________________</div><div class="col-6">Date: ____________</div></div>
+        }
+    </div>
+</div>
+
+@* ---------- Investment strategy ---------- *@
+<form method="post" asp-page-handler="Strategy" asp-route-fy="@Model.Year">
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold">Investment strategy</span>
+            <button type="submit" class="btn btn-sm btn-success no-print">Save strategy</button>
+        </div>
+        <div class="card-body">
+            <p class="small text-muted">The trustees must set and regularly review a strategy covering the matters below (SIS regulation 4.09). Save it here; print the page
+                for the trustees to sign.</p>
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <h3 class="h6">Target ranges</h3>
+                    <table class="table table-sm align-middle">
+                        <thead><tr><th>Asset class</th><th style="width: 6rem">Lowest %</th><th style="width: 6rem">Highest %</th></tr></thead>
+                        <tbody>
+                            @foreach (var (key, name) in InvestmentStrategy.Classes)
+                            {
+                                <tr><td>@name</td>
+                                    <td><input name="Strategy.Min[@key]" type="number" step="0.1" min="0" max="100" value="@Model.Strategy.Min.GetValueOrDefault(key)" class="form-control form-control-sm" /></td>
+                                    <td><input name="Strategy.Max[@key]" type="number" step="0.1" min="0" max="100" value="@Model.Strategy.Max.GetValueOrDefault(key)" class="form-control form-control-sm" /></td></tr>
+                            }
+                        </tbody>
+                    </table>
+                    <h3 class="h6">The fund's assets at @Model.YearEnd.ToString("d")</h3>
+                    @{ var total = Model.Assets.Sum(a => a.Balance); }
+                    <table class="table table-sm small">
+                        @foreach (var (name, balance) in Model.Assets)
+                        {
+                            <tr><td>@name</td><td class="text-end">@balance.ToString("C")</td><td class="text-end text-muted">@(total == 0 ? "" : (balance / total).ToString("P1"))</td></tr>
+                        }
+                        <tr class="fw-bold"><td>Total</td><td class="text-end">@total.ToString("C")</td><td></td></tr>
+                    </table>
+                </div>
+                <div class="col-lg-6">
+                    @foreach (var (key, name, hint) in InvestmentStrategy.Matters)
+                    {
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold mb-1" for="t@(key)">@name</label>
+                            <textarea id="t@(key)" name="Strategy.Text[@key]" rows="2" class="form-control form-control-sm" placeholder="@hint">@Model.Strategy.Text.GetValueOrDefault(key)</textarea>
+                        </div>
+                    }
+                    <div class="mb-2"><label asp-for="StrategyReviewed" class="form-label small fw-bold mb-1">Reviewed by the trustees on</label>
+                        <input asp-for="StrategyReviewed" type="date" class="form-control form-control-sm" style="max-width: 12rem" /></div>
+                </div>
+            </div>
+            <div class="row mt-4 d-none d-print-flex"><div class="col-6">Trustee: ______________________</div><div class="col-6">Trustee: ______________________</div></div>
+        </div>
+    </div>
+</form>

@@ -1,0 +1,54 @@
+@page
+@model HistoryModel
+@{
+    ViewData["Title"] = "Stock movements";
+    var running = new Dictionary<int, decimal>();
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom gap-2">
+    <h1 class="h2 mb-0">Stock movements</h1>
+    <form method="get" class="d-flex gap-2">
+        <select name="item" class="form-select form-select-sm" aria-label="Item" onchange="this.form.submit()">
+            <option value="">All items</option>
+            @foreach (var i in Model.Items) { <option value="@i.ItemId" selected="@(Model.Item == i.ItemId)">@i.Display</option> }
+        </select>
+        <a asp-page="/Inventory/Index" class="btn btn-sm btn-outline-secondary">Inventory</a>
+    </form>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Date</th><th>Item</th><th>From</th><th class="text-end">In / out</th><th class="text-end">On hand</th><th class="text-end">Cost</th></tr></thead>
+            <tbody>
+                @if (Model.Movements.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted p-4">No stock movements yet.</td></tr>
+                }
+                @foreach (var m in Model.Movements)
+                {
+                    running[m.ItemId] = running.GetValueOrDefault(m.ItemId) + m.Quantity;
+                    var item = Model.Items.FirstOrDefault(i => i.ItemId == m.ItemId);
+                    <tr>
+                        <td>@m.Date.ToString("d")</td>
+                        <td>@item?.Code</td>
+                        <td>
+                            @if (m.Source == "Invoice") { <a asp-page="/Invoices/View" asp-route-id="@m.SourceId">Invoice @m.Document</a> }
+                            else if (m.Source == "Bill") { <a asp-page="/Bills/View" asp-route-id="@m.SourceId">Bill @m.Document</a> }
+                            else { <span>Stocktake @m.Document</span> }
+                        </td>
+                        <td class="text-end @(m.Quantity < 0 ? "text-danger" : "text-success")">@m.Quantity.ToString("+0.####;-0.####")</td>
+                        <td class="text-end">@running[m.ItemId].ToString("0.####")</td>
+                        <td class="text-end">@m.Cost.ToString("C")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
