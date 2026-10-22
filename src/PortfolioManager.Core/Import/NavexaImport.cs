@@ -538,7 +538,9 @@ public static class NavexaParser
     /// <summary>Australian day/month order, as Navexa uses for Australian accounts. ISO dates are fine too.</summary>
     public static bool TryDate(string text, out DateTime date)
     {
-        var ok = DateTime.TryParseExact(text.Trim(), DateFormats, CultureInfo.GetCultureInfo("en-AU"),
+        // Invariant, not en-AU: on Windows (ICU) en-AU abbreviates months as "Oct.", so "15 Oct 2025" would fail.
+        // The formats are explicit and day-first, so nothing here depends on the culture's date order.
+        var ok = DateTime.TryParseExact(text.Trim(), DateFormats, CultureInfo.InvariantCulture,
             DateTimeStyles.AllowWhiteSpaces, out date);
         date = date.Date;
         return ok;
