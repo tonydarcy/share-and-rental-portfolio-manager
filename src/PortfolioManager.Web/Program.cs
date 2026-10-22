@@ -43,7 +43,7 @@ var builder = WebApplication.CreateBuilder(args);
 // or the ConnectionStrings__Default environment variable / appsettings.Production.json on the server.
 var connectionString = builder.Configuration.GetConnectionString("Default");
 if (string.IsNullOrWhiteSpace(connectionString))
-    throw new InvalidOperationException("ConnectionStrings:Default is not set. See README-razor-pages.md.");
+    throw new InvalidOperationException("ConnectionStrings:Default is not set. See SETUP.md.");
 
 // Each connection carries the signed-in login, for the audit trail
 builder.Services.AddSingleton<IDbConnectionFactory>(sp => new AuditedConnectionFactory(connectionString, sp.GetRequiredService<IHttpContextAccessor>()));

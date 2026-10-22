@@ -1,8 +1,9 @@
-# Share Portfolio Manager: new ASP.NET Core site
+# Share Portfolio Manager: technical reference
 
-This folder holds the rebuild of the site in ASP.NET Core Razor Pages (C#, .NET 10).
-It uses the SQL Server database and stored procedures the old Web Forms site used (that site's code has been removed
-from this repository). For a new install, follow [SETUP.md](SETUP.md).
+How each feature works underneath (the pages, the stored procedures they call and the rules they follow), every
+database migration, the API and MCP server, and the daily price updater. For what the site does, start with the
+[README](README.md); to install it, follow [SETUP.md](SETUP.md). The site is ASP.NET Core Razor Pages (C#, .NET 10)
+over a SQL Server database whose stored procedures post the double-entry journals.
 
 | Folder | What it is |
 | --- | --- |
@@ -10,9 +11,9 @@ from this repository). For a new install, follow [SETUP.md](SETUP.md).
 | `src/PortfolioManager.Web` | The Razor Pages website. |
 | `tests/PortfolioManager.Tests` | Automated tests (`dotnet test PortfolioManager.slnx`). |
 
-## What's here so far
+## Features in detail
 
-- **Log in / log out.** Same accounts and passwords as the current site (the PBKDF2 hashes are compatible),
+- **Log in / log out.** Passwords are stored as PBKDF2 hashes (compatible with the older Web Forms site's accounts),
   and attempts are still recorded with `uspRecordLoginAttempt`.
 - **Portfolio picker** in the navbar, using `uspGetAccessiblePortfolios`. The choice is checked
   against that list on every request.
@@ -113,7 +114,7 @@ from this repository). For a new install, follow [SETUP.md](SETUP.md).
   on the Add trade page or in a trade import, takes the FX close on file for its date (the `FOREX` pairs the price
   updater saves, up to a week back), so its cost base is converted at its own date. Share trades > Foreign currency
   trades lists every trade in another currency against the FX close on its date and flags rates more than 5% out.
-  The ledger journal of a foreign trade still posts the order total unconverted (see ROADMAP item 13).
+  The ledger journal of a foreign trade still posts the order total unconverted (see "Foreign shares in the ledger" in ROADMAP.md).
 - **More asset types** (`Core/Prices/ManualPrices.cs`): managed funds, unlisted shares, property and other assets are
   trades on the markets `FUND`, `UNLISTED`, `PROPERTY` and `OTHER`, priced on Prices > Manual prices (one at a time or
   a CSV of Code, Date, Price) for that portfolio only; the price updater skips them. Crypto is market `CRYPTO` with codes
@@ -253,7 +254,7 @@ from this repository). For a new install, follow [SETUP.md](SETUP.md).
   *budgets* by account and month with budget against actual, and *foreign currency* bank accounts, invoices and bills with
   realised gains and losses on payment and a revaluation at a date's rates.
 - **Create an account** from the login page (`AddNewUser`, password stored as a PBKDF2 hash).
-- A navbar link back to the current site for everything not moved yet.
+- An optional link on the login page to an older site (`Site:OldSiteUrl`), for people moving across.
 
 ## Running it on your PC
 
@@ -497,7 +498,7 @@ claude mcp add --transport http portfolio https://app.shareportfoliomanager.com/
 
 Other MCP clients take the same URL and header. Sign-in by OAuth isn't there yet (see ROADMAP.md).
 
-## Deploying to the VPS (IIS)
+## Deploying to IIS
 
 1. Once only: install the **ASP.NET Core 10 Hosting Bundle** on the server, then restart IIS (`iisreset`).
 2. Once only: create a new IIS site on a subdomain (for example `app.shareportfoliomanager.com`) with its own folder,
@@ -512,7 +513,7 @@ Other MCP clients take the same URL and header. Sign-in by OAuth isn't there yet
    and copy the contents of `publish/` to the new site's folder (keep your `appsettings.Production.json`).
    IIS picks up the new files; if a file is locked, drop an `app_offline.htm` into the folder first and delete it afterwards.
 
-Do **not** copy `src/` or `tests/` into the current site's `wwwroot`. The two sites stay in separate folders.
+Do **not** copy `src/`, `tests/` or `.git` into any site's `wwwroot`.
 
 ## Automatic end-of-day share prices
 
