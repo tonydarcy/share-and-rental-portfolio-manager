@@ -6,7 +6,7 @@ using PortfolioManager.Core.Email;
 namespace PortfolioManager.Core.Alerts;
 
 /// <summary>Which emails one login gets about one portfolio.</summary>
-public sealed record AlertSettings(bool PriceTargets, bool Dividends, bool SyncFailures, bool Unallocated)
+public sealed record AlertSettings(bool PriceTargets, bool Dividends, bool SyncFailures, bool Unallocated, bool Property = true)
 {
     public static readonly AlertSettings Default = new(true, true, true, false);
 }
@@ -15,7 +15,7 @@ public sealed record PriceAlert(int PriceAlertId, string ExchangeCode, string St
     DateTime Created, DateTime? Sent, decimal? PriceSent);
 
 /// <summary>One line of an alert email.</summary>
-public sealed record AlertItem(string Kind, string Text, int? PriceAlertId = null, decimal? Price = null);
+public sealed record AlertItem(string Kind, string Text, int? PriceAlertId = null, decimal? Price = null, string? Key = null);
 
 /// <summary>One login's alerts for one portfolio, ready to email.</summary>
 public sealed record AlertDigest(int LoginId, int PortfolioId, string Email, string PortfolioName, IReadOnlyList<AlertItem> Items)
@@ -25,7 +25,7 @@ public sealed record AlertDigest(int LoginId, int PortfolioId, string Email, str
 
 public static class AlertKinds
 {
-    public const string Price = "Price", Dividend = "Dividend", Sync = "Sync", Unallocated = "Unallocated";
+    public const string Price = "Price", Dividend = "Dividend", Sync = "Sync", Unallocated = "Unallocated", Property = "Property";
 
     /// <summary>A price target is reached when the close is at or above (or at or below) it.</summary>
     public static bool Reached(string direction, decimal target, decimal close) =>
@@ -48,13 +48,39 @@ public static class AlertKinds
 /// </summary>
 public sealed class AlertService(IDbConnectionFactory db)
 {
+    private readonly Rentals.PropertyService properties = new(db);
+
+    /// <summary>Missed rent, leases ending, rent reviews and checks due on the portfolio's rental properties, each emailed once.</summary>
+    private async Task<IEnumerable<AlertItem>> PropertyItemsAsync(int portfolioId, DateOnly today)
+    {
+        var list = await new TaxWork.RentalService(db).GetPropertiesAsync(portfolioId);
+        if (list.Count == 0)
+            return [];
+        var book = await properties.GetAsync(portfolioId);
+        var sent = await properties.GetSentAlertsAsync(portfolioId);
+        return Rentals.PropertyReminders.Due(list.Where(p => p.Active), book.Tenancies, book.Payments, book.Compliance, today)
+            .Where(r => !sent.Contains(r.Key))
+            .Select(r => new AlertItem(AlertKinds.Property, $"{r.Address}: {r.Text}", Key: r.Key));
+    }
+
     public async Task<AlertSettings> GetSettingsAsync(int loginId, int portfolioId)
     {
         await using var con = db.Create();
-        var row = await con.QuerySingleOrDefaultAsync<(bool, bool, bool, bool)?>(
-            "SELECT bPriceTargets, bDividends, bSyncFailures, bUnallocated FROM tblAlertSettings WHERE iLoginID = @loginId AND iPortfolioID = @portfolioId",
-            new { loginId, portfolioId });
-        return row is { } r ? new AlertSettings(r.Item1, r.Item2, r.Item3, r.Item4) : AlertSettings.Default;
+        try
+        {
+            var row = await con.QuerySingleOrDefaultAsync<(bool, bool, bool, bool, bool)?>(
+                "SELECT bPriceTargets, bDividends, bSyncFailures, bUnallocated, bProperty FROM tblAlertSettings WHERE iLoginID = @loginId AND iPortfolioID = @portfolioId",
+                new { loginId, portfolioId });
+            return row is { } r ? new AlertSettings(r.Item1, r.Item2, r.Item3, r.Item4, r.Item5) : AlertSettings.Default;
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 207)
+        {
+            // Before 2026-10-23-02-running-a-property.sql
+            var row = await con.QuerySingleOrDefaultAsync<(bool, bool, bool, bool)?>(
+                "SELECT bPriceTargets, bDividends, bSyncFailures, bUnallocated FROM tblAlertSettings WHERE iLoginID = @loginId AND iPortfolioID = @portfolioId",
+                new { loginId, portfolioId });
+            return row is { } r ? new AlertSettings(r.Item1, r.Item2, r.Item3, r.Item4) : AlertSettings.Default;
+        }
     }
 
     public async Task SaveSettingsAsync(int loginId, int portfolioId, AlertSettings s)
@@ -63,7 +89,7 @@ public sealed class AlertService(IDbConnectionFactory db)
         await con.ExecuteAsync("uspSaveAlertSettings", new
         {
             iLoginID = loginId, iPortfolioID = portfolioId,
-            bPriceTargets = s.PriceTargets, bDividends = s.Dividends, bSyncFailures = s.SyncFailures, bUnallocated = s.Unallocated,
+            bPriceTargets = s.PriceTargets, bDividends = s.Dividends, bSyncFailures = s.SyncFailures, bUnallocated = s.Unallocated, bProperty = s.Property,
         }, commandType: CommandType.StoredProcedure);
     }
 
@@ -98,7 +124,7 @@ public sealed class AlertService(IDbConnectionFactory db)
     }
 
     private sealed record Subscriber(int LoginId, int PortfolioId, string Email, string PortfolioName, bool PriceTargets, bool Dividends,
-        bool SyncFailures, bool Unallocated, DateTime LastChecked, DateTime? UnallocatedSent);
+        bool SyncFailures, bool Unallocated, DateTime LastChecked, DateTime? UnallocatedSent, bool Property);
 
     /// <summary>What each login has waiting since it was last checked. Only logins that can still open the portfolio.</summary>
     public async Task<IReadOnlyList<AlertDigest>> GetDueAsync(DateTime utcNow)
@@ -107,7 +133,7 @@ public sealed class AlertService(IDbConnectionFactory db)
         var subscribers = await con.QueryAsync<Subscriber>("""
             SELECT S.iLoginID AS LoginId, S.iPortfolioID AS PortfolioId, L.strLoginEmail AS Email, P.strEntityName AS PortfolioName,
                    S.bPriceTargets AS PriceTargets, S.bDividends AS Dividends, S.bSyncFailures AS SyncFailures, S.bUnallocated AS Unallocated,
-                   S.dtmLastChecked AS LastChecked, CAST(S.dtmUnallocatedSent AS datetime) AS UnallocatedSent
+                   S.dtmLastChecked AS LastChecked, CAST(S.dtmUnallocatedSent AS datetime) AS UnallocatedSent, S.bProperty AS Property
             FROM tblAlertSettings S
             JOIN tblUsers L ON L.iUserId = S.iLoginID
             JOIN tblUsers P ON P.iUserId = S.iPortfolioID
@@ -175,6 +201,8 @@ public sealed class AlertService(IDbConnectionFactory db)
                 if (waiting > 0)
                     items.Add(new AlertItem(AlertKinds.Unallocated, $"{waiting} imported bank line{(waiting == 1 ? " is" : "s are")} waiting to be allocated."));
             }
+            if (s.Property)
+                items.AddRange(await PropertyItemsAsync(s.PortfolioId, DateOnly.FromDateTime(utcNow)));
             digests.Add(new AlertDigest(s.LoginId, s.PortfolioId, s.Email.Trim(), s.PortfolioName.Trim(), items));
         }
         return digests;
@@ -184,6 +212,8 @@ public sealed class AlertService(IDbConnectionFactory db)
     public async Task MarkCheckedAsync(AlertDigest d, DateTime utcNow)
     {
         await using var con = db.Create();
+        foreach (var i in d.Items.Where(i => i.Key is not null))
+            await properties.MarkAlertSentAsync(d.PortfolioId, i.Key!);
         foreach (var i in d.Items.Where(i => i.PriceAlertId is not null))
             await con.ExecuteAsync("uspMarkPriceAlertSent", new { iPriceAlertID = i.PriceAlertId, dblPrice = (double)(i.Price ?? 0) },
                 commandType: CommandType.StoredProcedure);

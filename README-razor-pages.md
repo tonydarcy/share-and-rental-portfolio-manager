@@ -238,8 +238,26 @@ over a SQL Server database whose stored procedures post the double-entry journal
   deposit matched to an invoice from the unallocated page, customer statements, aged receivables and a logo on invoices.
 - **Export to Xero or MYOB** (Accounting menu): every journal, a monthly summary or opening balances as a Xero manual journal CSV
   or a MYOB AccountRight general journal import file, with each account's code (and tax rate) in that system.
-- **More tax work**: *rental properties* (income and expenses by ATO category, Division 40 decline in value and Division 43
-  capital works, owner's share, labels 21P, 21Q, 21F and 21U); *SMSF extras* (TBAR events with report-by dates and each
+- **Rental properties** (Property menu): *yearly figures and assets* (income and expenses by ATO category, Division 40
+  decline in value by diminishing value, prime cost or the low-value pool, Division 43 capital works, balancing adjustments
+  on disposal, days available and used privately); the *rental schedule* laid out like the ATO's with a column per owner,
+  also in the Taxable income report; *income and expenses by month* for any period; *year on year* with changes of $1,000
+  and 25% flagged; a *depreciation schedule* five years ahead; a *review checklist* (interest with no rent, repairs over
+  $5,000, missing agent statement months, weeks not entered, travel, private use, shares nobody owns). Rental payouts with
+  the property's agent statement code, repairs in the maintenance log, the rent ledger (for properties without a code),
+  tenant bills once paid (netted off the expense) and the interest on linked loans (replacing the interest keyed) fill the
+  schedule. *Properties* shows value, linked loans, equity, yields, rent arrears and reminders; each *property's page*
+  keeps details and co-owners, tenancies with the rent ledger, bills to the tenant, the maintenance log (a capital job can
+  be added as capital works), inspections with photos, safety checks and renewals (with each state's usual checks),
+  documents, linked loans and the *sale* (cost base less capital works claimed, main residence days, the six-year rule and
+  the market value rule), which goes into the capital gains report. Property reminders are emailed when property alerts
+  are on (Email alerts). Equity is counted in net worth on the dashboard.
+- **Assistant** (menu): a chat with Claude about the portfolio being looked at, using the same tools as the API. Reads run
+  straight away; every change waits for the person to approve or reject it, then runs through the same checks and change
+  log as an API key (shown as "Site assistant"). Each login saves its own Anthropic API key (encrypted with the site's
+  data protection keys) and picks the model; the host can set `Assistant:AnthropicApiKey` for everyone without one. One
+  conversation is kept per login and portfolio.
+- **More tax work**: *SMSF extras* (TBAR events with report-by dates and each
   member's transfer balance, the actuary's ECPI details, a pension minute and the investment strategy, plus Section F member
   labels); *ATO prefill* (paste or upload the prefill report and compare it with the payouts and statements; lodging itself needs
   ATO digital service provider accreditation, so returns are lodged from a tax package); *tax planning* for individuals (the year
@@ -447,6 +465,17 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
     claim procs, and changes `uspAddAttachment` to take the kinds `Bill` and `ExpenseClaim`.
   - `2026-10-21-29-fixed-assets.sql`: fixed asset register. Adds system accounts 1500, 1590, 5750 and 4910, `tblFixedAssets`,
     `tblDepreciationRuns`, `tblDepreciationEntries` and the depreciation and disposal procs. It only adds things.
+  - `2026-10-23-01-rental-reports.sql`: Property menu reports and tax. Adds an agent statement code, state and value to
+    `tblRentalProperties`, a termination value to `tblRentalAssets`, and `tblRentalOwners`, `tblRentalLoanLinks` and
+    `tblRentalSales` with their procs. Changes `uspSaveRentalAsset` (low-value pool, disposals), `uspDeleteRentalProperty`
+    (removes everything kept on the property) and `uspAddLoanEntry` (private redraws); the older rental procs now start
+    their messages with "Error:".
+  - `2026-10-23-02-running-a-property.sql`: Property > Properties, each property's page. Run after the -01 script. Adds
+    `tblRentalTenancies`, `tblRentalRentPayments`, `tblRentalTenantBills`, `tblRentalJobs`, `tblRentalInspections`,
+    `tblRentalCompliance` and `tblRentalAlertsSent` with their procs, a property alerts setting (`uspSaveAlertSettings`),
+    and the attachment kinds `Property`, `RentalJob` and `Inspection` (`uspAddAttachment`).
+  - `2026-10-23-03-assistant.sql`: the Assistant page. Adds `tblAssistantSettings` and `tblAssistantChats` with their procs,
+    and changes `uspGetApiAuditLog` so the change log shows the assistant's changes as "Site assistant".
 - `2026-10-21-08-alerts.sql`: Email alerts. Run after `2026-10-21-02-announced-actions.sql`. Adds `tblAlertSettings`,
   `tblPriceAlerts`, `uspSaveAlertSettings`, `uspSavePriceAlert`, `uspDeletePriceAlert`, `uspMarkPriceAlertSent` and
   `uspMarkAlertsChecked`. It only adds things.
@@ -482,6 +511,7 @@ portfolio, the tool, what was sent and the result. It shows on the API keys page
 | `list_invoices`, `get_invoice` | `GET /invoices`, `GET /invoices/{invoiceId}` | |
 | `report_capital_gains`, `report_taxable_income`, `report_profit_and_loss` | `GET /reports/capital-gains`, `/taxable-income`, `/profit-and-loss` (`financialYear=` or `from=&to=`) | |
 | `report_unrealised_gains`, `report_trial_balance`, `report_balance_sheet` | `GET /reports/unrealised-gains`, `/trial-balance`, `/balance-sheet` (`asAt=`) | |
+| `report_rental_schedule` | `GET /reports/rental-schedule` (`financialYear=`) | |
 
 `GET /api/v1/tools` lists every tool with its JSON Schema, and `POST /api/v1/tools/{name}` runs any tool with its
 arguments as the JSON body. Bodies use the same field names as the forms (for a trade: `date`, `type`, `market`,

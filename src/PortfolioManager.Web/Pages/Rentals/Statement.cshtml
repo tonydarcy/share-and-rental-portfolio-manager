@@ -1,0 +1,86 @@
+@page
+@model StatementModel
+@{
+    ViewData["Title"] = "Rental income and expenses";
+    var years = FinancialYear.Recent(PortfolioManager.Web.Pages.Reports.PeriodReportModel.Today).ToList();
+    var r = Model.Report;
+}
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">Rental income and expenses</h1>
+        @if (Model.Portfolio is not null) { <div class="text-muted">@(Model.Properties.FirstOrDefault(p => p.Id == Model.Id)?.Address ?? "All properties") &middot; @Model.Period.Description</div> }
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+<partial name="_Nav" />
+<form method="get" class="card shadow-sm mb-3 no-print">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3"><label for="id" class="form-label small text-muted mb-1">Property</label>
+                <select id="id" name="id" class="form-select form-select-sm">
+                    <option value="">All properties</option>
+                    @foreach (var p in Model.Properties) { <option value="@p.Id" selected="@(p.Id == Model.Id)">@p.Address</option> }
+                </select></div>
+            <div class="col-md-3"><label for="fy" class="form-label small text-muted mb-1">Financial year</label>
+                <select id="fy" name="fy" class="form-select form-select-sm">
+                    @foreach (var y in years) { <option value="@y" selected="@(y == Model.Period.FinancialYear)">@FinancialYear.Label(y)</option> }
+                    <option value="" selected="@(Model.Period.FinancialYear is null)">Custom dates</option>
+                </select></div>
+            <div class="col-md-2"><label for="from" class="form-label small text-muted mb-1">From</label><input type="date" id="from" name="from" class="form-control form-control-sm" value="@Model.Period.From.ToString("yyyy-MM-dd")" /></div>
+            <div class="col-md-2"><label for="to" class="form-label small text-muted mb-1">To</label><input type="date" id="to" name="to" class="form-control form-control-sm" value="@Model.Period.To.ToString("yyyy-MM-dd")" /></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100">Update</button></div>
+        </div>
+    </div>
+</form>
+<script>
+    for (const id of ['from', 'to']) document.getElementById(id).addEventListener('change', () => document.getElementById('fy').value = '');
+</script>
+<p class="text-muted small">For the whole property (before the owner's share and private use). Months come from dated records: agent statements, repairs in the
+    maintenance log, rent paid in the rent ledger and bills the tenant paid (which reduce the expense). Figures keyed for a whole year on
+    <a asp-page="/TaxWork/Rental">Yearly figures and assets</a> have no dates, so they show in their own column when a financial year is picked.
+    Depreciation and capital works are on the <a asp-page="/Rentals/Schedule">rental schedule</a>.</p>
+@if (r is null || r.Lines.Count == 0)
+{
+    <div class="alert alert-info">Nothing recorded for @(Model.Id is null ? "these properties" : "this property") in this period.</div>
+    return;
+}
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle small">
+            <thead class="table-light">
+                <tr><th>Item</th>
+                    @foreach (var m in r.Months) { <th class="text-end">@m.ToString("MMM yy")</th> }
+                    @if (Model.Period.FinancialYear is not null) { <th class="text-end">Keyed for the year</th> }
+                    <th class="text-end">Total</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var group in r.Lines.GroupBy(l => l.IsIncome))
+                {
+                    <tr class="table-secondary"><td colspan="@(r.Months.Count + 3)" class="fw-bold">@(group.Key ? "Income" : "Expenses")</td></tr>
+                    @foreach (var l in group)
+                    {
+                        <tr>
+                            <td>@l.Name</td>
+                            @foreach (var m in r.Months) { <td class="text-end">@(l.ByMonth.TryGetValue(m, out var v) ? v.ToString("N0") : "")</td> }
+                            @if (Model.Period.FinancialYear is not null) { <td class="text-end">@(l.Keyed != 0 ? l.Keyed.ToString("N0") : "")</td> }
+                            <td class="text-end fw-bold">@l.Total.ToString("C0")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            <tfoot>
+                <tr class="table-active fw-bold">
+                    <td>Net</td>
+                    @foreach (var m in r.Months) { <td class="text-end">@r.MonthNet(m).ToString("N0")</td> }
+                    @if (Model.Period.FinancialYear is not null) { <td class="text-end">@r.KeyedNet.ToString("N0")</td> }
+                    <td class="text-end">@r.Net.ToString("C0")</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>

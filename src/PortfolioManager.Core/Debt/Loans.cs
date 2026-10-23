@@ -13,8 +13,8 @@ public static class LoanKinds
 
 public static class LoanEntryKinds
 {
-    public const string Drawdown = "Drawdown", Repayment = "Repayment", Interest = "Interest", Fee = "Fee";
-    public static readonly string[] All = [Drawdown, Repayment, Interest, Fee];
+    public const string Drawdown = "Drawdown", Repayment = "Repayment", Interest = "Interest", Fee = "Fee", Redraw = "Redraw";
+    public static readonly string[] All = [Drawdown, Repayment, Interest, Fee, Redraw];
 
     /// <summary>+1 when the entry adds to what's owed (interest and fees charged to the loan).</summary>
     public static int Sign(string k) => k == Repayment ? -1 : 1;
@@ -24,6 +24,7 @@ public static class LoanEntryKinds
         Drawdown => "Drawdown",
         Repayment => "Repayment",
         Interest => "Interest charged",
+        Redraw => "Private redraw (not deductible)",
         _ => "Fee charged",
     };
 }
@@ -37,10 +38,22 @@ public sealed record LoanEntry(int Id, int LoanId, DateOnly Date, string Kind, d
     public decimal Signed => LoanEntryKinds.Sign(Kind) * Amount;
 }
 
-/// <summary>A loan's figures for a year: interest and fees charged, the deductible part of them, and the balance owed at each end.</summary>
-public sealed record LoanYear(Loan Loan, decimal OpeningBalance, decimal Drawdowns, decimal Repayments, decimal Interest, decimal Fees, decimal ClosingBalance)
+/// <summary>
+/// A loan's figures for a year: interest and fees charged, the deductible part of them, and the balance owed at each end.
+/// PrivateRedrawn is what has been redrawn for private use up to the year end.
+/// </summary>
+public sealed record LoanYear(Loan Loan, decimal OpeningBalance, decimal Drawdowns, decimal Repayments, decimal Interest, decimal Fees, decimal ClosingBalance,
+    decimal PrivateRedrawn = 0)
 {
-    public decimal Deductible => Math.Round((Interest + Fees) * Loan.DeductiblePercent / 100m, 2, MidpointRounding.AwayFromZero);
+    /// <summary>
+    /// The deductible part of the balance: the deductible percentage of it, less what was redrawn for private use, so private
+    /// redraws make that much of the interest private (a mixed-purpose loan).
+    /// </summary>
+    public decimal DeductibleShare => PrivateRedrawn <= 0 || ClosingBalance <= 0
+        ? Loan.DeductiblePercent / 100m
+        : Math.Max(0, ClosingBalance * Loan.DeductiblePercent / 100m - PrivateRedrawn) / ClosingBalance;
+
+    public decimal Deductible => Math.Round((Interest + Fees) * DeductibleShare, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>Interest a year at the loan's rate on the closing balance, for a check against what was charged.</summary>
     public decimal ExpectedYearInterest => Math.Round(ClosingBalance * Loan.RatePercent / 100m, 2, MidpointRounding.AwayFromZero);
@@ -64,8 +77,8 @@ public static class LoanCalc
         var opening = mine.Where(e => e.Date < from).Sum(e => e.Signed);
         var year = mine.Where(e => e.Date >= from && e.Date <= to).ToList();
         decimal Sum(string kind) => year.Where(e => e.Kind == kind).Sum(e => e.Amount);
-        return new LoanYear(loan, opening, Sum(LoanEntryKinds.Drawdown), Sum(LoanEntryKinds.Repayment), Sum(LoanEntryKinds.Interest),
-            Sum(LoanEntryKinds.Fee), opening + year.Sum(e => e.Signed));
+        return new LoanYear(loan, opening, Sum(LoanEntryKinds.Drawdown) + Sum(LoanEntryKinds.Redraw), Sum(LoanEntryKinds.Repayment), Sum(LoanEntryKinds.Interest),
+            Sum(LoanEntryKinds.Fee), opening + year.Sum(e => e.Signed), mine.Where(e => e.Kind == LoanEntryKinds.Redraw && e.Date <= to).Sum(e => e.Amount));
     }
 
     public static IReadOnlyList<string> Validate(Loan l)

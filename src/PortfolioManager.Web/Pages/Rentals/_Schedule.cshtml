@@ -1,0 +1,56 @@
+@model PortfolioManager.Core.TaxWork.RentalSchedule
+@using PortfolioManager.Core.TaxWork
+@* The ATO rental property schedule for each property: the whole property and each owner's share. Used by the Rental schedule page and the Taxable income report. *@
+@foreach (var py in Model.Properties)
+{
+    var p = py.Property;
+    var others = p.Others;
+    var lines = py.Lines();
+    <div class="card shadow-sm mb-4 print-break-inside-avoid">
+        <div class="card-header">
+            <div class="fw-bold">@p.Address</div>
+            <div class="small text-muted">
+                Date first earned rental income: @(p.FirstEarned?.ToString("d MMM yyyy") ?? "not entered") &middot;
+                Weeks rented this year: @py.Weeks.ToString("0") &middot;
+                Your share: @p.OwnershipPct.ToString("0.##")%
+                @if (py.PrivateUseFactor < 1) { <text>&middot; Expenses claimed at @py.PrivateUseFactor.ToString("P1") for private use</text> }
+                @if (py.LoanInterest is not null) { <text>&middot; Interest from the linked loans</text> }
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Item</th>
+                        <th class="text-end">Whole property</th>
+                        <th class="text-end">Your share (@p.OwnershipPct.ToString("0.##")%)</th>
+                        @foreach (var o in others) { <th class="text-end">@o.Name (@o.Pct.ToString("0.##")%)</th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var l in lines)
+                    {
+                        if (l.Whole == 0) { continue; }
+                        <tr class="@(l.Label == RentalLabel.None ? "text-muted" : "")">
+                            <td>@l.Name @if (l.Label == RentalLabel.None) { <span class="small">(not deductible, left out)</span> }</td>
+                            <td class="text-end">@l.Whole.ToString("C")</td>
+                            <td class="text-end">@l.Share.ToString("C")</td>
+                            @foreach (var o in others) { <td class="text-end">@Math.Round(l.Whole * o.Pct / 100m, 2).ToString("C")</td> }
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    @{
+                        var owners = new List<RentalPropertyYear> { py };
+                        owners.AddRange(others.Select(o => py.ForShare(o.Pct)));
+                    }
+                    <tr class="table-active"><td>21P Gross rent</td><td class="text-end">@py.WholeIncome.ToString("C")</td>@foreach (var o in owners) { <td class="text-end">@o.GrossRent.ToString("C")</td> }</tr>
+                    <tr class="table-active"><td>21Q Interest deductions</td><td class="text-end">@py.WholeInterest.ToString("C")</td>@foreach (var o in owners) { <td class="text-end">@o.Interest.ToString("C")</td> }</tr>
+                    <tr class="table-active"><td>21F Capital works deductions</td><td class="text-end">@py.WholeCapitalWorks.ToString("C")</td>@foreach (var o in owners) { <td class="text-end">@o.CapitalWorksShare.ToString("C")</td> }</tr>
+                    <tr class="table-active"><td>21U Other rental deductions</td><td class="text-end">@py.WholeOther.ToString("C")</td>@foreach (var o in owners) { <td class="text-end">@o.OtherDeductions.ToString("C")</td> }</tr>
+                    <tr class="table-active fw-bold"><td>Net rent</td><td class="text-end">@py.WholeNet.ToString("C")</td>@foreach (var o in owners) { <td class="text-end">@o.Net.ToString("C")</td> }</tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+}

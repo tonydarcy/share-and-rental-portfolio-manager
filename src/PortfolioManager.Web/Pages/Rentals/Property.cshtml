@@ -1,0 +1,375 @@
+@page
+@model PropertyModel
+@using PortfolioManager.Core.Debt
+@using PortfolioManager.Core.Practice
+@{
+    ViewData["Title"] = Model.Property?.Address ?? "Rental property";
+    var p = Model.Property;
+    var b = Model.Book;
+    var today = PropertyModel.Today;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    string Num(decimal? d) => d?.ToString("0.##", inv) ?? "";
+    string Iso(DateOnly? d) => d?.ToString("yyyy-MM-dd") ?? "";
+}
+@functions {
+    private IEnumerable<Attachment> FilesFor(string kind, int id) => Model.Files.Where(f => f.Kind == kind && f.TargetId == id);
+}
+
+@if (Model.Portfolio is null || p is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">@p.Address</h1>
+        <div class="text-muted">@p.OwnershipPct.ToString("0.##")% yours@(p.FirstEarned is { } fe ? $" · first rented {fe:d MMM yyyy}" : "")@(p.Active ? "" : " · no longer rented")</div>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a asp-page="/TaxWork/Rental" class="btn btn-sm btn-outline-secondary">Yearly figures and assets</a>
+        <a asp-page="/Rentals/Statement" asp-route-id="@p.Id" class="btn btn-sm btn-outline-secondary">Income and expenses</a>
+    </div>
+</div>
+<partial name="_Nav" />
+<nav class="small mb-3 no-print">
+    Jump to: <a href="#details">Details and owners</a> &middot; <a href="#tenancies">Tenancies and rent</a> &middot; <a href="#bills">Bills to the tenant</a> &middot;
+    <a href="#maintenance">Maintenance</a> &middot; <a href="#inspections">Inspections</a> &middot; <a href="#compliance">Safety checks and renewals</a> &middot;
+    <a href="#documents">Documents</a> &middot; <a href="#loans">Loans</a> &middot; <a href="#sale">Sale</a>
+</nav>
+
+@* ---------------- Details and owners ---------------- *@
+<div class="card shadow-sm mb-4" id="details">
+    <div class="card-header fw-bold">Details and owners</div>
+    <div class="card-body">
+        <form method="post" asp-page-handler="Details" asp-route-id="@p.Id" class="row g-2 align-items-end">
+            <div class="col-md-3"><label class="form-label small mb-1" for="Details_PayoutCode">Agent statement code</label>
+                <input asp-for="Details.PayoutCode" maxlength="50" class="form-control form-control-sm text-uppercase" placeholder="e.g. 12SMITHST" />
+                <div class="form-text">The property code used on <a asp-page="/Payouts/AddRental">rental payouts</a>, so they fill the schedule.</div></div>
+            <div class="col-md-2"><label class="form-label small mb-1" for="Details_State">State</label>
+                <select asp-for="Details.State" class="form-select form-select-sm"><option value="">Not set</option>@foreach (var s in CompliancePresets.States) { <option value="@s">@s</option> }</select></div>
+            <div class="col-md-2"><label class="form-label small mb-1" for="Details_Value">Value (whole property)</label><input asp-for="Details.Value" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+            <div class="col-md-2"><label class="form-label small mb-1" for="Details_Valued">Valued on</label><input asp-for="Details.Valued" type="date" class="form-control form-control-sm" /></div>
+            <div class="col-md-3"><button type="submit" class="btn btn-sm btn-primary">Save details</button></div>
+        </form>
+        <h3 class="h6 mt-4">Owners</h3>
+        <table class="table table-sm small mb-2" style="max-width: 36rem">
+            <tr><td>You (this portfolio)</td><td class="text-end">@p.OwnershipPct.ToString("0.##")%</td><td></td></tr>
+            @foreach (var o in p.Others)
+            {
+                <tr><td>@o.Name</td><td class="text-end">@o.Pct.ToString("0.##")%</td>
+                    <td class="text-end no-print"><form method="post" asp-page-handler="DeleteOwner" asp-route-id="@p.Id" asp-route-ownerId="@o.Id"><button class="btn btn-link btn-sm text-danger p-0">Remove</button></form></td></tr>
+            }
+            @if (p.UnrecordedPct > 0.001m) { <tr class="text-muted"><td>Not recorded</td><td class="text-end">@p.UnrecordedPct.ToString("0.##")%</td><td></td></tr> }
+        </table>
+        <form method="post" asp-page-handler="AddOwner" asp-route-id="@p.Id" class="row g-2 align-items-end no-print" style="max-width: 36rem">
+            <div class="col-6"><label class="form-label small mb-1">Other owner</label><input name="Line.Who" maxlength="200" class="form-control form-control-sm" required /></div>
+            <div class="col-3"><label class="form-label small mb-1">Share %</label><input name="Line.Amount" type="number" step="0.01" min="0.01" max="100" class="form-control form-control-sm" required /></div>
+            <div class="col-3"><button type="submit" class="btn btn-sm btn-outline-primary">Add owner</button></div>
+        </form>
+        <div class="form-text">Each owner gets their own column on the <a asp-page="/Rentals/Schedule">rental schedule</a>. Change your own share on <a asp-page="/TaxWork/Rental">Yearly figures and assets</a>.</div>
+    </div>
+</div>
+
+@* ---------------- Tenancies and the rent ledger ---------------- *@
+<div class="card shadow-sm mb-4" id="tenancies">
+    <div class="card-header fw-bold">Tenancies and rent</div>
+    <div class="card-body">
+        @if (b.Tenancies.Count == 0) { <p class="text-muted small">No tenancies yet.</p> }
+        @foreach (var t in b.Tenancies)
+        {
+            var pos = RentLedger.Position(t, b.Payments, today);
+            var payments = b.Payments.Where(x => x.TenancyId == t.Id).ToList();
+            <div class="border rounded p-2 mb-3">
+                <div class="d-flex justify-content-between flex-wrap gap-2">
+                    <div>
+                        <span class="fw-bold">@t.Tenants</span> @if (t.Current(today)) { <span class="badge text-bg-success">current</span> } else if (t.Vacated is not null) { <span class="badge text-bg-secondary">left @t.Vacated?.ToString("d MMM yyyy")</span> }
+                        <div class="small text-muted">@t.Rent.ToString("C") @RentFrequencies.Text(t.Frequency) from @t.Start.ToString("d MMM yyyy")@(t.LeaseEnd is { } le ? $", lease to {le:d MMM yyyy}" : ", periodic")
+                            @(t.Bond is > 0 ? $" · bond {t.Bond:C}" + (t.BondLodgement is { } bl ? $" (lodgment {bl})" : " (not lodged)") : "")
+                            @(t.RentReview is { } rr ? $" · rent review {rr:d MMM yyyy}" : "")
+                            @(t.Email is not null || t.Phone is not null ? $" · {t.Email} {t.Phone}" : "")</div>
+                    </div>
+                    <div class="text-end small">
+                        Due to date @pos.Due.ToString("C") &middot; paid @pos.Paid.ToString("C")<br />
+                        @if (pos.Arrears > 0) { <span class="badge text-bg-danger">@pos.Arrears.ToString("C") behind</span> <span>since @pos.OldestUnpaid?.ToString("d MMM yyyy")</span> }
+                        else if (pos.Credit > 0) { <span class="badge text-bg-success">@pos.Credit.ToString("C") in advance</span> }
+                        @if (pos.PaidTo is { } pt) { <div>Paid to @pt.ToString("d MMM yyyy")</div> }
+                    </div>
+                </div>
+                <details class="mt-2">
+                    <summary class="small">Rent ledger (@payments.Count payment@(payments.Count == 1 ? "" : "s"))</summary>
+                    <table class="table table-sm small mt-2 mb-2">
+                        <thead class="table-light"><tr><th>Paid</th><th class="text-end">Amount</th><th>Note</th><th class="no-print"></th></tr></thead>
+                        @foreach (var pay in payments)
+                        {
+                            <tr><td>@pay.Paid.ToString("d MMM yyyy")</td><td class="text-end">@pay.Amount.ToString("C")</td><td>@pay.Note</td>
+                                <td class="text-end no-print"><form method="post" asp-page-handler="DeletePayment" asp-route-id="@p.Id" asp-route-itemId="@pay.Id"><button class="btn btn-link btn-sm text-danger p-0">Delete</button></form></td></tr>
+                        }
+                    </table>
+                    <form method="post" asp-page-handler="Payment" asp-route-id="@p.Id" class="row g-2 align-items-end no-print">
+                        <input type="hidden" name="Line.TenancyId" value="@t.Id" />
+                        <div class="col-md-3"><label class="form-label small mb-1">Date paid</label><input name="Line.Date" type="date" value="@Iso(today)" class="form-control form-control-sm" required /></div>
+                        <div class="col-md-3"><label class="form-label small mb-1">Amount</label><input name="Line.Amount" type="number" step="0.01" value="@Num(t.Rent)" class="form-control form-control-sm" required /></div>
+                        <div class="col-md-4"><label class="form-label small mb-1">Note</label><input name="Line.Description" maxlength="300" class="form-control form-control-sm" /></div>
+                        <div class="col-md-2"><button type="submit" class="btn btn-sm btn-outline-primary">Record rent</button></div>
+                    </form>
+                    @if (p.PayoutCode is not null) { <div class="form-text">This property has an agent statement code, so the rent on the schedule comes from the agent statements, not this ledger.</div> }
+                    else { <div class="form-text">Rent recorded here goes to gross rent on the schedule (the property has no agent statement code).</div> }
+                </details>
+                <details class="no-print">
+                    <summary class="small">Change or end this tenancy</summary>
+                    <partial name="_TenancyForm" model="(t, p.Id)" />
+                    <form method="post" asp-page-handler="DeleteTenancy" asp-route-id="@p.Id" asp-route-itemId="@t.Id" onsubmit="return confirm('Delete this tenancy and its rent payments?');">
+                        <button type="submit" class="btn btn-sm btn-link text-danger p-0">Delete tenancy</button>
+                    </form>
+                </details>
+            </div>
+        }
+        <details class="no-print" open="@(b.Tenancies.Count == 0)">
+            <summary class="small">Add a tenancy</summary>
+            <partial name="_TenancyForm" model="((Tenancy?)null, p.Id)" />
+        </details>
+    </div>
+</div>
+
+@* ---------------- Bills to the tenant ---------------- *@
+<div class="card shadow-sm mb-4" id="bills">
+    <div class="card-header fw-bold">Bills to the tenant</div>
+    <div class="card-body">
+        <p class="small text-muted">Water usage and other costs passed on to the tenant. Once paid, the amount comes off that expense on the schedule for the year it was paid.</p>
+        <table class="table table-sm small">
+            <thead class="table-light"><tr><th>Billed</th><th>What</th><th>Expense</th><th class="text-end">Amount</th><th>Paid</th><th class="no-print"></th></tr></thead>
+            @if (b.Bills.Count == 0) { <tr><td colspan="6" class="text-muted">None yet.</td></tr> }
+            @foreach (var bill in b.Bills)
+            {
+                <tr class="@(bill.Paid is null ? "table-warning" : "")"><td>@bill.Billed.ToString("d MMM yyyy")</td><td>@bill.Description</td><td>@bill.CategoryName</td><td class="text-end">@bill.Amount.ToString("C")</td>
+                    <td>@(bill.Paid?.ToString("d MMM yyyy") ?? "Not yet")</td>
+                    <td class="text-end no-print text-nowrap">
+                        @if (bill.Paid is null) { <form method="post" asp-page-handler="BillPaid" asp-route-id="@p.Id" asp-route-itemId="@bill.Id" class="d-inline"><button class="btn btn-link btn-sm p-0">Paid today</button></form> }
+                        <form method="post" asp-page-handler="DeleteBill" asp-route-id="@p.Id" asp-route-itemId="@bill.Id" class="d-inline ms-2"><button class="btn btn-link btn-sm text-danger p-0">Delete</button></form></td></tr>
+            }
+        </table>
+        <form method="post" asp-page-handler="Bill" asp-route-id="@p.Id" class="row g-2 align-items-end no-print">
+            <div class="col-md-2"><label class="form-label small mb-1">Billed</label><input name="Line.Date" type="date" value="@Iso(today)" class="form-control form-control-sm" required /></div>
+            <div class="col-md-3"><label class="form-label small mb-1">What</label><input name="Line.Description" maxlength="300" class="form-control form-control-sm" placeholder="Water usage Jan to Mar" required /></div>
+            <div class="col-md-2"><label class="form-label small mb-1">Expense it recovers</label>
+                <select name="Line.Kind" class="form-select form-select-sm">@foreach (var k in TenantBillCategories.Keys) { <option value="@k">@(RentalCategories.Find(k)?.Name)</option> }</select></div>
+            <div class="col-md-2"><label class="form-label small mb-1">Amount</label><input name="Line.Amount" type="number" step="0.01" min="0.01" class="form-control form-control-sm" required /></div>
+            <div class="col-md-2"><label class="form-label small mb-1">Tenancy</label>
+                <select name="Line.TenancyId" class="form-select form-select-sm"><option value="">None</option>@foreach (var t in b.Tenancies) { <option value="@t.Id" selected="@t.Current(today)">@t.Tenants</option> }</select></div>
+            <div class="col-md-1"><button type="submit" class="btn btn-sm btn-outline-primary">Add</button></div>
+        </form>
+    </div>
+</div>
+
+@* ---------------- Maintenance log ---------------- *@
+<div class="card shadow-sm mb-4" id="maintenance">
+    <div class="card-header fw-bold">Maintenance log</div>
+    <div class="card-body">
+        <p class="small text-muted">Decide the tax treatment when the work is done. Repairs go to repairs and maintenance on the schedule for the year they were done.
+            Initial repairs (fixing what was wrong when you bought it) and improvements are capital: add them as capital works, and they count in the cost base when the property is sold
+            (@Model.CapitalJobs.ToString("C") so far).</p>
+        <table class="table table-sm small align-middle">
+            <thead class="table-light"><tr><th>Done</th><th>What</th><th>Who</th><th class="text-end">Cost</th><th>Treatment</th><th>Files</th><th class="no-print"></th></tr></thead>
+            @if (b.Jobs.Count == 0) { <tr><td colspan="7" class="text-muted">None yet.</td></tr> }
+            @foreach (var j in b.Jobs)
+            {
+                <tr><td>@j.Done.ToString("d MMM yyyy")</td><td>@j.Description@(j.InvoiceRef is { } inr ? $" (invoice {inr})" : "")</td><td>@j.Tradesperson</td><td class="text-end">@j.Cost.ToString("C")</td>
+                    <td>@JobTreatments.Text(j.Treatment)</td>
+                    <td>@foreach (var f in FilesFor(AttachmentKinds.RentalJob, j.Id)) { <div><a asp-page="/Attachments/Index" asp-page-handler="Download" asp-route-id="@f.Id">@f.FileName</a></div> }
+                        <form method="post" asp-page-handler="Upload" asp-route-id="@p.Id" asp-route-kind="@AttachmentKinds.RentalJob" asp-route-target="@j.Id" enctype="multipart/form-data" class="d-flex gap-1 no-print">
+                            <input type="file" name="Upload" class="form-control form-control-sm" style="max-width: 12rem" required /><button class="btn btn-sm btn-outline-secondary">Attach</button></form></td>
+                    <td class="text-end no-print text-nowrap">
+                        @if (j.IsCapital) { <form method="post" asp-page-handler="JobToAsset" asp-route-id="@p.Id" asp-route-itemId="@j.Id" class="d-inline"><button class="btn btn-link btn-sm p-0" title="Adds it to the depreciating assets and capital works at 2.5% a year">Add as capital works</button></form> }
+                        <form method="post" asp-page-handler="DeleteJob" asp-route-id="@p.Id" asp-route-itemId="@j.Id" class="d-inline ms-2"><button class="btn btn-link btn-sm text-danger p-0">Delete</button></form></td></tr>
+            }
+        </table>
+        <form method="post" asp-page-handler="Job" asp-route-id="@p.Id" class="row g-2 align-items-end no-print">
+            <div class="col-md-2"><label class="form-label small mb-1">Done</label><input name="Line.Date" type="date" value="@Iso(today)" class="form-control form-control-sm" required /></div>
+            <div class="col-md-3"><label class="form-label small mb-1">What was done</label><input name="Line.Description" maxlength="300" class="form-control form-control-sm" required /></div>
+            <div class="col-md-2"><label class="form-label small mb-1">Tradesperson</label><input name="Line.Who" maxlength="200" class="form-control form-control-sm" /></div>
+            <div class="col-md-1"><label class="form-label small mb-1">Cost</label><input name="Line.Amount" type="number" step="0.01" min="0" class="form-control form-control-sm" required /></div>
+            <div class="col-md-2"><label class="form-label small mb-1">Treatment</label>
+                <select name="Line.Kind" class="form-select form-select-sm">@foreach (var k in JobTreatments.All) { <option value="@k">@JobTreatments.Text(k)</option> }</select></div>
+            <div class="col-md-1"><label class="form-label small mb-1">Invoice no.</label><input name="Line.Reference" maxlength="100" class="form-control form-control-sm" /></div>
+            <div class="col-md-1"><button type="submit" class="btn btn-sm btn-outline-primary">Add</button></div>
+        </form>
+    </div>
+</div>
+
+@* ---------------- Inspections ---------------- *@
+<div class="card shadow-sm mb-4" id="inspections">
+    <div class="card-header fw-bold">Inspections and condition reports</div>
+    <div class="card-body">
+        <p class="small text-muted">Entry, routine and exit inspections with notes and photos, kept with the property in case of a bond dispute.</p>
+        @if (b.Inspections.Count == 0) { <p class="text-muted small">None yet.</p> }
+        @foreach (var i in b.Inspections)
+        {
+            <div class="border rounded p-2 mb-2">
+                <div class="d-flex justify-content-between">
+                    <div><span class="fw-bold">@InspectionKinds.Text(i.Kind)</span> <span class="text-muted small">@i.Done.ToString("d MMM yyyy")@(b.Tenancies.FirstOrDefault(t => t.Id == i.TenancyId) is { } it ? $" · {it.Tenants}" : "")</span></div>
+                    <form method="post" asp-page-handler="DeleteInspection" asp-route-id="@p.Id" asp-route-itemId="@i.Id" class="no-print" onsubmit="return confirm('Delete this inspection?');"><button class="btn btn-link btn-sm text-danger p-0">Delete</button></form>
+                </div>
+                @if (i.Notes is not null) { <div class="small" style="white-space: pre-wrap">@i.Notes</div> }
+                <div class="small mt-1">@foreach (var f in FilesFor(AttachmentKinds.Inspection, i.Id)) { <a asp-page="/Attachments/Index" asp-page-handler="Download" asp-route-id="@f.Id" class="me-2"><i class="bi bi-image"></i> @f.FileName</a> }</div>
+                <form method="post" asp-page-handler="Upload" asp-route-id="@p.Id" asp-route-kind="@AttachmentKinds.Inspection" asp-route-target="@i.Id" enctype="multipart/form-data" class="d-flex gap-1 mt-1 no-print">
+                    <input type="file" name="Upload" accept="image/*,.pdf" class="form-control form-control-sm" style="max-width: 16rem" required /><input name="Line.Description" maxlength="500" placeholder="Room or note" class="form-control form-control-sm" style="max-width: 14rem" />
+                    <button class="btn btn-sm btn-outline-secondary">Add photo</button></form>
+            </div>
+        }
+        <form method="post" asp-page-handler="Inspection" asp-route-id="@p.Id" class="row g-2 align-items-end no-print mt-2">
+            <div class="col-md-2"><label class="form-label small mb-1">Kind</label><select name="Line.Kind" class="form-select form-select-sm">@foreach (var k in InspectionKinds.All) { <option value="@k" selected="@(k == InspectionKinds.Routine)">@InspectionKinds.Text(k)</option> }</select></div>
+            <div class="col-md-2"><label class="form-label small mb-1">Date</label><input name="Line.Date" type="date" value="@Iso(today)" class="form-control form-control-sm" required /></div>
+            <div class="col-md-2"><label class="form-label small mb-1">Tenancy</label><select name="Line.TenancyId" class="form-select form-select-sm"><option value="">None</option>@foreach (var t in b.Tenancies) { <option value="@t.Id" selected="@t.Current(today)">@t.Tenants</option> }</select></div>
+            <div class="col-md-5"><label class="form-label small mb-1">Notes</label><textarea name="Line.Description" rows="1" maxlength="4000" class="form-control form-control-sm"></textarea></div>
+            <div class="col-md-1"><button type="submit" class="btn btn-sm btn-outline-primary">Add</button></div>
+        </form>
+    </div>
+</div>
+
+@* ---------------- Compliance ---------------- *@
+<div class="card shadow-sm mb-4" id="compliance">
+    <div class="card-header fw-bold">Safety checks and renewals</div>
+    <div class="card-body">
+        <p class="small text-muted">Reminders show on the Properties page and by email (when property alerts are on) from @PropertyReminders.ComplianceDays days before they're due.
+            The usual checks differ by state and change from time to time, so check them against your state's current rules.</p>
+        <table class="table table-sm small align-middle">
+            <thead class="table-light"><tr><th>Check or renewal</th><th>Last done</th><th>Every</th><th>Next due</th><th>Note</th><th class="no-print"></th></tr></thead>
+            @if (b.Compliance.Count == 0) { <tr><td colspan="6" class="text-muted">None yet.</td></tr> }
+            @foreach (var c in b.Compliance)
+            {
+                var due = c.NextDue;
+                <tr class="@(due is { } d && d < today ? "table-danger" : due is { } d2 && d2 <= today.AddDays(PropertyReminders.ComplianceDays) ? "table-warning" : "")">
+                    <td>@c.Kind</td><td>@c.LastDone?.ToString("d MMM yyyy")</td><td>@(c.Months is { } m ? $"{m} months" : "")</td><td>@(due?.ToString("d MMM yyyy") ?? "Enter when last done")</td><td>@c.Note</td>
+                    <td class="text-end no-print text-nowrap">
+                        <form method="post" asp-page-handler="ComplianceDone" asp-route-id="@p.Id" asp-route-itemId="@c.Id" class="d-inline"><button class="btn btn-link btn-sm p-0">Done today</button></form>
+                        <form method="post" asp-page-handler="DeleteCompliance" asp-route-id="@p.Id" asp-route-itemId="@c.Id" class="d-inline ms-2"><button class="btn btn-link btn-sm text-danger p-0">Delete</button></form></td></tr>
+            }
+        </table>
+        <div class="d-flex flex-wrap gap-3 align-items-end no-print">
+            <form method="post" asp-page-handler="Presets" asp-route-id="@p.Id"><button class="btn btn-sm btn-outline-secondary">Add the usual checks@(p.State is { } st ? $" for {st}" : "")</button></form>
+            <form method="post" asp-page-handler="Compliance" asp-route-id="@p.Id" class="row g-2 align-items-end flex-grow-1">
+                <div class="col-md-3"><label class="form-label small mb-1">Check or renewal</label><input name="Line.Description" maxlength="100" class="form-control form-control-sm" placeholder="Landlord insurance renewal" required /></div>
+                <div class="col-md-2"><label class="form-label small mb-1">Last done</label><input name="Line.Date" type="date" class="form-control form-control-sm" /></div>
+                <div class="col-md-2"><label class="form-label small mb-1">Every (months)</label><input name="Line.Months" type="number" min="1" max="120" value="12" class="form-control form-control-sm" /></div>
+                <div class="col-md-2"><label class="form-label small mb-1">Or due on</label><input name="Line.Due" type="date" class="form-control form-control-sm" /></div>
+                <div class="col-md-2"><label class="form-label small mb-1">Note</label><input name="Line.Reference" maxlength="500" class="form-control form-control-sm" /></div>
+                <div class="col-md-1"><button type="submit" class="btn btn-sm btn-outline-primary">Add</button></div>
+            </form>
+        </div>
+        @if (p.State is null) { <div class="form-text">Set the state under Details to add that state's usual checks as well.</div> }
+    </div>
+</div>
+
+@* ---------------- Documents ---------------- *@
+<div class="card shadow-sm mb-4" id="documents">
+    <div class="card-header fw-bold">Documents</div>
+    <div class="card-body">
+        <p class="small text-muted">Leases, the depreciation report, insurance policies, purchase and loan papers and the settlement statement.</p>
+        <table class="table table-sm small">
+            @{ var docs = Model.Files.Where(f => f.Kind == AttachmentKinds.Property).ToList(); }
+            @if (docs.Count == 0) { <tr><td class="text-muted">None yet.</td></tr> }
+            @foreach (var f in docs)
+            {
+                <tr><td><a asp-page="/Attachments/Index" asp-page-handler="Download" asp-route-id="@f.Id">@f.FileName</a></td><td>@f.Note</td><td>@f.SizeText</td><td>@f.Uploaded.ToString("d MMM yyyy")</td>
+                    <td class="text-end no-print"><form method="post" asp-page-handler="DeleteFile" asp-route-id="@p.Id" asp-route-itemId="@f.Id" onsubmit="return confirm('Delete this file?');"><button class="btn btn-link btn-sm text-danger p-0">Delete</button></form></td></tr>
+            }
+        </table>
+        <form method="post" asp-page-handler="Upload" asp-route-id="@p.Id" asp-route-kind="@AttachmentKinds.Property" enctype="multipart/form-data" class="row g-2 align-items-end no-print">
+            <div class="col-md-5"><input type="file" name="Upload" class="form-control form-control-sm" required /></div>
+            <div class="col-md-5"><input name="Line.Description" maxlength="500" class="form-control form-control-sm" placeholder="What it is, e.g. Lease 2026" /></div>
+            <div class="col-md-2"><button class="btn btn-sm btn-outline-primary">Upload</button></div>
+        </form>
+        <div class="form-text">PDF, pictures, Word, Excel, CSV, text or an email, up to 10 MB each.</div>
+    </div>
+</div>
+
+@* ---------------- Loans ---------------- *@
+<div class="card shadow-sm mb-4" id="loans">
+    <div class="card-header fw-bold">Loans</div>
+    <div class="card-body">
+        <p class="small text-muted">Link the loans used for this property. Their interest then becomes the property's interest on the schedule (label 21Q), replacing any interest
+            entered or on agent statements. Set the deductible percentage on <a asp-page="/Debt/Loans">Margin and investment loans</a> for a mixed-purpose loan, and record
+            private redraws there as "Private redraw" so their share of the interest is left out.</p>
+        @if (Model.Loans.Count == 0) { <p class="small">No loans yet. <a asp-page="/Debt/Loans">Add one</a> first.</p> }
+        else
+        {
+            var fy = Model.ThisYear;
+            <table class="table table-sm small align-middle">
+                <thead class="table-light"><tr><th>Loan</th><th class="text-end">Owed now</th><th class="text-end">Interest @FinancialYear.Label(fy - 1)</th><th class="text-end">Deductible</th><th class="text-end">Interest @FinancialYear.Label(fy) so far</th><th></th></tr></thead>
+                @foreach (var l in Model.Loans)
+                {
+                    var linkedHere = Model.LoanLinks.TryGetValue(l.Id, out var pid) && pid == p.Id;
+                    var linkedElsewhere = Model.LoanLinks.ContainsKey(l.Id) && !linkedHere;
+                    var last = LoanCalc.Year(l, Model.LoanEntries, FinancialYear.StartDate(fy - 1), FinancialYear.EndDate(fy - 1));
+                    var now = LoanCalc.Year(l, Model.LoanEntries, FinancialYear.StartDate(fy), today);
+                    <tr class="@(linkedHere ? "" : "text-muted")">
+                        <td>@l.Name@(l.Lender is { } lender ? $" ({lender})" : "") <span class="small">@l.DeductiblePercent.ToString("0.##")% deductible</span></td>
+                        <td class="text-end">@now.ClosingBalance.ToString("C0")</td>
+                        <td class="text-end">@((last.Interest + last.Fees).ToString("C"))</td>
+                        <td class="text-end">@last.Deductible.ToString("C")</td>
+                        <td class="text-end">@((now.Interest + now.Fees).ToString("C"))</td>
+                        <td class="text-end no-print">
+                            @if (linkedElsewhere) { <span class="small">Linked to another property</span> }
+                            else
+                            {
+                                <form method="post" asp-page-handler="LinkLoan" asp-route-id="@p.Id" asp-route-loanId="@l.Id" asp-route-link="@(!linkedHere)">
+                                    <button class="btn btn-sm @(linkedHere ? "btn-outline-danger" : "btn-outline-primary")">@(linkedHere ? "Unlink" : "Link to this property")</button></form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </table>
+        }
+    </div>
+</div>
+
+@* ---------------- Sale ---------------- *@
+<div class="card shadow-sm mb-4" id="sale">
+    <div class="card-header fw-bold">Sale of the property</div>
+    <div class="card-body">
+        @if (Model.SaleResult is { } sr)
+        {
+            <table class="table table-sm small mb-3" style="max-width: 40rem">
+                <tr><td>Capital proceeds</td><td class="text-end">@sr.Sale.Proceeds.ToString("C")</td></tr>
+                <tr><td>Cost base (all five elements@(sr.MarketValueRule ? ", element 1 the market value when first rented" : ""))</td><td class="text-end">@sr.CostBase.ToString("C")</td></tr>
+                <tr><td>Less capital works deductions claimed</td><td class="text-end">@((-sr.CapitalWorksClaimed).ToString("C"))</td></tr>
+                <tr><td>Gain or loss for the whole property</td><td class="text-end">@sr.WholeGain.ToString("C")</td></tr>
+                <tr><td>Main residence: @sr.DaysExempt of @sr.DaysOwned days exempt</td><td class="text-end">@sr.TaxableShare.ToString("P2") taxable</td></tr>
+                <tr><td>Your share (@sr.OwnerPct.ToString("0.##")%) of the taxable gain</td><td class="text-end fw-bold">@sr.OwnerGain.ToString("C")</td></tr>
+                <tr><td>CGT discount</td><td class="text-end">@(sr.DiscountEligible ? "Held over 12 months" : "Not held over 12 months")</td></tr>
+            </table>
+            @if (sr.PreCgt) { <div class="alert alert-info small">Bought before 20 September 1985, so the sale is pre-CGT: there is no capital gain or loss. The capital gains report leaves it out.</div> }
+            @if (sr.AbsenceCapped) { <div class="alert alert-warning small">The days away were cut to six years, the longest a rented home can still be treated as the main residence.</div> }
+            <p class="small text-muted">This goes into the <a asp-page="/Reports/CapitalGains" asp-route-fy="@FinancialYear.EndYearFor(sr.Sale.Contract)">capital gains report</a> for
+                @FinancialYear.Label(FinancialYear.EndYearFor(sr.Sale.Contract)) (the year of the contract), where losses and the discount are applied. Balancing adjustments on the
+                depreciating assets go on the rental schedule when you enter each one's disposal date and the amount it went for on <a asp-page="/TaxWork/Rental">Yearly figures and assets</a>.</p>
+        }
+        @{ var s = Model.SavedSale; }
+        <details open="@(s is null ? null : "open")" class="no-print">
+            <summary class="small">@(s is null ? "Record the sale" : "Change the sale")</summary>
+            <form method="post" asp-page-handler="Sale" asp-route-id="@p.Id" class="row g-2 align-items-end mt-1">
+                <div class="col-md-3"><label class="form-label small mb-1">Bought (contract date)</label><input name="Sale.Acquired" type="date" value="@Iso(s?.Acquired)" class="form-control form-control-sm" required /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">Sold (contract date)</label><input name="Sale.Contract" type="date" value="@Iso(s?.Contract)" class="form-control form-control-sm" required /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">Sale price (capital proceeds)</label><input name="Sale.Proceeds" type="number" step="0.01" min="0" value="@Num(s?.Proceeds)" class="form-control form-control-sm" required /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">1. Purchase price</label><input name="Sale.PurchasePrice" type="number" step="0.01" min="0" value="@Num(s?.PurchasePrice)" class="form-control form-control-sm" required /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">2. Buying and selling costs</label><input name="Sale.AcquisitionCosts" type="number" step="0.01" min="0" value="@Num(s?.AcquisitionCosts)" class="form-control form-control-sm" title="Stamp duty, legal fees, agent's commission on the sale, advertising" /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">3. Holding costs never deducted</label><input name="Sale.HoldingCosts" type="number" step="0.01" min="0" value="@Num(s?.HoldingCosts)" class="form-control form-control-sm" title="Interest, rates and insurance for times it wasn't rented and couldn't be claimed (only for property bought after 20 August 1991)" /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">4. Improvements (capital)</label><input name="Sale.Improvements" type="number" step="0.01" min="0" value="@Num(s?.Improvements)" class="form-control form-control-sm" placeholder="@Num(Model.CapitalJobs)" title="Initial repairs and improvements, including those in the maintenance log" /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">5. Costs of defending the title</label><input name="Sale.TitleCosts" type="number" step="0.01" min="0" value="@Num(s?.TitleCosts)" class="form-control form-control-sm" /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">Days lived in it as your main residence</label><input name="Sale.DaysMainResidence" type="number" min="0" value="@(s?.DaysMainResidence ?? 0)" class="form-control form-control-sm" /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">Days rented while away (6-year rule)</label><input name="Sale.DaysAbsence" type="number" min="0" value="@(s?.DaysAbsence ?? 0)" class="form-control form-control-sm" title="Only if you chose to keep treating it as your main residence while away, and had no other main residence" /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">First rented (home first rented after 20 Aug 1996)</label><input name="Sale.FirstRented" type="date" value="@Iso(s?.FirstRented)" class="form-control form-control-sm" /></div>
+                <div class="col-md-3"><label class="form-label small mb-1">Market value when first rented</label><input name="Sale.MarketValueFirstRented" type="number" step="0.01" min="0" value="@Num(s?.MarketValueFirstRented)" class="form-control form-control-sm" /></div>
+                <div class="col-md-9"><label class="form-label small mb-1">Note</label><input name="Sale.Note" maxlength="1000" value="@s?.Note" class="form-control form-control-sm" /></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-sm btn-primary">Save sale</button></div>
+                <div class="col-12 form-text">Enter amounts for the whole property; your share is taken from the ownership percentage. If it was your home before it was first rented
+                    (after 20 August 1996), enter the date first rented and its market value then: that becomes the cost base and the purchase date for the main residence days.</div>
+            </form>
+            @if (s is not null)
+            {
+                <form method="post" asp-page-handler="DeleteSale" asp-route-id="@p.Id" class="mt-2" onsubmit="return confirm('Remove the sale?');"><button class="btn btn-sm btn-link text-danger p-0">Remove the sale</button></form>
+            }
+        </details>
+    </div>
+</div>

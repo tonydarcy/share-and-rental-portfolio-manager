@@ -18,6 +18,7 @@ public class AlertsModel(CurrentPortfolio current, AlertService alerts, IEmailSe
     [BindProperty] public bool Dividends { get; set; }
     [BindProperty] public bool SyncFailures { get; set; }
     [BindProperty] public bool Unallocated { get; set; }
+    [BindProperty] public bool Property { get; set; }
 
     [BindProperty] public string? Market { get; set; } = "ASX";
     [BindProperty] public string? Code { get; set; }
@@ -37,14 +38,14 @@ public class AlertsModel(CurrentPortfolio current, AlertService alerts, IEmailSe
     public async Task OnGetAsync()
     {
         if (await LoadAsync() is { } s)
-            (PriceTargets, Dividends, SyncFailures, Unallocated) = (s.PriceTargets, s.Dividends, s.SyncFailures, s.Unallocated);
+            (PriceTargets, Dividends, SyncFailures, Unallocated, Property) = (s.PriceTargets, s.Dividends, s.SyncFailures, s.Unallocated, s.Property);
     }
 
     public async Task<IActionResult> OnPostSettingsAsync()
     {
         if (await LoadAsync() is null)
             return Page();
-        await alerts.SaveSettingsAsync(LoginId, Portfolio!.PortfolioId, new AlertSettings(PriceTargets, Dividends, SyncFailures, Unallocated));
+        await alerts.SaveSettingsAsync(LoginId, Portfolio!.PortfolioId, new AlertSettings(PriceTargets, Dividends, SyncFailures, Unallocated, Property));
         Success = "Alert settings saved.";
         return RedirectToPage();
     }
@@ -53,7 +54,7 @@ public class AlertsModel(CurrentPortfolio current, AlertService alerts, IEmailSe
     {
         if (await LoadAsync() is not { } s)
             return Page();
-        (PriceTargets, Dividends, SyncFailures, Unallocated) = (s.PriceTargets, s.Dividends, s.SyncFailures, s.Unallocated);
+        (PriceTargets, Dividends, SyncFailures, Unallocated, Property) = (s.PriceTargets, s.Dividends, s.SyncFailures, s.Unallocated, s.Property);
         if (string.IsNullOrWhiteSpace(Code))
             ModelState.AddModelError(nameof(Code), "Enter the stock code.");
         if (Target is not > 0)

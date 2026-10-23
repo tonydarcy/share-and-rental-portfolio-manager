@@ -1,0 +1,88 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Rental properties";
+}
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Rental properties</h1>
+    <a asp-page="/TaxWork/Rental" class="btn btn-sm btn-primary no-print"><i class="bi bi-plus-lg"></i> Add a property</a>
+</div>
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+<partial name="_Nav" />
+@if (Model.Schedule.Properties.Count == 0)
+{
+    <div class="alert alert-info">No rental properties yet. <a asp-page="/TaxWork/Rental">Add one</a> with its address and ownership share, then open it here
+        to record tenancies, rent, repairs, inspections, safety checks, loans and documents.</div>
+    return;
+}
+<partial name="_YearPicker" model="Model" />
+
+@if (Model.Reminders.Count > 0)
+{
+    <div class="card shadow-sm mb-4 border-warning">
+        <div class="card-header fw-bold">Needs attention</div>
+        <ul class="list-group list-group-flush">
+            @foreach (var r in Model.Reminders)
+            {
+                <li class="list-group-item d-flex justify-content-between gap-2">
+                    <span>@if (r.Urgent) { <i class="bi bi-exclamation-circle text-danger"></i> } else { <i class="bi bi-calendar-event text-warning"></i> }
+                        <a asp-page="/Rentals/Property" asp-route-id="@r.PropertyId">@r.Address</a>: @r.Text</span>
+                </li>
+            }
+        </ul>
+        <div class="card-footer small text-muted">Turn on property alerts on <a asp-page="/Account/Alerts">Email alerts</a> to get these by email.</div>
+    </div>
+}
+@if (Model.FlagCount > 0)
+{
+    <div class="alert alert-warning"><a asp-page="/Rentals/Review" asp-route-fy="@Model.Year">@Model.FlagCount thing@(Model.FlagCount == 1 ? "" : "s") to check</a> on the @FinancialYear.Label(Model.Year) schedules before the return goes in.</div>
+}
+
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr><th>Property</th><th class="text-end">Value</th><th class="text-end">Loans</th><th class="text-end">Loan to value</th><th class="text-end">Your equity</th>
+                    <th class="text-end">Gross yield</th><th class="text-end">Net yield</th><th class="text-end">Net rent @FinancialYear.Label(Model.Year)</th><th>Tenant</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var y in Model.Yields)
+                {
+                    var p = y.Property;
+                    var py = Model.Schedule.Properties.First(s => s.Property.Id == p.Id);
+                    var rents = Model.Rents.Where(r => r.Tenancy.PropertyId == p.Id).ToList();
+                    <tr class="@(p.Active ? "" : "text-muted")">
+                        <td><a asp-page="/Rentals/Property" asp-route-id="@p.Id" class="fw-bold">@p.Address</a>
+                            <div class="small text-muted">@p.OwnershipPct.ToString("0.##")% yours@(p.Others.Count > 0 ? $", {p.Others.Count} other owner{(p.Others.Count == 1 ? "" : "s")}" : "")@(p.Active ? "" : ", no longer rented")</div></td>
+                        <td class="text-end">@(y.Value is { } v ? v.ToString("C0") : "")<div class="small text-muted">@p.Valued?.ToString("MMM yyyy")</div></td>
+                        <td class="text-end">@(y.Loans != 0 ? y.Loans.ToString("C0") : "")</td>
+                        <td class="text-end">@(y.LoanToValue?.ToString("P0"))</td>
+                        <td class="text-end">@(y.Value is not null ? y.Equity.ToString("C0") : "")</td>
+                        <td class="text-end">@(y.GrossYield?.ToString("P1"))</td>
+                        <td class="text-end">@(y.NetYield?.ToString("P1"))</td>
+                        <td class="text-end">@py.Net.ToString("C0")</td>
+                        <td class="small">@foreach (var r in rents)
+                            {
+                                <div>@r.Tenancy.Tenants, @r.Tenancy.Rent.ToString("C0") @RentFrequencies.Text(r.Tenancy.Frequency)
+                                    @if (r.Arrears > 0) { <span class="badge text-bg-danger">@r.Arrears.ToString("C0") behind</span> }
+                                    else if (r.PaidTo is { } paidTo) { <span class="text-muted">paid to @paidTo.ToString("d MMM")</span> }</div>
+                            }
+                            @if (rents.Count == 0 && p.Active) { <span class="text-muted">No current tenancy</span> }</td>
+                    </tr>
+                }
+            </tbody>
+            @if (Model.Yields.Any(y => y.Value is not null))
+            {
+                <tfoot><tr class="table-active fw-bold"><td>Total</td><td class="text-end">@Model.Yields.Sum(y => (y.Value ?? 0) * y.Property.OwnershipPct / 100m).ToString("C0")<div class="small fw-normal">your share</div></td>
+                    <td class="text-end">@Model.Yields.Sum(y => y.Loans).ToString("C0")</td><td></td><td class="text-end">@Model.TotalEquity.ToString("C0")</td><td colspan="4"></td></tr></tfoot>
+            }
+        </table>
+    </div>
+</div>
+<p class="text-muted small">Yields use the @FinancialYear.Label(Model.Year) rent for the whole property against its latest value. Net yield takes off cash expenses
+    (not interest or depreciation). Loans are the loans linked to each property on its page, as owed today. Your equity (your share of the value less those loans)
+    is counted in the net worth on the dashboard.</p>

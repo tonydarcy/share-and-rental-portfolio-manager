@@ -1,0 +1,9 @@
+@model RentalYearPageModel
+<form method="get" class="d-flex gap-2 align-items-end mb-3 no-print">
+    <div>
+        <label for="fy" class="form-label small text-muted mb-1">Financial year</label>
+        <select id="fy" name="fy" class="form-select form-select-sm" onchange="this.form.submit()">
+            @foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.Year)">@FinancialYear.Label(y)</option> }
+        </select>
+    </div>
+</form>

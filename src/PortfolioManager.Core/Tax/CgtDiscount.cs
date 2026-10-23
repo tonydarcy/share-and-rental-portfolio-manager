@@ -27,6 +27,9 @@ public enum CgtEventType
     /// <summary>A capital gain distributed by a fund (its annual tax statement). Discount gains are grossed up and dated
     /// as held over a year, so the holder's own discount applies; other gains are not discounted.</summary>
     FundCapitalGain,
+
+    /// <summary>A rental property sold (Rental properties > Sale): the owner's share after any main residence exemption.</summary>
+    PropertySale,
 }
 
 /// <summary>
@@ -50,6 +53,8 @@ public sealed record CgtEvent(
     public bool IsCapitalReturn => Type == CgtEventType.CapitalReturnExcess;
 
     public bool IsFundGain => Type == CgtEventType.FundCapitalGain;
+
+    public bool IsPropertySale => Type == CgtEventType.PropertySale;
 
     public bool DiscountEligible => CgtDiscount.Qualifies(Acquired, Disposed);
 }

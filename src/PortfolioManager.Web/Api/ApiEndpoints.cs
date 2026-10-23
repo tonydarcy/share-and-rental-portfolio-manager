@@ -43,6 +43,7 @@ public static class ApiEndpoints
         Get(api, "/portfolios/{portfolioId:int}/reports/trial-balance", "report_trial_balance");
         Get(api, "/portfolios/{portfolioId:int}/reports/profit-and-loss", "report_profit_and_loss");
         Get(api, "/portfolios/{portfolioId:int}/reports/balance-sheet", "report_balance_sheet");
+        Get(api, "/portfolios/{portfolioId:int}/reports/rental-schedule", "report_rental_schedule");
 
         var mcp = app.MapGroup("/mcp").RequireAuthorization(Policy).RequireRateLimiting(RateLimit).DisableAntiforgery();
         mcp.MapPost("", async (HttpContext http, McpServer server) => await server.HandleAsync(http));
