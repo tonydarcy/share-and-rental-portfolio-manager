@@ -220,6 +220,27 @@ Any provider that offers SMTP works (Microsoft 365, Google Workspace, SendGrid, 
 `Security` can be added if needed: `Auto` (the default), `StartTls`, `Tls` (port 465) or `None` (a local test server
 such as Mailpit only). Like the connection string, the password belongs only in `appsettings.Production.json`.
 
+The site only sends email; it never receives any, so you don't need a mail server or MX records for the site's
+address. Some things to know:
+
+- **Use an address you own.** `FromAddress` must be one the SMTP account may send as, ideally on your own domain
+  (for example `no-reply@yourdomain.com`). Add the SPF and DKIM records your email provider gives you to that
+  domain's DNS, or many emails will land in junk folders.
+- **Replies.** Invitations and invoices are sent with "Reply-To" set to the person who shared or sent them, so
+  replies go to their own inbox. Replies to password and sign-up emails go to `FromAddress`; if nobody reads that
+  mailbox, say so in the name (`no-reply@...`).
+- **Microsoft 365** needs "Authenticated SMTP" turned on for the mailbox (Microsoft 365 admin centre, the user's Mail
+  settings). **Gmail and Google Workspace** need an app password (Google Account, Security, 2-Step Verification,
+  App passwords) rather than the normal password. Host `smtp.gmail.com`, port 587.
+- **Set `Site:BaseUrl` too** (see above), so links in emails point to the public address. Email alerts don't run
+  without it.
+- **Check it works.** Restart the site after changing the settings, then, signed in as the site administrator, open
+  the account menu, **Check email settings**, and send yourself a test email. If it fails, the page says why in plain
+  English (wrong password, server unreachable, address not allowed and so on).
+- **Accounts made before email was turned on.** Accounts that existed before the `2026-10-21-01-account-security.sql`
+  migration count as checked, but accounts made after it while email was still off do not. Once email is on, those
+  people are asked to confirm their address at their next login, and the login page offers to send the link again.
+
 **Two-factor sign-in** is always available: each person can turn it on from the account menu, **Two-factor sign-in**,
 with any authenticator app. They get ten one-off recovery codes for a lost phone. If someone loses both, an
 administrator can turn it off for them in the database:

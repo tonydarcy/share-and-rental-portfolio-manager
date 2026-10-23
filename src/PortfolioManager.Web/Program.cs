@@ -150,6 +150,7 @@ builder.Services.AddSingleton(site);
 // Email (password resets, email checks, invitations, invoices) goes through the SMTP server in the Email section;
 // without one nothing is sent and pages offer another way
 var emailSettings = builder.Configuration.GetSection("Email").Get<EmailSettings>() ?? new EmailSettings();
+builder.Services.AddSingleton(emailSettings);
 if (emailSettings.IsConfigured)
     builder.Services.AddSingleton<IEmailSender>(new SmtpEmailSender(emailSettings, site.Name));
 else

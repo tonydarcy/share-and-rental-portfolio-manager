@@ -27,6 +27,13 @@ public static class EmailTemplates
              : $"Sign up with this email address ({to}) and log in, and the portfolio will be in your portfolio list."],
         hasAccount ? "Open it" : "Sign up", link, replyTo: fromEmail);
 
+    /// <summary>The site administrator's check that the Email settings work.</summary>
+    public static EmailMessage Test(string to, string siteName, string link) => Simple(to,
+        $"Test email from {siteName}",
+        [$"This is a test email from {siteName}. It arrived, so the site's email settings work.",
+         "If it went to your junk folder, add SPF and DKIM records for the address it came from (your email provider's help pages explain how)."],
+        "Open the site", link);
+
     public static EmailMessage Simple(string to, string subject, IReadOnlyList<string> paragraphs, string buttonText, string link,
         string? replyTo = null, string? footer = null)
     {

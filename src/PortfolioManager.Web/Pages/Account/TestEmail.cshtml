@@ -1,0 +1,71 @@
+@page
+@model PortfolioManager.Web.Pages.Account.TestEmailModel
+@{
+    ViewData["Title"] = "Check email settings";
+    var s = Model.Settings;
+}
+
+<div class="pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Check email settings</h1>
+</div>
+
+<div class="row">
+    <div class="col-lg-7">
+        @if (!Model.EmailOn)
+        {
+            <div class="alert alert-info">
+                This site isn't set up to send email, so password resets, email checks for new accounts, invitations,
+                invoices and alerts aren't emailed. Add an <code>Email</code> section with your email provider's SMTP
+                details to <code>appsettings.Production.json</code> and restart the site. SETUP.md, step 6, explains how.
+            </div>
+        }
+        else
+        {
+            <table class="table table-sm w-auto">
+                <tr><th scope="row">Server</th><td>@s.Host, port @s.Port</td></tr>
+                <tr><th scope="row">Secure connection</th><td>@s.Security</td></tr>
+                <tr><th scope="row">User name</th><td>@(string.IsNullOrEmpty(s.UserName) ? "(none)" : s.UserName)</td></tr>
+                <tr><th scope="row">Password</th><td>@(string.IsNullOrEmpty(s.Password) ? "(none)" : "set")</td></tr>
+                <tr><th scope="row">Emails come from</th><td>@s.FromAddress</td></tr>
+            </table>
+
+            @if (Model.Sent is not null)
+            {
+                <div class="alert alert-success" role="status">
+                    The test email was sent to @Model.Sent. If it doesn't arrive in a few minutes, check the junk folder.
+                    If it's there, add SPF and DKIM records for @s.FromAddress (your email provider's help pages explain how).
+                </div>
+            }
+            @if (Model.Problem is not null)
+            {
+                <div class="alert alert-danger" role="alert">
+                    <strong>The test email couldn't be sent.</strong> @Model.Problem
+                    <div class="small mt-1">After changing the settings, restart the site and try again.</div>
+                </div>
+            }
+
+            <form method="post" class="mb-4">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+                <div class="mb-3">
+                    <label asp-for="To" class="form-label"></label>
+                    <input asp-for="To" class="form-control" />
+                    <span asp-validation-for="To" class="text-danger small"></span>
+                </div>
+                <button type="submit" class="btn btn-primary">Send a test email</button>
+            </form>
+        }
+
+        @if (string.IsNullOrWhiteSpace(Model.BaseUrl))
+        {
+            <div class="alert alert-warning">
+                <code>Site:BaseUrl</code> isn't set. Set it to the site's public address (for example
+                <code>https://portfolios.example.com</code>) so links in emails point to the right place.
+                Email alerts don't run without it.
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">Links in emails start with @Model.BaseUrl.</p>
+        }
+    </div>
+</div>
