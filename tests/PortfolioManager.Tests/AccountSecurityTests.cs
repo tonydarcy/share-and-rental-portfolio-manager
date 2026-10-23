@@ -176,4 +176,24 @@ public class AccountSecurityTests
             CultureInfo.CurrentCulture = previous;
         }
     }
+
+    [Fact]
+    public void Test_email_links_back_to_the_site()
+    {
+        var m = EmailTemplates.Test("admin@b.com", "Smith Portfolios", "https://x/");
+        Assert.Equal("admin@b.com", m.To);
+        Assert.Contains("Smith Portfolios", m.Subject);
+        Assert.Contains("https://x/", m.Text);
+        Assert.Null(m.ReplyTo);
+    }
+
+    [Fact]
+    public void Email_problems_are_explained_in_plain_english()
+    {
+        Assert.Contains("app password", EmailProblem.Describe(new MailKit.Security.AuthenticationException("535 5.7.3")));
+        Assert.Contains("couldn't reach", EmailProblem.Describe(new System.Net.Sockets.SocketException(11001)));
+        Assert.Contains("FromAddress", EmailProblem.Describe(new MailKit.Net.Smtp.SmtpCommandException(
+            MailKit.Net.Smtp.SmtpErrorCode.SenderNotAccepted, MailKit.Net.Smtp.SmtpStatusCode.MailboxUnavailable, "550 not allowed")));
+        Assert.Equal("Something else", EmailProblem.Describe(new InvalidOperationException("Something else")));
+    }
 }

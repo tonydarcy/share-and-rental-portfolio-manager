@@ -254,6 +254,10 @@
                             <li><a class="dropdown-item" asp-page="/Account/TwoFactor">Two-factor sign-in</a></li>
                             <li><a class="dropdown-item" asp-page="/Account/ApiKeys">API keys and AI assistants</a></li>
                             <li><a class="dropdown-item" asp-page="/Account/Alerts">Email alerts</a></li>
+                            @if (Admin.IsAdmin(User))
+                            {
+                                <li><a class="dropdown-item" asp-page="/Account/TestEmail">Check email settings</a></li>
+                            }
                             <li><hr class="dropdown-divider" /></li>
                             <li>
                                 <form method="post" asp-page="/Account/Logout">
