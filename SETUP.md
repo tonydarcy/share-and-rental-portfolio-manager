@@ -163,9 +163,9 @@ Whatever the server, the rules are the same:
 ```
 
 `DataProtection:KeysPath` is a folder where the site keeps the keys that protect sign-in cookies and stored Navexa API
-keys. Leave it blank on IIS with **Load User Profile** on; otherwise set it to a folder the site can write to and that
-survives updates (for example `/var/lib/portfolio-manager/keys`). If those keys are lost, everyone has to sign in again
-and saved Navexa keys have to be re-entered.
+keys and assistant API keys. Leave it blank on IIS with **Load User Profile** on; otherwise set it to a folder the site
+can write to and that survives updates (for example `/var/lib/portfolio-manager/keys`). If those keys are lost, everyone
+has to sign in again and saved Navexa and assistant keys have to be re-entered.
 
 ### Your own name and logo
 
@@ -272,6 +272,25 @@ Anthropic's API to be read, so mention it in your privacy terms if others use yo
 
 `Model` can be left out. Like the other keys, this one belongs only in `appsettings.Production.json` (or user-secrets
 on your PC).
+
+### The assistant (optional)
+
+The Assistant page lets each person chat with Claude about their portfolio and approve the changes it suggests. It
+needs nothing set up: each person enters their own [Anthropic](https://console.anthropic.com) API key on the page, and
+Anthropic bills them for what they use. The key is stored encrypted with the data protection keys above. If you would
+rather pay for everyone (for example on a family install), add your own key and it is used by anyone who hasn't entered
+one:
+
+```json
+"Assistant": {
+  "AnthropicApiKey": "sk-ant-...",
+  "Model": "claude-opus-5-5"
+}
+```
+
+Both settings can be left out. `Model` is the default for people who haven't picked one (Opus 5.5, Sonnet 5.5 or Haiku
+5.5). What people ask, and the figures the assistant looks up to answer, are sent to Anthropic's API, so mention it in
+your privacy terms if others use your site. Run `2026-10-23-03-assistant.sql` first.
 
 ### Sample portfolio
 

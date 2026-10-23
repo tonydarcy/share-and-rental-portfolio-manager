@@ -82,13 +82,30 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
   on each sale (picked, smallest gain or largest gain).
 - Fund tax statements (AMIT/AMMA), which replace the payouts' breakdown in the workpapers and labels and adjust the
   cost base of units held.
-- Employee share schemes, shares held as trading stock, and rental properties (labels 21P, 21Q, 21F and 21U).
+- Employee share schemes and shares held as trading stock.
 - Income tax reconciliation, tax planning for individuals, workpapers and a year-end checklist.
 - Trust distribution statement and resolution; SMSF member accounts, contribution caps, minimum pensions, TBAR events,
   ECPI, pension minute, investment strategy and audit pack; company tax, deferred tax check and franking account;
   a Division 7A calculator.
 - ATO prefill comparison (paste or upload the prefill report), tax return labels for each entity type (a printable
   page and a CSV keying sheet for Xero Tax, HandiTax or LodgeiT), and a sheet to copy onto the ATO's paper return form.
+
+### Rental properties
+
+- A rental schedule for each property laid out like the ATO's, with a column for each owner, filling labels 21P, 21Q,
+  21F and 21U and shown in the Taxable income report. Agent statements (rental payouts with the property's code), the
+  maintenance log, the rent ledger, bills the tenant paid and linked loans fill it in, alongside figures keyed for the
+  year.
+- Depreciating assets (diminishing value, prime cost or the low-value pool), capital works, balancing adjustments,
+  holiday homes and private use, and private redraws on a property loan.
+- Income and expenses by month for any period, year on year with big changes flagged, a depreciation schedule a few
+  years ahead, and a review checklist before the return goes in.
+- The sale of a property: the five cost base elements less capital works claimed, the main residence exemption, the
+  six-year rule and the market value rule, going into the capital gains report.
+- Running the property: tenancies with the bond and lease dates, a rent ledger showing arrears, bills passed on to the
+  tenant, a maintenance log that decides repair or capital, inspections with photos, safety checks and renewals by
+  state, documents, and reminders by email. Each property's value, loans, equity and yields, with equity counted in
+  net worth on the dashboard.
 
 ### For accountants
 
@@ -101,9 +118,13 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
 
 ### API and AI assistants
 
+An assistant in the site (Assistant in the menu): ask Claude about the portfolio in plain English, or ask it to record
+something. It looks things up by itself, but every change is shown to you to approve or reject first. Each person uses
+their own Anthropic API key, kept encrypted, or the host can provide one.
+
 A JSON API (`/api/v1`) and an MCP server (`/mcp`), so Claude or another AI assistant (or your own app) can read the
 portfolio, add trades and cash, import, match and allocate bank transactions, read invoices and run the CGT, income,
-trial balance, profit and loss and balance sheet reports. Each login makes its own API keys (account menu > API keys),
+trial balance, profit and loss, balance sheet and rental schedule reports. Each login makes its own API keys (account menu > API keys),
 which can be read only; a key reaches the same portfolios with the same role as its login, and every change made with
 one is logged. Details are in [README-razor-pages.md](README-razor-pages.md#api-and-mcp-server).
 

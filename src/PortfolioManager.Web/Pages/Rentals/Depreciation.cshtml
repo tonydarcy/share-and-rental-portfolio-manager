@@ -1,0 +1,59 @@
+@page
+@model DepreciationModel
+@{
+    ViewData["Title"] = "Depreciation schedule";
+    var years = Enumerable.Range(Model.Year, DepreciationModel.YearsShown).ToList();
+}
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Rental depreciation schedule</h1>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+<partial name="_Nav" />
+<partial name="_YearPicker" model="Model" />
+<p class="text-muted small">For the whole property, before the owner's share and any private use. @FinancialYear.Label(Model.Year) and the
+    @(DepreciationModel.YearsShown - 1) years after it, projected from the assets as they are now (like a quantity surveyor's report). Assets in the
+    low-value pool are written off at 18.75% in their first year and 37.5% of what's left each year after. Add or change assets on
+    <a asp-page="/TaxWork/Rental" asp-route-fy="@Model.Year">Yearly figures and assets</a>.</p>
+@if (Model.Properties.Count == 0)
+{
+    <div class="alert alert-info">No depreciating assets or capital works have been entered.</div>
+}
+@foreach (var (p, rows) in Model.Properties)
+{
+    <div class="card shadow-sm mb-4">
+        <div class="card-header fw-bold">@p.Address</div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle small">
+                <thead class="table-light">
+                    <tr><th rowspan="2">Asset</th><th rowspan="2">How</th><th rowspan="2" class="text-end">Cost</th>
+                        @foreach (var y in years) { <th colspan="2" class="text-center border-start">@FinancialYear.Label(y)</th> }</tr>
+                    <tr>@foreach (var y in years) { <th class="text-end border-start">Deduction</th><th class="text-end">Closing value</th> }</tr>
+                </thead>
+                <tbody>
+                    @foreach (var group in rows.GroupBy(r => r.Asset.IsPooled ? "Low-value pool" : r.Asset.IsPlant ? "Depreciating assets (Division 40)" : "Capital works (Division 43)"))
+                    {
+                        <tr class="table-secondary"><td colspan="@(3 + years.Count * 2)" class="fw-bold">@group.Key</td></tr>
+                        @foreach (var r in group)
+                        {
+                            <tr>
+                                <td>@r.Asset.Description <div class="text-muted">from @r.Asset.Start.ToString("d MMM yyyy")@(r.Asset.Disposed is { } d ? $", disposed {d:d MMM yyyy}" : "")</div></td>
+                                <td>@r.Asset.HowText</td>
+                                <td class="text-end">@r.Asset.Cost.ToString("C")</td>
+                                @foreach (var y in r.Years) { <td class="text-end border-start">@y.Deduction.ToString("C0")</td><td class="text-end">@y.Closing.ToString("C0")</td> }
+                            </tr>
+                        }
+                        <tr class="fw-bold">
+                            <td colspan="3">Total</td>
+                            @for (var i = 0; i < years.Count; i++) { <td class="text-end border-start">@group.Sum(r => r.Years[i].Deduction).ToString("C0")</td><td class="text-end">@group.Sum(r => r.Years[i].Closing).ToString("C0")</td> }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

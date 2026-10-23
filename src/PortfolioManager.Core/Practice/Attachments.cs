@@ -7,8 +7,11 @@ namespace PortfolioManager.Core.Practice;
 public static class AttachmentKinds
 {
     public const string Trade = "Trade", Journal = "Journal", Client = "Client", Year = "Year", Workpaper = "Workpaper", Query = "Query",
-        Bill = "Bill", ExpenseClaim = "ExpenseClaim";
-    public static readonly IReadOnlyList<string> All = [Trade, Journal, Client, Year, Workpaper, Query, Bill, ExpenseClaim];
+        Bill = "Bill", ExpenseClaim = "ExpenseClaim", Property = "Property", RentalJob = "RentalJob", Inspection = "Inspection";
+    public static readonly IReadOnlyList<string> All = [Trade, Journal, Client, Year, Workpaper, Query, Bill, ExpenseClaim, Property, RentalJob, Inspection];
+
+    /// <summary>Kinds kept against one record whose id is the target, listed for that record whatever the year.</summary>
+    public static bool IsRecord(string? kind) => kind is Trade or Journal or Bill or ExpenseClaim or Property or RentalJob or Inspection;
 
     public static string Label(string kind) => kind switch
     {
@@ -19,6 +22,9 @@ public static class AttachmentKinds
         Workpaper => "Workpaper",
         Bill => "Bill",
         ExpenseClaim => "Expense claim",
+        Property => "Rental property",
+        RentalJob => "Property maintenance job",
+        Inspection => "Property inspection",
         _ => "Client query",
     };
 }

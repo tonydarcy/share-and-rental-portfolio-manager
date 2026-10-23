@@ -34,7 +34,9 @@
 }
 
 <p class="text-muted small">Enter each property's figures for the whole property; the schedule takes the owner's share. They go to item 21 of the individual return
-    (Tax work &gt; Return labels). Rental figures are kept here, not in the ledger, so they don't change the ledger or the tax reconciliation.</p>
+    (Tax work &gt; Return labels). Rental figures are kept here, not in the ledger, so they don't change the ledger or the tax reconciliation.
+    Figures from agent statements (rental payouts with the property's code), the maintenance log, the rent ledger, bills paid by the tenant and linked loans are added
+    automatically: set those up on each <a asp-page="/Rentals/Index">property's page</a>. See the <a asp-page="/Rentals/Schedule" asp-route-fy="@Model.Year">rental schedule</a> for the result.</p>
 
 <div class="card shadow-sm mb-4">
     <div class="card-header fw-bold">Item 21 Rent, @FinancialYear.Label(Model.Year)</div>
@@ -54,7 +56,7 @@
     var p = py.Property;
     <div class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between flex-wrap gap-2 align-items-center">
-            <div><span class="fw-bold">@p.Address</span> @if (!p.Active) { <span class="badge text-bg-secondary">no longer rented</span> }
+            <div><a asp-page="/Rentals/Property" asp-route-id="@p.Id" class="fw-bold">@p.Address</a> @if (!p.Active) { <span class="badge text-bg-secondary">no longer rented</span> }
                 <span class="small text-muted ms-2">@p.OwnershipPct.ToString("0.##")% owned@(p.FirstEarned is { } fe ? $", first rented {fe:d}" : "")</span></div>
             <div class="no-print">
                 <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit@(p.Id)">Change</button>
@@ -77,17 +79,33 @@
                         {
                             <div class="row g-1 mb-1 align-items-center">
                                 <label class="col-7 col-form-label col-form-label-sm" for="a@(p.Id)@c.Key" title="@c.Hint">@c.Name</label>
-                                <div class="col-5"><input id="a@(p.Id)@c.Key" name="Amounts[@c.Key]" type="number" step="0.01" class="form-control form-control-sm text-end" value="@(py.Amounts.TryGetValue(c.Key, out var v) ? v.ToString("0.00") : "")" disabled="@Model.Locked" /></div>
+                                <div class="col-5"><input id="a@(p.Id)@c.Key" name="Amounts[@c.Key]" type="number" step="0.01" class="form-control form-control-sm text-end" value="@(py.Amounts.TryGetValue(c.Key, out var v) ? v.ToString("0.00") : "")" disabled="@Model.Locked" />
+                                    @if (py.LinkedAmount(c.Key) is var la && la != 0) { <div class="form-text text-end">plus @la.ToString("C") from linked records</div> }</div>
                             </div>
                         }
-                        <div class="row g-1 mb-3 align-items-center">
+                        <div class="row g-1 mb-1 align-items-center">
                             <label class="col-7 col-form-label col-form-label-sm" for="a@(p.Id)weeks">Weeks rented</label>
                             <div class="col-5"><input id="a@(p.Id)weeks" name="Amounts[@RentalCategories.Weeks]" type="number" step="1" min="0" max="53" class="form-control form-control-sm text-end" value="@(py.Weeks > 0 ? py.Weeks.ToString("0") : "")" disabled="@Model.Locked" /></div>
                         </div>
+                        <details class="mb-3" open="@(py.PrivateUseFactor < 1)">
+                            <summary class="small">Holiday home or private use</summary>
+                            <div class="small text-muted my-1">Only if the property was also used by you, family or friends, or let below market rent. Expenses are cut to the days rented
+                                or genuinely available for rent, over the days owned in the year. Leave blank for a property rented all year.</div>
+                            @foreach (var (key, label) in new[] { (RentalCategories.DaysAvailable, "Days rented or available for rent"), (RentalCategories.DaysPrivate, "Days used privately"), (RentalCategories.DaysOwned, "Days owned in the year (if not all of it)") })
+                            {
+                                <div class="row g-1 mb-1 align-items-center">
+                                    <label class="col-7 col-form-label col-form-label-sm" for="a@(p.Id)@key">@label</label>
+                                    <div class="col-5"><input id="a@(p.Id)@key" name="Amounts[@key]" type="number" step="1" min="0" max="366" class="form-control form-control-sm text-end" value="@(py.Amounts.TryGetValue(key, out var dv) ? dv.ToString("0") : "")" disabled="@Model.Locked" /></div>
+                                </div>
+                            }
+                            @if (py.PrivateUseFactor < 1) { <div class="small">Expenses claimed: <strong>@py.PrivateUseFactor.ToString("P1")</strong></div> }
+                        </details>
                         <h3 class="h6">Worked out from the assets below</h3>
                         <table class="table table-sm small">
                             <tr><td>Capital allowances (decline in value)</td><td class="text-end">@py.CapitalAllowances.ToString("C")</td></tr>
                             <tr><td>Capital works deductions</td><td class="text-end">@py.CapitalWorks.ToString("C")</td></tr>
+                            @if (py.BalancingIncome > 0) { <tr><td>Balancing adjustment (income, in other rental income)</td><td class="text-end">@py.BalancingIncome.ToString("C")</td></tr> }
+                            @if (py.BalancingDeduction > 0) { <tr><td>Balancing adjustment (deduction, in capital allowances)</td><td class="text-end">@py.BalancingDeduction.ToString("C")</td></tr> }
                         </table>
                         <table class="table table-sm small">
                             <thead><tr><th>Owner's share</th><th class="text-end">@p.OwnershipPct.ToString("0.##")%</th></tr></thead>
@@ -104,7 +122,9 @@
                         {
                             <div class="row g-1 mb-1 align-items-center">
                                 <label class="col-7 col-form-label col-form-label-sm" for="a@(p.Id)@c.Key">@c.Name @if (c.Hint is not null) { <i class="bi bi-info-circle text-muted" title="@c.Hint"></i> }</label>
-                                <div class="col-5"><input id="a@(p.Id)@c.Key" name="Amounts[@c.Key]" type="number" step="0.01" class="form-control form-control-sm text-end" value="@(py.Amounts.TryGetValue(c.Key, out var v) ? v.ToString("0.00") : "")" disabled="@Model.Locked" /></div>
+                                <div class="col-5"><input id="a@(p.Id)@c.Key" name="Amounts[@c.Key]" type="number" step="0.01" class="form-control form-control-sm text-end" value="@(py.Amounts.TryGetValue(c.Key, out var v) ? v.ToString("0.00") : "")" disabled="@Model.Locked" />
+                                    @if (c.Key == RentalCategories.Interest && py.LoanInterest is { } li) { <div class="form-text text-end">replaced by @li.ToString("C") from linked loans</div> }
+                                    else if (py.LinkedAmount(c.Key) is var la && la != 0) { <div class="form-text text-end">@(la > 0 ? "plus" : "less") @Math.Abs(la).ToString("C") from linked records</div> }</div>
                             </div>
                         }
                     </div>
@@ -122,16 +142,29 @@
                         {
                             var a = ay.Asset;
                             <tr>
-                                <td>@a.Description <span class="text-muted">@(a.IsPlant ? "Div 40" : "Div 43")</span>@if (a.Disposed is { } d) { <div class="text-muted">disposed @d.ToString("d")</div> }</td>
+                                <td>@a.Description <span class="text-muted">@(a.IsPlant ? "Div 40" : "Div 43")</span>@if (a.Disposed is { } d) { <div class="text-muted">disposed @d.ToString("d")@(a.TerminationValue is { } tv ? $" for {tv:C}" : "")</div> }</td>
                                 <td>@a.Start.ToString("d")</td>
                                 <td class="text-end">@a.Cost.ToString("C")</td>
-                                <td>@(a.IsPlant ? $"{(a.Method == RentalAssetKinds.DiminishingValue ? "Diminishing value" : "Prime cost")}, {a.LifeYears:0.##} years" : $"{a.Rate:0.##}% a year")</td>
+                                <td>@a.HowText</td>
                                 <td class="text-end">@ay.Opening.ToString("C")</td>
                                 <td class="text-end">@ay.Days</td>
                                 <td class="text-end fw-bold">@ay.Deduction.ToString("C")</td>
                                 <td class="text-end">@ay.Closing.ToString("C")</td>
-                                <td class="text-end no-print">
-                                    <form method="post" asp-page-handler="DeleteAsset" asp-route-id="@a.Id" asp-route-fy="@Model.Year" onsubmit="return confirm('Delete this asset for every year?');">
+                                <td class="text-end no-print text-nowrap">
+                                    <details class="d-inline-block text-start">
+                                        <summary class="small">Disposal</summary>
+                                        <form method="post" asp-page-handler="Asset" asp-route-fy="@Model.Year" class="d-flex gap-1 mt-1">
+                                            <input type="hidden" name="Asset.Id" value="@a.Id" /><input type="hidden" name="Asset.PropertyId" value="@a.PropertyId" />
+                                            <input type="hidden" name="Asset.Kind" value="@a.Kind" /><input type="hidden" name="Asset.Description" value="@a.Description" />
+                                            <input type="hidden" name="Asset.Start" value="@a.Start.ToString("yyyy-MM-dd")" /><input type="hidden" name="Asset.Cost" value="@a.Cost.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                                            <input type="hidden" name="Asset.LifeYears" value="@a.LifeYears?.ToString(System.Globalization.CultureInfo.InvariantCulture)" /><input type="hidden" name="Asset.Method" value="@a.Method" />
+                                            <input type="hidden" name="Asset.Rate" value="@a.Rate?.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                                            <input name="Asset.Disposed" type="date" value="@a.Disposed?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" title="Date sold or scrapped (blank if still held)" />
+                                            <input name="Asset.TerminationValue" type="number" step="0.01" min="0" value="@a.TerminationValue?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" placeholder="Sold for" class="form-control form-control-sm" style="width: 7rem" />
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                                        </form>
+                                    </details>
+                                    <form method="post" asp-page-handler="DeleteAsset" asp-route-id="@a.Id" asp-route-fy="@Model.Year" class="d-inline ms-2" onsubmit="return confirm('Delete this asset for every year?');">
                                         <button type="submit" class="btn btn-sm btn-link text-danger p-0">Delete</button>
                                     </form>
                                 </td>
@@ -153,11 +186,13 @@
                     <div class="col-md-2"><label class="form-label small mb-1">First used or held for rent</label><input name="Asset.Start" type="date" class="form-control form-control-sm" required /></div>
                     <div class="col-md-2"><label class="form-label small mb-1">Cost</label><input name="Asset.Cost" type="number" step="0.01" min="0.01" class="form-control form-control-sm" required /></div>
                     <div class="col-md-2"><label class="form-label small mb-1">Disposed (if so)</label><input name="Asset.Disposed" type="date" class="form-control form-control-sm" /></div>
+                    <div class="col-md-2"><label class="form-label small mb-1">Sold or scrapped for</label><input name="Asset.TerminationValue" type="number" step="0.01" min="0" class="form-control form-control-sm" title="The termination value, for the balancing adjustment" /></div>
                     <div class="col-md-3"><label class="form-label small mb-1">Div 40: effective life (years)</label><input name="Asset.LifeYears" type="number" step="0.01" min="0" class="form-control form-control-sm" /></div>
                     <div class="col-md-3"><label class="form-label small mb-1">Div 40: method</label>
                         <select name="Asset.Method" class="form-select form-select-sm">
                             <option value="@RentalAssetKinds.DiminishingValue">Diminishing value (200% / life)</option>
                             <option value="@RentalAssetKinds.PrimeCost">Prime cost (100% / life)</option>
+                            <option value="@RentalAssetKinds.LowValuePool">Low-value pool (under $1,000, or written down below $1,000)</option>
                         </select></div>
                     <div class="col-md-2"><label class="form-label small mb-1">Div 43: rate %</label><input name="Asset.Rate" type="number" step="0.01" value="2.5" class="form-control form-control-sm" /></div>
                     <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary">Add</button></div>

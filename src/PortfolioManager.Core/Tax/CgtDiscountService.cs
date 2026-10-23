@@ -33,16 +33,25 @@ public sealed record CgtReturnReport(
 /// GetCapitalGainsTaxSummary has no purchase dates and nothing keeps tblCGTParcelMatching up to date.
 /// Returns of capital (tblReturnsOfCapital) reduce the cost bases, with any excess a G1 gain.
 /// </summary>
-public sealed class CgtDiscountService(TradesService trades, CorporateActionsService actions, ParcelChoiceService parcelChoices)
+public sealed class CgtDiscountService(TradesService trades, CorporateActionsService actions, ParcelChoiceService parcelChoices,
+    TaxWork.RentalService rentals)
 {
-    /// <summary>Saved parcel choices apply; the comparison with the legacy report is plain FIFO, as that report is.</summary>
+    /// <summary>
+    /// Saved parcel choices apply; the comparison with the legacy report is plain FIFO, as that report is. Rental properties
+    /// sold (Rental properties > Sale) are added as events of their own.
+    /// </summary>
     public async Task<CgtReturnReport> GetReturnAsync(int portfolioId, string? entityType, ReportPeriod period)
     {
         var lots = await LoadTradesAsync(portfolioId);
         var returns = await actions.GetTaxCostBaseLotsAsync(portfolioId);
         var choices = await parcelChoices.GetAsync(portfolioId);
-        return Build(CgtParcels.Match(lots, null, returns, choices), CgtDiscount.RateFor(entityType), period,
-            returns.Count > 0 || choices.Count > 0 ? CgtParcels.Match(lots) : null);
+        var properties = await rentals.GetSaleEventsAsync(portfolioId);
+        var match = CgtParcels.Match(lots, null, returns, choices);
+        if (properties.Count > 0)
+            match = match with { Events = [.. match.Events, .. properties] };
+        return Build(match, CgtDiscount.RateFor(entityType), period,
+            // The legacy report has shares only, so the comparison leaves the properties out
+            returns.Count > 0 || choices.Count > 0 || properties.Count > 0 ? CgtParcels.Match(lots) : null);
     }
 
     /// <summary>Parcels still held at the date, with what can't be matched.</summary>

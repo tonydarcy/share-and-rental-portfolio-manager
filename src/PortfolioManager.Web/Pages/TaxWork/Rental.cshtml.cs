@@ -35,6 +35,7 @@ public class RentalModel(CurrentPortfolio current, RentalService rentals, Locked
         public string Method { get; set; } = RentalAssetKinds.DiminishingValue;
         public decimal? Rate { get; set; } = 2.5m;
         public DateOnly? Disposed { get; set; }
+        public decimal? TerminationValue { get; set; }
     }
 
     [BindProperty(SupportsGet = true)] public int? Fy { get; set; }
@@ -75,10 +76,10 @@ public class RentalModel(CurrentPortfolio current, RentalService rentals, Locked
             return Forbid();
         if (Locked)
             return Done(ProcResult.Failed($"{FinancialYear.Label(Year)} is locked."), "");
-        var known = RentalCategories.All.Select(c => c.Key).Append(RentalCategories.Weeks).ToHashSet();
+        var known = RentalCategories.All.Select(c => c.Key).Concat(RentalCategories.Counts).ToHashSet();
         var amounts = Amounts.Where(a => known.Contains(a.Key) && a.Value is { } v && v != 0).ToDictionary(a => a.Key, a => a.Value!.Value);
-        if (amounts.GetValueOrDefault(RentalCategories.Weeks) is < 0 or > 53)
-            return Done(ProcResult.Failed("Weeks rented must be between 0 and 53."), "");
+        if (DaysError(amounts) is { } error)
+            return Done(ProcResult.Failed(error), "");
         return Done(await rentals.SaveAmountsAsync(p.PortfolioId, id, Year, amounts), $"Saved the {FinancialYear.Label(Year)} figures.");
     }
 
@@ -89,8 +90,12 @@ public class RentalModel(CurrentPortfolio current, RentalService rentals, Locked
         if (Asset.Start is null || string.IsNullOrWhiteSpace(Asset.Description))
             return Done(ProcResult.Failed("Enter what the asset is and the date it was first used or held for renting."), "");
         var plant = Asset.Kind == RentalAssetKinds.Plant;
+        var pooled = plant && Asset.Method == RentalAssetKinds.LowValuePool;
+        if (plant && !pooled && Asset.LifeYears is not > 0)
+            return Done(ProcResult.Failed("Enter the asset's effective life, or put it in the low-value pool."), "");
         var a = new RentalAsset(Asset.Id, Asset.PropertyId, plant ? RentalAssetKinds.Plant : RentalAssetKinds.Building, Asset.Description.Trim(), Asset.Start.Value,
-            Asset.Cost, plant ? Asset.LifeYears : null, plant ? Asset.Method : null, plant ? null : Asset.Rate, Asset.Disposed);
+            Asset.Cost, plant && !pooled ? Asset.LifeYears : null, plant ? Asset.Method : null, plant ? null : Asset.Rate, Asset.Disposed,
+            Asset.Disposed is null ? null : Asset.TerminationValue);
         return Done(await rentals.SaveAssetAsync(p.PortfolioId, a), plant ? "Depreciating asset saved." : "Capital works saved.");
     }
 
@@ -99,6 +104,20 @@ public class RentalModel(CurrentPortfolio current, RentalService rentals, Locked
         if (await LoadAsync() is not { } p)
             return Forbid();
         return Done(await rentals.DeleteAssetAsync(p.PortfolioId, id), "Asset deleted.");
+    }
+
+    /// <summary>Weeks must fit in a year, and days rented or available plus days used privately can't be more than the days owned.</summary>
+    public static string? DaysError(IReadOnlyDictionary<string, decimal> amounts)
+    {
+        if (amounts.GetValueOrDefault(RentalCategories.Weeks) is < 0 or > 53)
+            return "Weeks rented must be between 0 and 53.";
+        foreach (var key in new[] { RentalCategories.DaysAvailable, RentalCategories.DaysPrivate, RentalCategories.DaysOwned })
+            if (amounts.GetValueOrDefault(key) is < 0 or > 366 || amounts.GetValueOrDefault(key) % 1 != 0)
+                return "Days must be whole numbers between 0 and 366.";
+        var owned = amounts.GetValueOrDefault(RentalCategories.DaysOwned) is > 0 and var o ? o : 366;
+        if (amounts.GetValueOrDefault(RentalCategories.DaysAvailable) + amounts.GetValueOrDefault(RentalCategories.DaysPrivate) > owned)
+            return "Days rented or available plus days used privately can't be more than the days owned.";
+        return null;
     }
 
     private IActionResult Done(ProcResult r, string message)

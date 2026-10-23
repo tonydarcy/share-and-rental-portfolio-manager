@@ -57,58 +57,16 @@ This page lists only what is **not built yet**. Everything already in the site i
 
 ## Next: rental properties
 
-Tax work > Rental properties already keeps a yearly schedule for each property (ATO expense categories, Division 40
-and 43 depreciation, the owner's share) and fills labels 21P, 21Q, 21F and 21U. The items below turn it into proper
-property reporting. The first group matters most at tax time; the second borrows from self-managing landlord tools
-such as RentBetter, leaving out what those tools do as a marketplace (advertising, tenant applications and checks,
-booking tradespeople).
-
-**Reports and tax**
-
-23. **Rental schedule in the Taxable income report.** One schedule per property, laid out like the ATO rental property
-   schedule: address, date first earned, weeks rented, ownership share, each expense label, with whole-property and
-   owner's-share columns, printable for the client file.
-24. **Agent statements linked to a property.** Picking the property on a rental payout, so the schedule fills itself
-   from the ledger instead of the figures being keyed twice.
-25. **Income and expense statement per property** for any period, by month, with a total column.
-26. **Year-on-year comparison** of each property, flagging big changes for review.
-27. **Depreciation schedule report.** Opening and closing written-down values for each asset, a few years projected
-   ahead (like a quantity surveyor's report), and the low-value pool.
-28. **Loans per property.** Balance and interest for each loan, with a split for mixed-purpose loans and redraws,
-   feeding label 21Q.
-29. **Sale of a property.** The cost base with all five elements, less the Division 43 deductions claimed, balancing
-   adjustments on the Division 40 assets, the partial main residence exemption and the 6-year rule, feeding the
-   capital gains report.
-30. **Holiday homes and private use.** Days available, rented and used privately, with expenses apportioned to match.
-31. **Co-owner schedules.** A separate schedule for each owner, for couples and others who own jointly.
-32. **Yield and equity.** Value, loan, loan-to-value ratio, and gross and net yield, with properties counted in net
-   worth.
-33. **Review checklist.** Flags such as interest with no rent, large repairs that may be capital, missing agent
-   statement months and no weeks rented.
-
-**Running the property (ideas from landlord tools such as RentBetter)**
-
-34. **Tenancy register.** Tenants, lease dates, rent, bond and its lodgment number, vacancy, and reminders for rent
-   reviews and lease ends.
-35. **Rent ledger per tenancy.** The rent due on its schedule against what was paid, showing arrears, with an email
-   alert to the owner when a payment is missed.
-36. **Bills to the tenant.** Water usage and other costs passed on to the tenant, tracked until paid and netted off
-   the expense on the schedule.
-37. **Maintenance log.** Each repair job with the tradesperson, cost, invoice and whether it is a repair, an initial
-   repair or an improvement, so the tax treatment is decided when the work is done.
-38. **Inspections and condition reports.** Entry, routine and exit inspections with notes and photos, dated, kept with
-   the property for bond disputes.
-39. **Compliance reminders.** Smoke alarm checks, gas and electrical safety checks, pool certificates, landlord
-   insurance and building insurance renewals, by state.
-40. **Property documents.** Leases, the depreciation report, insurance policies, purchase and loan papers and the
-   settlement statement kept on each property, using the attachments the site already has.
+23. **Rental property extras.** Low-value pool disposals taken off the pool balance (they are worked out per asset
+   today), splitting a maintenance job between capital works and depreciating assets, and rent receipts and reminders
+   emailed to tenants.
 
 ## Next: business books
 
-41. **Pay an invoice online.** A card or bank payment link on invoices (Stripe or similar), with the payment matched
+24. **Pay an invoice online.** A card or bank payment link on invoices (Stripe or similar), with the payment matched
     to the invoice when it lands.
-42. **AI assistant in the site.** A chat panel that answers questions about the books and suggests entries, using the
-    same tools as the MCP server, with every change shown for approval first.
+25. **Assistant extras.** Replies that appear as they are written, reading an attached receipt or statement in the
+    chat, and a monthly spending limit when the host shares their own Anthropic key with every user.
 
 ## Using it outside Australia
 

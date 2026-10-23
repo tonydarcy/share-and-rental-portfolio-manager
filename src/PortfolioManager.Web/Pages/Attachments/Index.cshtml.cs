@@ -38,10 +38,10 @@ public class IndexModel(CurrentPortfolio current, AttachmentService attachments,
                 return NotFound();
             TargetText = found.Text;
         }
-        else if (Kind is AttachmentKinds.Bill or AttachmentKinds.ExpenseClaim && Target is { } target)
+        else if (AttachmentKinds.IsRecord(Kind) && Target is { } target)
             TargetText = $"{AttachmentKinds.Label(Kind)} {target}";
         Files = await attachments.ListAsync(Portfolio.PortfolioId, Kind, Target,
-            Kind is AttachmentKinds.Trade or AttachmentKinds.Journal or AttachmentKinds.Bill or AttachmentKinds.ExpenseClaim ? null : Fy);
+            AttachmentKinds.IsRecord(Kind) ? null : Fy);
         return Page();
     }
 
@@ -70,7 +70,7 @@ public class IndexModel(CurrentPortfolio current, AttachmentService attachments,
                 return NotFound();
             year = FinancialYear.EndYearFor(found.Date);
         }
-        else if (kind == AttachmentKinds.Client)
+        else if (kind is AttachmentKinds.Client or AttachmentKinds.Property)
             year = null;
         else
             year ??= FinancialYear.EndYearFor(DateOnly.FromDateTime(DateTime.Today));

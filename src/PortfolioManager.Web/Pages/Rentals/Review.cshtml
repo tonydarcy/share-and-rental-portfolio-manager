@@ -1,0 +1,39 @@
+@page
+@model ReviewModel
+@{
+    ViewData["Title"] = "Rental review checklist";
+}
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Rental review checklist</h1>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+<partial name="_Nav" />
+<partial name="_YearPicker" model="Model" />
+<p class="text-muted small">Checks each property's @FinancialYear.Label(Model.Year) schedule for interest with no rent, large repairs that may be capital,
+    months with no agent statement (for properties with an agent statement code), weeks rented not entered, travel, private use and shares nobody owns.
+    Big changes from last year are on <a asp-page="/Rentals/Compare" asp-route-fy="@Model.Year">Year on year</a>.</p>
+@if (Model.Schedule.Properties.Count == 0)
+{
+    <div class="alert alert-info">No rental properties have figures for @FinancialYear.Label(Model.Year).</div>
+}
+else if (Model.Flags.Count == 0)
+{
+    <div class="alert alert-success">Nothing to check for @FinancialYear.Label(Model.Year).</div>
+}
+else
+{
+    @foreach (var g in Model.Flags.GroupBy(f => f.Address))
+    {
+        <div class="card shadow-sm mb-3">
+            <div class="card-header fw-bold">@g.Key</div>
+            <ul class="list-group list-group-flush">
+                @foreach (var f in g) { <li class="list-group-item"><i class="bi bi-exclamation-triangle text-warning"></i> @f.Text</li> }
+            </ul>
+        </div>
+    }
+}

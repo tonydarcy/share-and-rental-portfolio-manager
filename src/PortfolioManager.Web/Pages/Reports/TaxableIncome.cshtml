@@ -81,6 +81,26 @@
     </p>
 }
 
+@if (Model.Rentals.Properties.Count > 0)
+{
+    var rs = Model.Rentals;
+    <h2 class="h5">Rental properties (item 21)</h2>
+    <div class="card shadow-sm mb-3">
+        <table class="table table-sm mb-0">
+            <tbody>
+                <tr><td style="width: 4rem">21P</td><td>Gross rent</td><td class="text-end">@rs.GrossRent.ToString("C")</td></tr>
+                <tr><td>21Q</td><td>Interest deductions</td><td class="text-end">@rs.Interest.ToString("C")</td></tr>
+                <tr><td>21F</td><td>Capital works deductions</td><td class="text-end">@rs.CapitalWorks.ToString("C")</td></tr>
+                <tr><td>21U</td><td>Other rental deductions</td><td class="text-end">@rs.OtherDeductions.ToString("C")</td></tr>
+                <tr class="fw-bold table-active"><td></td><td>Net rent</td><td class="text-end">@rs.Net.ToString("C")</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted small">From the <a asp-page="/Rentals/Schedule" asp-route-fy="@rs.Year">rental schedule</a>. Rental payouts recorded under Income also show in the holdings
+        below as cash received; use these item 21 figures for the return.</p>
+    <details class="mb-4"><summary class="small">Schedule for each property</summary><partial name="/Pages/Rentals/_Schedule.cshtml" model="rs" /></details>
+}
+
 <h2 class="h5">By holding</h2>
 <div class="card shadow-sm">
     <div class="table-responsive">

@@ -1,0 +1,24 @@
+@model (PortfolioManager.Core.Rentals.Tenancy? Tenancy, int PropertyId)
+@{
+    var t = Model.Tenancy;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    string Iso(DateOnly? d) => d?.ToString("yyyy-MM-dd") ?? "";
+}
+<form method="post" asp-page="/Rentals/Property" asp-page-handler="Tenancy" asp-route-id="@Model.PropertyId" class="row g-2 align-items-end mt-1">
+    <input type="hidden" name="TenancyForm.Id" value="@(t?.Id ?? 0)" />
+    <div class="col-md-4"><label class="form-label small mb-1">Tenants</label><input name="TenancyForm.Tenants" value="@t?.Tenants" maxlength="300" class="form-control form-control-sm" required /></div>
+    <div class="col-md-4"><label class="form-label small mb-1">Email</label><input name="TenancyForm.Email" type="email" value="@t?.Email" maxlength="200" class="form-control form-control-sm" /></div>
+    <div class="col-md-4"><label class="form-label small mb-1">Phone</label><input name="TenancyForm.Phone" value="@t?.Phone" maxlength="50" class="form-control form-control-sm" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Start</label><input name="TenancyForm.Start" type="date" value="@Iso(t?.Start)" class="form-control form-control-sm" required /></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Lease ends</label><input name="TenancyForm.LeaseEnd" type="date" value="@Iso(t?.LeaseEnd)" class="form-control form-control-sm" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Rent</label><input name="TenancyForm.Rent" type="number" step="0.01" min="0.01" value="@t?.Rent.ToString("0.##", inv)" class="form-control form-control-sm" required /></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Due every</label>
+        <select name="TenancyForm.Frequency" class="form-select form-select-sm">@foreach (var f in RentFrequencies.All) { <option value="@f" selected="@(f == (t?.Frequency ?? RentFrequencies.Week))">@f.ToLowerInvariant()</option> }</select></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Bond</label><input name="TenancyForm.Bond" type="number" step="0.01" min="0" value="@t?.Bond?.ToString("0.##", inv)" class="form-control form-control-sm" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Bond lodgment no.</label><input name="TenancyForm.BondLodgement" value="@t?.BondLodgement" maxlength="100" class="form-control form-control-sm" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Next rent review</label><input name="TenancyForm.RentReview" type="date" value="@Iso(t?.RentReview)" class="form-control form-control-sm" /></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Moved out</label><input name="TenancyForm.Vacated" type="date" value="@Iso(t?.Vacated)" class="form-control form-control-sm" /></div>
+    <div class="col-md-6"><label class="form-label small mb-1">Note</label><input name="TenancyForm.Note" value="@t?.Note" maxlength="1000" class="form-control form-control-sm" /></div>
+    <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary">@(t is null ? "Add tenancy" : "Save")</button></div>
+    @if (t is null) { <div class="col-12 form-text">Rent is due in advance from the start date. When the tenants move out, enter the date so the rent stops.</div> }
+</form>

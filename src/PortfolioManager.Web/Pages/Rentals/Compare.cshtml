@@ -1,0 +1,46 @@
+@page
+@model CompareModel
+@{
+    ViewData["Title"] = "Rental year on year";
+}
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Rental properties year on year</h1>
+    <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+</div>
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+<partial name="_Nav" />
+<partial name="_YearPicker" model="Model" />
+<p class="text-muted small">The whole property's figures for @FinancialYear.Label(Model.Year - 1) and @FinancialYear.Label(Model.Year). A change of
+    @RentalComparison.FlagAmount.ToString("C0") or more that is also at least @RentalComparison.FlagShare.ToString("P0") of last year's figure is flagged for review.</p>
+@if (Model.Properties.Count == 0)
+{
+    <div class="alert alert-info">No property has figures in both years.</div>
+}
+@foreach (var (p, lines) in Model.Properties)
+{
+    <div class="card shadow-sm mb-4">
+        <div class="card-header fw-bold">@p.Address</div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead class="table-light"><tr><th>Item</th><th class="text-end">@FinancialYear.Label(Model.Year - 1)</th><th class="text-end">@FinancialYear.Label(Model.Year)</th><th class="text-end">Change</th><th class="text-end">%</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var l in lines)
+                    {
+                        <tr class="@(l.Flagged ? "table-warning" : "") @(l == lines[^1] ? "fw-bold" : "")">
+                            <td>@l.Name</td>
+                            <td class="text-end">@l.Previous.ToString("C")</td>
+                            <td class="text-end">@l.Current.ToString("C")</td>
+                            <td class="text-end">@l.Change.ToString("C")</td>
+                            <td class="text-end">@(l.ChangePct is { } pct ? pct.ToString("P0") : "new")</td>
+                            <td>@if (l.Flagged) { <span class="badge text-bg-warning">Review</span> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

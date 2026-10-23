@@ -1,0 +1,153 @@
+@page
+@model PortfolioManager.Web.Pages.Assistant.IndexModel
+@using PortfolioManager.Core.Assistant
+@{
+    ViewData["Title"] = "Assistant";
+    var items = Model.Transcript.Items();
+    var waitingIds = Model.Waiting.Select(w => w.Id).ToHashSet();
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Assistant</h1>
+    <div class="d-flex gap-2">
+        @if (!Model.Transcript.IsEmpty)
+        {
+            <form method="post" asp-page-handler="Clear" onsubmit="return confirm('Start a new conversation? This one will be cleared.');"><button class="btn btn-sm btn-outline-secondary">New conversation</button></form>
+        }
+        <a href="#settings" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#settings">Assistant settings</a>
+    </div>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="collapse @(Model.HasKey ? "" : "show") mb-3" id="settings">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="h6">Assistant settings</h2>
+            <p class="small text-muted mb-2">The assistant is Claude, made by Anthropic. It uses your own Anthropic API key, so Anthropic bills you for what it uses
+                (usually a few cents a question). Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.
+                The key is kept encrypted and is only used for your conversations. What you ask, and the portfolio figures the assistant looks up to answer, are sent to Anthropic.</p>
+            @if (Model.Settings.KeyHint is { } hint)
+            {
+                <p class="small mb-2">Your key ending <span class="font-monospace">@hint</span> is saved.</p>
+            }
+            else if (Model.HostKey)
+            {
+                <p class="small mb-2">This site has its own key, so you can use the assistant without one. You can still add your own.</p>
+            }
+            <form method="post" asp-page-handler="Settings" class="row g-2 align-items-end">
+                <div class="col-md-5"><label class="form-label small mb-1" for="ApiKey">@(Model.Settings.KeyHint is null ? "Anthropic API key" : "Replace the key")</label>
+                    <input asp-for="ApiKey" type="password" autocomplete="off" class="form-control form-control-sm font-monospace" placeholder="sk-ant-..." value="" /></div>
+                <div class="col-md-4"><label class="form-label small mb-1" for="ChosenModel">Model</label>
+                    <select asp-for="ChosenModel" class="form-select form-select-sm">
+                        @foreach (var (id, name) in AssistantModels.All) { <option value="@id" selected="@(id == AssistantModels.Pick(Model.Settings.Model))">@name</option> }
+                    </select></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-sm btn-primary">Save</button></div>
+            </form>
+            @if (Model.Settings.KeyHint is not null)
+            {
+                <form method="post" asp-page-handler="RemoveKey" class="mt-2"><button class="btn btn-sm btn-link text-danger p-0">Remove my key from this site</button></form>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body" id="chat" style="max-height: 65vh; overflow-y: auto">
+        @if (items.Count == 0)
+        {
+            <div class="text-muted">
+                <p>Ask about <strong>@Model.Portfolio.Name</strong>: your holdings, income, gains, tax, rental properties or the books. For example:</p>
+                <ul class="small">
+                    <li>How did my portfolio do this financial year?</li>
+                    <li>Which dividends haven't been paid into the bank yet?</li>
+                    <li>Record a buy of 100 BHP at $45.20 on 3 October with $9.50 brokerage.</li>
+                    <li>What are my rental property figures for last year?</li>
+                </ul>
+                <p class="small mb-0">It looks things up by itself. Anything that would change your records is shown to you first, and only happens if you approve it.
+                    @(Model.Portfolio.CanEdit ? "" : "You can only view this portfolio, so the assistant can't change it.")</p>
+            </div>
+        }
+        @foreach (var item in items)
+        {
+            if (item.Kind == AssistantItem.Said)
+            {
+                var mine = item.Role == "user";
+                <div class="d-flex @(mine ? "justify-content-end" : "") mb-2">
+                    <div class="p-2 rounded @(mine ? "bg-primary-subtle" : "bg-body-tertiary border")" style="max-width: 85%; white-space: pre-wrap">@item.Text</div>
+                </div>
+            }
+            else if (item.Kind == AssistantItem.Tool)
+            {
+                var tool = Model.Tool(item.ToolName ?? "");
+                var waiting = item.ToolUseId is not null && waitingIds.Contains(item.ToolUseId);
+                <div class="mb-2 small @(waiting ? "border border-warning rounded p-2 bg-warning-subtle" : "text-muted")">
+                    @if (tool is { Writes: true })
+                    {
+                        <i class="bi bi-pencil-square"></i> <strong>@(waiting ? "Wants to: " : "Change: ")@(tool.Title)</strong>
+                        <pre class="small mb-0 mt-1" style="white-space: pre-wrap">@item.Text</pre>
+                    }
+                    else
+                    {
+                        <details><summary><i class="bi bi-search"></i> Looked up: @(tool?.Title ?? item.ToolName)</summary><pre class="small mb-0" style="white-space: pre-wrap">@item.Text</pre></details>
+                    }
+                </div>
+            }
+            else
+            {
+                var tool = Model.Tool(item.ToolName ?? "");
+                @if (tool is { Writes: true } || item.IsError)
+                {
+                    <div class="mb-2 small @(item.IsError ? "text-danger" : "text-success")">
+                        <i class="bi @(item.IsError ? "bi-x-circle" : "bi-check-circle")"></i>
+                        @if (item.IsError) { @item.Text } else { <span>Done.</span> <details class="d-inline"><summary class="d-inline">details</summary><pre class="small mb-0" style="white-space: pre-wrap">@item.Text</pre></details> }
+                    </div>
+                }
+            }
+        }
+    </div>
+    @if (Model.Waiting.Count > 0)
+    {
+        <div class="card-footer bg-warning-subtle">
+            <p class="small mb-2">The assistant wants to make the change@(Model.Waiting.Count(w => Model.Tool(w.Name) is { Writes: true }) == 1 ? "" : "s") shown above. Nothing is saved until you approve.</p>
+            <div class="d-flex gap-2">
+                <form method="post" asp-page-handler="Approve" class="assistant-busy"><button class="btn btn-sm btn-success">Approve</button></form>
+                <form method="post" asp-page-handler="Reject" class="assistant-busy"><button class="btn btn-sm btn-outline-danger">Reject</button></form>
+            </div>
+        </div>
+    }
+</div>
+
+@if (Model.Problem is not null)
+{
+    <div class="alert alert-warning py-2">@Model.Problem</div>
+}
+
+@if (Model.Waiting.Count == 0)
+{
+    <form method="post" asp-page-handler="Send" class="assistant-busy">
+        <div class="input-group">
+            <textarea asp-for="Message" rows="2" maxlength="@IndexModel.MaxMessage" class="form-control" placeholder="Ask a question or describe a change" disabled="@(!Model.HasKey)"
+                      onkeydown="if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); this.form.requestSubmit(); }"></textarea>
+            <button type="submit" class="btn btn-primary" disabled="@(!Model.HasKey)">Send</button>
+        </div>
+        <div class="form-text">Enter sends; Shift+Enter starts a new line. The assistant can make mistakes, so check its figures. Its changes are listed in the
+            <a asp-page="/Account/ApiKeys">agent change log</a>.</div>
+    </form>
+}
+<div id="assistantBusy" class="text-muted small mt-2 d-none"><span class="spinner-border spinner-border-sm"></span> Working on it. This can take up to a minute.</div>
+
+@section Scripts {
+    <script>
+        const chat = document.getElementById('chat');
+        if (chat) chat.scrollTop = chat.scrollHeight;
+        document.querySelectorAll('form.assistant-busy').forEach(f => f.addEventListener('submit', () => {
+            document.getElementById('assistantBusy').classList.remove('d-none');
+            document.querySelectorAll('form.assistant-busy button').forEach(b => b.disabled = true);
+        }));
+    </script>
+}

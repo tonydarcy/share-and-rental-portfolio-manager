@@ -20,6 +20,20 @@
         <p class="text-muted">Rent and property expenses for <strong>@Model.Portfolio.Name</strong>, e.g. from an agent's statement. Enter expenses as positive amounts.</p>
         <form method="post">
             <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+            @if (Model.Properties.Count > 0)
+            {
+                <div class="mb-3" style="max-width: 32rem">
+                    <label for="pickProperty" class="form-label">Which property</label>
+                    <select id="pickProperty" class="form-select" onchange="if (this.value) document.getElementById('Input_PropertyCode').value = this.value;">
+                        <option value="">Choose a property to fill in its code</option>
+                        @foreach (var p in Model.Properties.Where(p => p.Active))
+                        {
+                            <option value="@p.PayoutCode" disabled="@(p.PayoutCode is null)" selected="@(p.PayoutCode is not null && p.PayoutCode == Model.Input.PropertyCode)">@p.Address@(p.PayoutCode is null ? " (set its agent statement code on the property page first)" : $" ({p.PayoutCode})")</option>
+                        }
+                    </select>
+                    <div class="form-text">Payouts with a property's code go onto its rental schedule automatically.</div>
+                </div>
+            }
             <partial name="_RentalFields" for="Input" />
             <button type="submit" class="btn btn-success">Save rental payout</button>
         </form>

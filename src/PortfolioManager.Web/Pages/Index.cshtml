@@ -44,6 +44,26 @@
             </div>
         </div>
     </div>
+    @if (Model.Properties.Count > 0)
+    {
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small"><a asp-page="/Rentals/Index" class="text-reset">Property equity</a></div>
+                    <div class="kpi-value">@Model.PropertyEquity.ToString("C")</div>
+                    <div class="small text-muted">@Model.Properties.Count propert@(Model.Properties.Count == 1 ? "y" : "ies"): your share of the value less linked loans</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Net worth (portfolio and property)</div>
+                    <div class="kpi-value">@((Model.Value.TotalPortfolioValue + Model.PropertyEquity).ToString("C"))</div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 <div class="row g-3">

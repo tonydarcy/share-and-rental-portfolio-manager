@@ -117,6 +117,19 @@
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Property</a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" asp-page="/Rentals/Index">Properties</a></li>
+                                <li><a class="dropdown-item" asp-page="/TaxWork/Rental">Yearly figures and assets</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" asp-page="/Rentals/Schedule">Rental schedule</a></li>
+                                <li><a class="dropdown-item" asp-page="/Rentals/Statement">Income and expenses</a></li>
+                                <li><a class="dropdown-item" asp-page="/Rentals/Compare">Year on year</a></li>
+                                <li><a class="dropdown-item" asp-page="/Rentals/Depreciation">Depreciation schedule</a></li>
+                                <li><a class="dropdown-item" asp-page="/Rentals/Review">Review checklist</a></li>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Reports</a>
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" asp-page="/Reports/Performance">Performance</a></li>
@@ -194,6 +207,7 @@
                                 <li><a class="dropdown-item" asp-page="/SalesTax/Codes">@salesTaxName codes</a></li>
                             </ul>
                         </li>
+                        <li class="nav-item"><a class="nav-link" asp-page="/Assistant/Index"><i class="bi bi-chat-dots"></i> Assistant</a></li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Import</a>
                             <ul class="dropdown-menu">

@@ -186,7 +186,39 @@ public sealed class AgentTools
             "Ledger balance sheet at a date.",
             false, new ToolSchema().Portfolio().Date("asAt", "Date (default today)").Build(),
             async c => await c.Service<LedgerReportService>().BalanceSheetAsync(c.PortfolioId, AsAt(c))),
+
+        new("report_rental_schedule", "Rental property schedule",
+            "Each rental property's schedule for a financial year (income, each expense, depreciation and capital works, for the whole property "
+            + "and the owner's share) and the item 21 totals for the tax return.",
+            false, new ToolSchema().Portfolio()
+                .Int("financialYear", "The year the financial year ends in, e.g. 2026. Default: the last completed year.").Build(),
+            RentalSchedule),
     ];
+
+    private static async Task<object?> RentalSchedule(AgentCall c)
+    {
+        var year = c.Int("financialYear") ?? FinancialYear.LastCompleted(DateOnly.FromDateTime(DateTime.Today));
+        var s = await c.Service<PortfolioManager.Core.TaxWork.RentalService>().GetYearAsync(c.PortfolioId, year);
+        return new
+        {
+            FinancialYear = FinancialYear.Label(year),
+            Item21 = new { GrossRent21P = s.GrossRent, Interest21Q = s.Interest, CapitalWorks21F = s.CapitalWorks, OtherDeductions21U = s.OtherDeductions, NetRent = s.Net },
+            Properties = s.Properties.Select(p => new
+            {
+                p.Property.Id,
+                p.Property.Address,
+                p.Property.OwnershipPct,
+                WeeksRented = p.Weeks,
+                ExpensesClaimedPct = p.PrivateUseFactor * 100,
+                Lines = p.Lines().Where(l => l.Whole != 0).Select(l => new { l.Name, WholeProperty = l.Whole, OwnersShare = l.Share }),
+                GrossRent21P = p.GrossRent,
+                Interest21Q = p.Interest,
+                CapitalWorks21F = p.CapitalWorksShare,
+                OtherDeductions21U = p.OtherDeductions,
+                NetRent = p.Net,
+            }),
+        };
+    }
 
     private static async Task<object?> ListPortfolios(AgentCall c)
     {
