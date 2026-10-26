@@ -133,7 +133,7 @@ public static class CgtParcels
                     inherited[buy] = moved;
 
                 if (needed > 0)
-                    problems.Add(new(t.Date, $"{needed:#,##0.####} {code} units sold on {t.Date:d MMM yyyy} are more than were held, so they have no cost base and were left out."));
+                    problems.Add(new(t.Date, $"{needed:#,##0.########} {code} units sold on {t.Date:d MMM yyyy} are more than were held, so they have no cost base and were left out."));
             }
 
             while (pending is { Count: > 0 })

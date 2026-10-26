@@ -88,11 +88,11 @@
                 {
                     <tr>
                         <td><span class="fw-bold">@l.StockCode</span> <span class="text-muted small">@l.ExchangeCode</span></td>
-                        <td class="text-end">@l.OpeningUnits.ToString("#,##0.####")</td>
+                        <td class="text-end">@l.OpeningUnits.ToString("#,##0.########")</td>
                         <td class="text-end">@l.OpeningValue.ToString("C")</td>
                         <td class="text-end">@l.Purchases.ToString("C")</td>
                         <td class="text-end">@l.Sales.ToString("C")</td>
-                        <td class="text-end">@l.ClosingUnits.ToString("#,##0.####")</td>
+                        <td class="text-end">@l.ClosingUnits.ToString("#,##0.########")</td>
                         <td class="text-end">@l.ClosingCost.ToString("C")</td>
                         <td class="text-end">@(l.ClosingMarket?.ToString("C") ?? "No price")</td>
                         <td class="text-end fw-bold">@l.ClosingValue.ToString("C")</td>

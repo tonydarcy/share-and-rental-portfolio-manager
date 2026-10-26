@@ -142,7 +142,7 @@
                         <td class="text-end">
                             @if (h.ValueByEntity.TryGetValue(e.PortfolioId, out var v))
                             {
-                                @Money(v, e.Currency)<div class="small text-muted">@h.UnitsByEntity[e.PortfolioId].ToString("#,##0.####") units</div>
+                                @Money(v, e.Currency)<div class="small text-muted">@h.UnitsByEntity[e.PortfolioId].ToString("#,##0.########") units</div>
                             }
                         </td>
                     }

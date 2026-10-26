@@ -41,7 +41,7 @@
                     }
                     else if (Is(ParcelTransfer.Takeover))
                     {
-                        <text>All the shares held at the end of the date are given up for cash, new shares, or both. @(au ? "With scrip-for-scrip rollover the new shares take over part of the cost base and the purchase dates, and only the cash part is a capital gain now." : "")</text>
+                        <text>The shares given up (all those held at the end of the date, unless you say how many were taken up) go for cash, new shares, or both. @(au ? "With scrip-for-scrip rollover the new shares take over part of the cost base and the purchase dates, and only the cash part is a capital gain now." : "")</text>
                     }
                     else if (Is(ParcelTransfer.OptionExercise))
                     {
@@ -102,7 +102,7 @@
                     {
                         <div class="col-sm-4">
                             <label asp-for="Input.Units" class="form-label">Options exercised <span class="text-muted small">(blank for all)</span></label>
-                            <input asp-for="Input.Units" type="number" min="1" step="1" class="form-control" />
+                            <input asp-for="Input.Units" type="number" min="0" step="any" class="form-control" />
                             <span asp-validation-for="Input.Units" class="text-danger small"></span>
                         </div>
                         <div class="col-sm-4">
@@ -111,11 +111,20 @@
                             <span asp-validation-for="Input.ExercisePrice" class="text-danger small"></span>
                         </div>
                     }
+                    @if (Is(ParcelTransfer.Takeover))
+                    {
+                        <div class="col-sm-4">
+                            <label asp-for="Input.Units" class="form-label">Shares taken up <span class="text-muted small">(blank for all)</span></label>
+                            <input asp-for="Input.Units" type="number" min="0" step="any" class="form-control" />
+                            <div class="form-text">When the offer took only some of your shares (a scaled-back or proportional offer). The oldest parcels go first.</div>
+                            <span asp-validation-for="Input.Units" class="text-danger small"></span>
+                        </div>
+                    }
                     @if (Is(ParcelTransfer.Demerger) || Is(ParcelTransfer.Takeover) || Is(ParcelTransfer.OptionExercise))
                     {
                         <div class="col-sm-4">
                             <label asp-for="Input.NewUnits" class="form-label">New shares received</label>
-                            <input asp-for="Input.NewUnits" type="number" min="0" step="1" class="form-control" />
+                            <input asp-for="Input.NewUnits" type="number" min="0" step="any" class="form-control" />
                             <span asp-validation-for="Input.NewUnits" class="text-danger small"></span>
                         </div>
                     }
@@ -152,6 +161,17 @@
                             <input asp-for="Input.CostSharePercent" type="number" min="0" max="100" step="any" class="form-control" />
                             <span asp-validation-for="Input.CostSharePercent" class="text-danger small"></span>
                         </div>
+                        <div class="col-sm-4">
+                            <label asp-for="Input.DividendPerShare" class="form-label">Paid as a dividend, per old share <span class="text-muted small">(optional)</span></label>
+                            <input asp-for="Input.DividendPerShare" type="number" min="0" step="any" class="form-control" />
+                            <div class="form-text">When the booklet says part of the demerger is a dividend.</div>
+                            <span asp-validation-for="Input.DividendPerShare" class="text-danger small"></span>
+                        </div>
+                        <div class="col-sm-4">
+                            <label asp-for="Input.DividendFrankedPercent" class="form-label">Dividend franked, %</label>
+                            <input asp-for="Input.DividendFrankedPercent" type="number" min="0" max="100" step="any" class="form-control" />
+                            <span asp-validation-for="Input.DividendFrankedPercent" class="text-danger small"></span>
+                        </div>
                     }
                     <div class="col-12">
                         <label asp-for="Input.Comment" class="form-label">Comment <span class="text-muted small">(optional)</span></label>
@@ -163,11 +183,11 @@
                 @if (Model.Preview is { } p && Model.Transfer is { } t)
                 {
                     <div class="border rounded p-3 mt-3 bg-body-tertiary">
-                        <h2 class="h6">@p.UnitsHeld.ToString("#,##0.####") @t.Code units held, cost base @p.CostBase.ToString("C")</h2>
+                        <h2 class="h6">@p.UnitsHeld.ToString("#,##0.########") @t.Code units held, cost base @p.CostBase.ToString("C")</h2>
                         @if (t.IsTakeover)
                         {
                             <p class="small mb-2">
-                                Received @p.Cash.ToString("C") cash@(t.NewUnits > 0 ? $" and {t.NewUnits:N0} {t.NewCode} shares worth {p.ScripValue:C}" : ""), @p.Consideration.ToString("C") in all.
+                                Received @p.Cash.ToString("C") cash@(t.NewUnits > 0 ? $" and {t.NewUnits:#,##0.########} {t.NewCode} shares worth {p.ScripValue:C}" : ""), @p.Consideration.ToString("C") in all.
                                 @if (t.Rollover)
                                 {
                                     <span>With rollover, @((p.CostShare * 100).ToString("0.##"))% of the cost base (@p.CostMoved.ToString("C")) goes to the new shares, and the gain counted now is on the cash: <strong>@p.GainNow(true).ToString("C")</strong>.</span>
@@ -182,7 +202,7 @@
                         {
                             <p class="small mb-0">
                                 The options' cost base of @p.CostMoved.ToString("C") plus @((t.ExercisePrice * t.NewUnits).ToString("C")) paid
-                                (@t.NewUnits.ToString("N0") × @t.ExercisePrice.ToString("C4")) makes the @t.NewCode shares' cost base
+                                (@t.NewUnits.ToString("#,##0.########") × @t.ExercisePrice.ToString("C4")) makes the @t.NewCode shares' cost base
                                 <strong>@((p.CostMoved + t.ExercisePrice * t.NewUnits).ToString("C"))</strong>, acquired on @t.Date.ToString("d MMM yyyy").
                                 Pay the exercise price from the bank as usual; it settles against Trade Clearing.
                             </p>
@@ -205,16 +225,24 @@
                                     {
                                         <tr>
                                             <td>@parcel.Acquired.ToString("d MMM yyyy")</td>
-                                            <td class="text-end">@parcel.Units.ToString("#,##0.####")</td>
+                                            <td class="text-end">@parcel.Units.ToString("#,##0.########")</td>
                                             <td class="text-end">@parcel.CostBefore.ToString("C")</td>
                                             <td class="text-end">@parcel.CostKept.ToString("C")</td>
                                             <td class="text-end">@parcel.CostMoved.ToString("C")</td>
-                                            <td class="text-end">@parcel.NewUnits.ToString("#,##0.####")</td>
+                                            <td class="text-end">@parcel.NewUnits.ToString("#,##0.########")</td>
                                         </tr>
                                     }
                                 </tbody>
                             </table>
                             <div class="small text-muted">The new shares keep each parcel's purchase date@(au ? ", so the CGT discount is worked out from when the original shares were bought" : "").</div>
+                        }
+                        @if (t.IsDemerger && p.Dividend > 0)
+                        {
+                            <p class="small mb-0">
+                                The dividend part, <strong>@p.Dividend.ToString("C")</strong>@(p.DividendFranked > 0 ? $" ({p.DividendFranked:C} franked, a franking credit of {p.DividendFrankingCredit:C} at the 30% company rate)" : " (unfranked)"),
+                                is recorded as a @t.Code payout on @t.Date.ToString("d MMM yyyy"). No cash arrives, since it was paid in @t.NewCode shares, so in the ledger it goes to the @t.NewCode cost base account instead of the bank.
+                                The dividend doesn't change the cost base split above@(au ? " (demerger relief apportions the old cost base)" : "").
+                            </p>
                         }
                         @if (t.IsWorthless)
                         {

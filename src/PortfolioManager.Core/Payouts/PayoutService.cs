@@ -425,7 +425,7 @@ public sealed class PayoutService(IDbConnectionFactory db)
             dblFrankedAmount = (double)d.Franked,
             dblUnFrankedAmount = (double)d.Unfranked,
             dblFrankingCredit = (double)d.FrankingCredit,
-            iQuantity = d.Units,
+            iQuantity = (double)d.Units,
             dblPricePerUnit = (double)d.Price,
             strComment = string.IsNullOrWhiteSpace(d.Comment) ? "Dividend Reinvestment (DRP)" : d.Comment.Trim(),
             dblTFNWithholdingAmount = (double)d.TaxWithheld,

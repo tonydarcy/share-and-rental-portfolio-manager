@@ -197,7 +197,7 @@
                             <td class="text-muted small">@e.ExchangeCode</td>
                             <td>@(e.IsFundGain ? "" : e.Acquired.ToString("d MMM yyyy"))</td>
                             <td>@e.Disposed.ToString("d MMM yyyy")</td>
-                            <td class="text-end">@(e.IsPropertySale ? "" : e.Units.ToString("#,##0.####"))</td>
+                            <td class="text-end">@(e.IsPropertySale ? "" : e.Units.ToString("#,##0.########"))</td>
                             <td class="text-end">@e.CostBase.ToString("C")</td>
                             <td class="text-end">@e.Proceeds.ToString("C")</td>
                             <td class="text-end fw-bold @PeriodReportModel.GainClass(e.Gain)">@e.Gain.ToString("C")</td>

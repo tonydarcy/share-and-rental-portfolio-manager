@@ -116,10 +116,10 @@ public sealed class ParcelChoiceService(IDbConnectionFactory db, TradesService t
             if (parcel is null)
                 return "A parcel picked wasn't held at the sale.";
             if (p.Units > parcel.Units)
-                return $"Only {parcel.Units:#,##0.####} units of the parcel bought {parcel.Acquired:d MMM yyyy} were held.";
+                return $"Only {parcel.Units:#,##0.########} units of the parcel bought {parcel.Acquired:d MMM yyyy} were held.";
         }
         var total = used.Sum(p => p.Units);
-        return total == sale.Units ? null : $"The units picked ({total:#,##0.####}) must add up to the units sold ({sale.Units:#,##0.####}).";
+        return total == sale.Units ? null : $"The units picked ({total:#,##0.########}) must add up to the units sold ({sale.Units:#,##0.########}).";
     }
 
     public static string PicksXml(IEnumerable<ParcelPick> picks) =>

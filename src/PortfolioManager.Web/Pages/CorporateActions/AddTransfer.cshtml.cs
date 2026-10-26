@@ -54,11 +54,11 @@ public class AddTransferModel(CurrentPortfolio current, CgtDiscountService cgt, 
         }
         TempData["Message"] = t switch
         {
-            { IsDemerger: true } => $"Demerger recorded: {t.NewUnits:N0} {t.NewCode} shares with {p.CostMoved:C} of the {t.Code} cost base.",
-            { IsTakeover: true } => $"Takeover of {t.Code} recorded" + (t.NewUnits > 0 ? $": {t.NewUnits:N0} {t.NewCode} shares" : "") + (p.Cash > 0 ? $" and {p.Cash:C} cash." : "."),
-            { IsExercise: true } => $"{p.UnitsHeld:#,##0} {t.Code} exercised for {t.NewUnits:N0} {t.NewCode} shares, cost base {p.CostMoved + t.ExercisePrice * t.NewUnits:C}.",
+            { IsDemerger: true } => $"Demerger recorded: {t.NewUnits:#,##0.########} {t.NewCode} shares with {p.CostMoved:C} of the {t.Code} cost base" + (p.Dividend > 0 ? $", and a {p.Dividend:C} dividend." : "."),
+            { IsTakeover: true } => $"Takeover of {t.Code} recorded" + (t.NewUnits > 0 ? $": {t.NewUnits:#,##0.########} {t.NewCode} shares" : "") + (p.Cash > 0 ? $" and {p.Cash:C} cash." : "."),
+            { IsExercise: true } => $"{p.UnitsHeld:#,##0.########} {t.Code} exercised for {t.NewUnits:#,##0.########} {t.NewCode} shares, cost base {p.CostMoved + t.ExercisePrice * t.NewUnits:C}.",
             { IsCodeChange: true } => $"{t.Code} is now {t.NewCode} on {t.NewMarket}.",
-            _ => $"{p.UnitsHeld:#,##0} {t.Code} shares recorded as sold for nil, a capital loss of {p.CostBase:C}.",
+            _ => $"{p.UnitsHeld:#,##0.########} {t.Code} shares recorded as sold for nil, a capital loss of {p.CostBase:C}.",
         };
         return RedirectToPage("./Index");
     }

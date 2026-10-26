@@ -157,4 +157,73 @@ public class ParcelTransferTests
         Assert.Equal(0m, p.GainNow(false));
         Assert.Equal(0.5m, p.NewPerOld(100));
     }
+
+    [Fact]
+    public void Partial_takeover_takes_the_oldest_parcels_and_matches_the_sale_the_same_way()
+    {
+        OpenParcel[] open = [new("ASX", "TGT", new DateOnly(2020, 1, 1), 150, 20m), new("ASX", "TGT", new DateOnly(2024, 1, 1), 50, 40m)];
+        var form = new TransferForm
+        {
+            Kind = "Takeover", Market = "ASX", Code = "TGT", Date = new DateOnly(2026, 8, 1), Units = 160, CashPerShare = 25,
+        };
+        var t = ParcelTransferEntry.Validate(form, Today).Value!;
+        Assert.Equal(160m, t.Units);
+        var p = ParcelTransferEntry.Preview(open, t);
+        // 150 from the 2020 parcel and 10 from the 2024 one
+        Assert.Equal((160m, 3400m, 4000m), (p.UnitsHeld, p.CostBase, p.Cash));
+        Assert.Equal(600m, p.GainNow(false));
+
+        // The sale it records is matched first in, first out too, so the gain agrees and 40 units stay
+        TradeLot[] trades =
+        [
+            new(1, "ASX", "TGT", "Buy", new DateOnly(2020, 1, 1), 150, 20m),
+            new(2, "ASX", "TGT", "Buy", new DateOnly(2024, 1, 1), 50, 40m),
+            new(3, "ASX", "TGT", "Sell", new DateOnly(2026, 8, 1), 160, 25m),
+        ];
+        var m = CgtParcels.Match(trades);
+        Assert.Equal(600m, m.Events.Sum(e => e.Gain));
+        Assert.Equal(40m, Assert.Single(m.Open).Units);
+
+        Assert.NotEmpty(ParcelTransferEntry.Validate(new TransferForm
+        {
+            Kind = "Takeover", Market = "ASX", Code = "TGT", Date = new DateOnly(2026, 8, 1), Units = -1, CashPerShare = 25,
+        }, Today).Errors);
+    }
+
+    [Fact]
+    public void Demerger_with_a_dividend_part_works_out_the_dividend_and_franking()
+    {
+        OpenParcel[] open = [new("ASX", "OLD", new DateOnly(2020, 1, 1), 1000, 10m)];
+        var t = ParcelTransferEntry.Validate(new TransferForm
+        {
+            Kind = "Demerger", Market = "ASX", Code = "OLD", Date = new DateOnly(2026, 3, 1), NewCode = "NEW", NewUnits = 250,
+            CostSharePercent = 20, DividendPerShare = 0.21m, DividendFrankedPercent = 100,
+        }, Today).Value!;
+        var p = ParcelTransferEntry.Preview(open, t);
+
+        Assert.Equal((210m, 210m, 0m, 90m), (p.Dividend, p.DividendFranked, p.DividendUnfranked, p.DividendFrankingCredit));
+        Assert.Equal(2000m, p.CostMoved); // the dividend doesn't change the cost base split
+
+        var args = ParcelTransferService.DemergerDividendParameters(7, t, p, 55);
+        var values = args.GetType().GetProperties().ToDictionary(x => x.Name, x => x.GetValue(args));
+        Assert.Equal(("OLD", 210d, 210d, 0d, 90d, 55), ((string)values["strStockCode"]!, (double)values["dblTotal"]!, (double)values["dblFrankedAmount"]!,
+            (double)values["dblUnFrankedAmount"]!, (double)values["dblFrankingCredit"]!, (int?)values["iTargetAccountID"]));
+
+        Assert.NotEmpty(ParcelTransferEntry.Validate(new TransferForm
+        {
+            Kind = "Demerger", Market = "ASX", Code = "OLD", Date = new DateOnly(2026, 3, 1), NewCode = "NEW", NewUnits = 250,
+            CostSharePercent = 20, DividendPerShare = 0.21m, DividendFrankedPercent = 120,
+        }, Today).Errors);
+    }
+
+    [Fact]
+    public void Part_units_are_allowed_for_new_shares()
+    {
+        var ok = ParcelTransferEntry.Validate(new TransferForm
+        {
+            Kind = "Demerger", Market = "ASX", Code = "OLD", Date = new DateOnly(2026, 3, 1), NewCode = "NEW", NewUnits = 12.5m, CostSharePercent = 10,
+        }, Today);
+        Assert.True(ok.IsValid);
+        Assert.Equal(12.5m, ok.Value!.NewUnits);
+    }
 }

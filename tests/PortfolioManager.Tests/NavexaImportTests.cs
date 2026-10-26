@@ -102,7 +102,7 @@ public class NavexaTradeParseTests
         12/03/2025,BHP,ASX,Split,100,,,AUD,,
         14/03/2025,BHP,ASX,Dividend Reinvestment,12,45.10,,AUD,,
         15/03/2025,WES,ASX,Opening Balance,50,60,0,AUD,,
-        16/03/2025,VAS,ASX,Buy,10.5,100,0,AUD,,
+        16/03/2025,VAS,ASX,Buy,10.123456789,100,0,AUD,,
         31/02/2025,VAS,ASX,Buy,10,100,0,AUD,,
         01/01/2027,VAS,ASX,Buy,10,100,0,AUD,,
         17/03/2025,MSFT,NAS,Buy,5,400,0,USD,,
@@ -170,7 +170,7 @@ public class NavexaTradeParseTests
     }
 
     [Theory]
-    [InlineData(9, "Fractional")]
+    [InlineData(9, "decimal places")]
     [InlineData(10, "isn't a date")]
     [InlineData(11, "future")]
     [InlineData(12, "No exchange rate")]

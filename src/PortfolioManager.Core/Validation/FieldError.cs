@@ -36,4 +36,17 @@ public static class FormRules
         value.Length == 3 && value.All(c => c is >= 'A' and <= 'Z');
 
     internal static bool HasMoreThanCents(decimal value) => value != Math.Round(value, 2);
+
+    /// <summary>Units can have up to eight decimal places (part units of crypto and managed funds).</summary>
+    public const int UnitDecimals = 8;
+
+    /// <summary>The most units one trade can hold.</summary>
+    public const decimal MaxUnits = 999_999_999_999m;
+
+    /// <summary>The check for a number of units on any form; null when it's fine.</summary>
+    public static string? UnitsProblem(decimal units) =>
+        units <= 0 ? "Units must be more than zero."
+        : units > MaxUnits ? "That's too many units."
+        : units != Math.Round(units, UnitDecimals) ? $"Units can have at most {UnitDecimals} decimal places."
+        : null;
 }

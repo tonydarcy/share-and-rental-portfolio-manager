@@ -77,7 +77,7 @@
                         <td><span class="badge @(t.Type.Trim().Equals("SELL", StringComparison.OrdinalIgnoreCase) ? "text-bg-warning" : "text-bg-info")">@t.Type.Trim().ToUpperInvariant()</span></td>
                         <td class="fw-bold">@t.StockCode <span class="text-muted small fw-normal">@t.ExchangeCode</span></td>
                         <td class="small">@t.Name</td>
-                        <td class="text-end">@t.Quantity.ToString("#,##0.####")</td>
+                        <td class="text-end">@t.Quantity.ToString("#,##0.########")</td>
                         <td class="text-end">@t.PricePerUnit.ToString("#,##0.00##")</td>
                         <td class="text-end">@t.Brokerage.ToString("#,##0.00")</td>
                         <td class="small">@t.Currency</td>

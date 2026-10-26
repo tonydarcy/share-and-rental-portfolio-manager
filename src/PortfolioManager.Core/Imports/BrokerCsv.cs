@@ -314,13 +314,13 @@ public static partial class BrokerCsv
         else if (date > today.Date)
             errors.Add("The trade date is in the future.");
 
-        int quantity = 0;
+        decimal quantity = 0;
         if (t.Quantity is not { } q || q <= 0)
             errors.Add($"'{t.QuantityText}' isn't a number of units above zero.");
-        else if (q != decimal.Truncate(q) || q > int.MaxValue)
-            errors.Add("Part units (fractional shares) can't be imported yet; enter this trade by hand rounded to whole units.");
+        else if (Validation.FormRules.UnitsProblem(q) is { } problem)
+            errors.Add(problem);
         else
-            quantity = (int)q;
+            quantity = q;
 
         // Fill in a missing price or brokerage from the totals: a buy's net = gross + fees, a sale's net = gross - fees
         var buy = t.Type == "Buy";

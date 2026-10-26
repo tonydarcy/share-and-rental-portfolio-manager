@@ -73,7 +73,7 @@
                     <tr>
                         <td class="fw-bold">@l.StockCode</td>
                         <td class="text-muted small">@l.ExchangeCode</td>
-                        <td class="text-end">@l.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@l.Units.ToString("#,##0.########")</td>
                         <td class="text-end">@l.CostPerUnit.ToString("C3")</td>
                         <td class="text-end">@l.TotalCost.ToString("C")</td>
                         <td class="text-end">@(l.MarketPrice?.ToString("C3") ?? "No price")</td>
@@ -164,7 +164,7 @@
                         <td class="fw-bold">@p.StockCode</td>
                         <td class="text-muted small">@p.ExchangeCode</td>
                         <td>@p.Acquired.ToString("d MMM yyyy")</td>
-                        <td class="text-end">@p.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@p.Units.ToString("#,##0.########")</td>
                         <td class="text-end">@p.TotalCost.ToString("C")</td>
                         <td class="text-end @(gain is { } g ? PeriodReportModel.GainClass(g) : "")">@(gain?.ToString("C") ?? "No price")</td>
                         @if (au)

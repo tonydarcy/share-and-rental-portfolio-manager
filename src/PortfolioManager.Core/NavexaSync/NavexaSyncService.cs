@@ -413,7 +413,7 @@ public sealed class NavexaSyncService(IDbConnectionFactory db, NavexaApiClient a
         var existing = new ExistingRecords(
             (await con.QueryAsync<ExistingTrade>("""
                 SELECT ISNULL(strStockExchangeCode, '') AS Exchange, ISNULL(strStockCode, '') AS Code, ISNULL(strType, '') AS Type,
-                       CAST(dtmDateOfTransaction AS datetime) AS Date, CAST(ISNULL(iQuantity, 0) AS decimal(19, 4)) AS Quantity,
+                       CAST(dtmDateOfTransaction AS datetime) AS Date, CAST(ROUND(ISNULL(iQuantity, 0), 8) AS decimal(28, 8)) AS Quantity,
                        CAST(ISNULL(dblPricePerUnit, 0) AS decimal(19, 6)) AS Price
                 FROM tblShareTrades WHERE iUserId = @portfolioId
                 """, new { portfolioId })).ToList(),

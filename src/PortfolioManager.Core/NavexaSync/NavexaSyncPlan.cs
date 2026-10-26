@@ -25,7 +25,7 @@ public enum InputNeed { None, FrankingCredit, Drp, SplitRatio, ConfirmNotDuplica
 public sealed class SyncInput
 {
     public decimal? FrankingCredit { get; set; }
-    public int? DrpUnits { get; set; }
+    public decimal? DrpUnits { get; set; }
     public decimal? DrpPrice { get; set; }
     public int? SplitNewUnits { get; set; }
     public int? SplitOldUnits { get; set; }
@@ -35,7 +35,7 @@ public sealed class SyncInput
     public bool AlreadyHere { get; set; }
 }
 
-public sealed record SyncTrade(string Exchange, string Code, string Name, string Type, DateTime Date, int Quantity, decimal Price,
+public sealed record SyncTrade(string Exchange, string Code, string Name, string Type, DateTime Date, decimal Quantity, decimal Price,
     decimal Brokerage, string Currency, decimal ExchangeRate, string Comment, string? BankAccount);
 
 /// <summary>A dividend or distribution with every amount in the portfolio currency.</summary>
@@ -43,7 +43,7 @@ public sealed record SyncPayout(string Exchange, string Code, DateTime Date, dec
     decimal ForeignTax, decimal Net, string Comment);
 
 public sealed record SyncDrp(string Exchange, string Code, DateTime Date, decimal Franked, decimal Unfranked, decimal FrankingCredit,
-    int Units, decimal Price, string Comment);
+    decimal Units, decimal Price, string Comment);
 
 /// <summary>A cash account entry. A null contra account posts against Owner's Capital, as a manual deposit or withdrawal does.</summary>
 public sealed record SyncCash(string BankAccount, DateTime Date, decimal Deposit, decimal Withdrawal, string Currency, string Comment,

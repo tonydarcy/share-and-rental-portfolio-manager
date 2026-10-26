@@ -148,7 +148,7 @@ public class ShareTradeCsvTests
     [InlineData("ASX,BHP,BHP,Hold,2024-02-29,10,45,0,AUD,1,x")]       // type
     [InlineData("ASX,BHP,BHP,Buy,2024-02-30,10,45,0,AUD,1,x")]        // date
     [InlineData("ASX,BHP,BHP,Buy,2026-10-16,10,45,0,AUD,1,x")]        // future
-    [InlineData("ASX,BHP,BHP,Buy,2024-02-29,10.5,45,0,AUD,1,x")]      // part units
+    [InlineData("ASX,BHP,BHP,Buy,2024-02-29,10.123456789,45,0,AUD,1,x")] // more than 8 decimal places
     [InlineData("ASX,BHP,BHP,Sell,2024-02-29,-10,45,0,AUD,1,x")]      // negative quantity
     [InlineData("ASX,BHP,BHP,Buy,2024-02-29,10,abc,0,AUD,1,x")]       // price
     [InlineData("ASX,BHP,BHP,Buy,2024-02-29,10,45,-2,AUD,1,x")]       // brokerage

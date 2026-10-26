@@ -65,8 +65,8 @@
                             <span class="badge text-bg-warning" title="Bought on @c.LastBought.ToString("d MMM yyyy")">bought recently</span>
                         }
                     </td>
-                    <td class="text-end">@c.UnitsHeld.ToString("#,##0.####")</td>
-                    <td class="text-end">@c.UnitsAtLoss.ToString("#,##0.####")</td>
+                    <td class="text-end">@c.UnitsHeld.ToString("#,##0.########")</td>
+                    <td class="text-end">@c.UnitsAtLoss.ToString("#,##0.########")</td>
                     <td class="text-end">@c.Price.ToString("C") <span class="small text-muted">@c.PriceDate.ToString("d MMM")</span></td>
                     <td class="text-end text-danger">@c.UnrealisedLoss.ToString("C")</td>
                     <td class="text-end">@c.Sale.NetGainChange.ToString("C")</td>

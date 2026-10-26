@@ -65,7 +65,7 @@
                     <tr>
                         <td class="fw-bold">@h.StockCode</td>
                         <td class="text-muted small">@h.ExchangeCode</td>
-                        <td class="text-end">@h.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@h.Units.ToString("#,##0.########")</td>
                         <td class="text-end">@h.Price.ToString("C")</td>
                         <td class="text-end">@h.MarketValue.ToString("C")</td>
                         <td class="text-end @HoldingsModel.ProfitClass(h.CapitalGain)">@h.CapitalGain.ToString("C")</td>

@@ -13,7 +13,7 @@ public sealed class DrpInput
     public decimal Unfranked { get; set; }
     public decimal FrankingCredit { get; set; }
     public decimal TaxWithheld { get; set; }
-    public int Units { get; set; }
+    public decimal Units { get; set; }
     public decimal Price { get; set; }
     public string? Comment { get; set; }
 
@@ -24,8 +24,9 @@ public sealed class DrpInput
     public decimal Reinvested => Math.Round(Units * Price, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>
-    /// Left over (or, if negative, taken from a balance carried forward from the last DRP). Registries only
+    /// Left over (or, if negative, taken from a balance carried forward from the last DRP). Most registries only
     /// issue whole units, so this is less than one unit's price; in the ledger it stays in the bank account.
+    /// Managed funds often issue part units, leaving next to nothing.
     /// </summary>
     public decimal Residual => Cash - Reinvested;
 
@@ -57,11 +58,13 @@ public sealed class DrpInput
             errors.Add("The tax withheld can't be the whole dividend.");
         if (Units <= 0)
             errors.Add("Enter the number of new units allotted.");
+        else if (Validation.FormRules.UnitsProblem(Units) is { } problem)
+            errors.Add(problem);
         if (Price <= 0)
             errors.Add("Enter the DRP price per unit.");
 
         if (errors.Count == 0 && Math.Abs(Residual) >= Price)
-            errors.Add($"{Units:N0} units at {Price:C4} come to {Reinvested:C}, but the dividend was {Cash:C}. "
+            errors.Add($"{Units:#,##0.########} units at {Price:C4} come to {Reinvested:C}, but the dividend was {Cash:C}. "
                 + "The difference should be less than one unit's price; check the units, the price and the amounts.");
         return errors;
     }

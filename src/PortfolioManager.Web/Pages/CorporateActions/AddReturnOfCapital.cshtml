@@ -70,10 +70,10 @@
                     <div class="border rounded p-3 mt-3 bg-body-tertiary">
                         <h2 class="h6">@r.Code return of capital of @p.Total.ToString("C") on @r.Date.ToString("d MMM yyyy")</h2>
                         <p class="small mb-2">
-                            @p.UnitsOnTheDay.ToString("#,##0.####") units held
+                            @p.UnitsOnTheDay.ToString("#,##0.########") units held
                             @if (p.UnitsOnTheDay != p.UnitsHeld)
                             {
-                                <span>(@p.UnitsHeld.ToString("#,##0.####") in today's units, after later splits)</span>
+                                <span>(@p.UnitsHeld.ToString("#,##0.########") in today's units, after later splits)</span>
                             }
                             @if (r.PerUnit is { } perUnit)
                             {
@@ -96,7 +96,7 @@
                                 {
                                     <tr>
                                         <td>@parcel.Acquired.ToString("d MMM yyyy")</td>
-                                        <td class="text-end">@parcel.Share.Units.ToString("#,##0.####")</td>
+                                        <td class="text-end">@parcel.Share.Units.ToString("#,##0.########")</td>
                                         <td class="text-end">@parcel.Share.CostBaseBefore.ToString("C")</td>
                                         <td class="text-end">@parcel.Share.Share.ToString("C")</td>
                                         <td class="text-end">@parcel.Share.CostBaseAfter.ToString("C")</td>

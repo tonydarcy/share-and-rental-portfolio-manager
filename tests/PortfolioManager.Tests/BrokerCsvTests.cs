@@ -92,11 +92,15 @@ public class BrokerCsvTests
     }
 
     [Fact]
-    public void Fractional_units_are_an_error_not_rounded()
+    public void Part_units_are_imported_not_rounded()
     {
         var csv = "Trade Date,Symbol,Side,Units,Price\n2026-07-01,TSLA,BUY,0.5,200\n";
         var line = Assert.Single(BrokerCsv.Parse("stake", csv, Today).Lines);
-        Assert.Contains(line.Errors, e => e.Contains("Part units"));
+        Assert.Empty(line.Errors);
+        Assert.Equal(0.5m, line.Value!.Quantity);
+
+        var tooFine = "Trade Date,Symbol,Side,Units,Price\n2026-07-01,TSLA,BUY,0.123456789,200\n";
+        Assert.Contains(Assert.Single(BrokerCsv.Parse("stake", tooFine, Today).Lines).Errors, e => e.Contains("decimal places"));
     }
 
     [Fact]

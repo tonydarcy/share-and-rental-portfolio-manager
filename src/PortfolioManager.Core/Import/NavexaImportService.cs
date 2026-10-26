@@ -33,7 +33,7 @@ public sealed class NavexaImportService(IDbConnectionFactory db)
             trades = NavexaParser.ParseTrades(tradesCsv, options);
             var existing = await con.QueryAsync<ExistingTrade>(
                 "SELECT ISNULL(strStockExchangeCode, '') AS Exchange, ISNULL(strStockCode, '') AS Code, ISNULL(strType, '') AS Type, " +
-                "CAST(dtmDateOfTransaction AS datetime) AS Date, CAST(ISNULL(iQuantity, 0) AS decimal(19, 4)) AS Quantity, " +
+                "CAST(dtmDateOfTransaction AS datetime) AS Date, CAST(ROUND(ISNULL(iQuantity, 0), 8) AS decimal(28, 8)) AS Quantity, " +
                 "CAST(ISNULL(dblPricePerUnit, 0) AS decimal(19, 6)) AS Price " +
                 "FROM tblShareTrades WHERE iUserId = @portfolioId",
                 new { portfolioId });
@@ -82,7 +82,7 @@ public sealed class NavexaImportService(IDbConnectionFactory db)
                     strName = t.Name,
                     strType = t.Type,
                     dtmDateOfTransaction = t.Date,
-                    iQuantity = t.Quantity,
+                    iQuantity = (double)t.Quantity,
                     dblPricePerUnit = (double)t.Price,
                     dblBrokerage = (double)t.Brokerage,
                     strCurrency = t.Currency,
@@ -104,7 +104,7 @@ public sealed class NavexaImportService(IDbConnectionFactory db)
                     strName = t.Name,
                     strType = t.Type,
                     dtmDateOfTransaction = t.Date,
-                    iQuantity = t.Quantity,
+                    iQuantity = (double)t.Quantity,
                     dblPricePerUnit = (double)t.Price,
                     dblBrokerage = (double)t.Brokerage,
                     strCurrency = t.Currency,

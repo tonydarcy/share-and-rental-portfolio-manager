@@ -74,7 +74,8 @@
 
                     <div class="col-sm-4">
                         <label asp-for="Input.Quantity" class="form-label">Units</label>
-                        <input asp-for="Input.Quantity" type="number" min="1" step="1" class="form-control" required />
+                        <input asp-for="Input.Quantity" type="number" min="0" step="any" class="form-control" required />
+                        <div class="form-text">Part units are fine (up to 8 decimal places).</div>
                         <span asp-validation-for="Input.Quantity" class="text-danger small"></span>
                     </div>
                     <div class="col-sm-4">

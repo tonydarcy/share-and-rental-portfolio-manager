@@ -171,7 +171,7 @@ public static class NavexaSyncPlanner
             {
                 item.Kind = SyncKind.Split;
                 item.Ask(InputNeed.SplitRatio, $"Navexa only gives the units {(tx.TradeTypeId == 3 ? "added" : "removed")} " +
-                    $"({Math.Abs(leg.Quantity ?? 0):#,##0.####}). Enter the {label} ratio, e.g. 2 new for 1 old" +
+                    $"({Math.Abs(leg.Quantity ?? 0):#,##0.########}). Enter the {label} ratio, e.g. 2 new for 1 old" +
                     (tx.TradeTypeId == 5 ? " or 1 new for 10 old." : "."));
             }
             return;
@@ -186,9 +186,9 @@ public static class NavexaSyncPlanner
             item.Skip("The trade has no units.");
             return;
         }
-        if (qty != decimal.Truncate(qty) || qty > int.MaxValue)
+        if (Validation.FormRules.UnitsProblem(qty) is { } problem)
         {
-            item.Skip($"Fractional units ({qty:0.######}) can't be recorded: this site stores trades in whole units.");
+            item.Skip($"{problem} ({qty:0.##########})");
             return;
         }
         var price = leg.Price ?? 0;
@@ -234,7 +234,7 @@ public static class NavexaSyncPlanner
 
         item.Kind = SyncKind.Trade;
         item.Trade = new SyncTrade(where.Exchange, where.Code, Truncate(holding.Name ?? holding.Symbol, 500), type!, item.Date,
-            (int)qty, price, brokerage, currency, siteRate, comment, bank);
+            qty, price, brokerage, currency, siteRate, comment, bank);
     }
 
     private static string UnsupportedTradeMessage(NavexaApiTransaction tx) => tx.TradeTypeId switch
@@ -325,14 +325,14 @@ public static class NavexaSyncPlanner
             if (drp.ByDividend.TryGetValue(tx.Id, out var trade) && HoldingLeg(trade) is { } unitsLeg)
             {
                 var q = Math.Abs(unitsLeg.Quantity ?? 0);
-                if (q == decimal.Truncate(q) && q <= int.MaxValue)
-                    item.Suggested.DrpUnits = (int)q;
+                if (q > 0 && Validation.FormRules.UnitsProblem(q) is null)
+                    item.Suggested.DrpUnits = q;
                 item.Suggested.DrpPrice = Math.Round((unitsLeg.Price ?? 0) * rate, 4);
             }
             var units = ctx.Input.DrpUnits ?? item.Suggested.DrpUnits;
             var price = ctx.Input.DrpPrice ?? item.Suggested.DrpPrice;
             if (units is not > 0 || price is not > 0)
-                needs.Add("Navexa says this dividend was reinvested. Enter the whole units allotted and the DRP price per unit.");
+                needs.Add("Navexa says this dividend was reinvested. Enter the units allotted and the DRP price per unit.");
             else if (needs.Count == 0)
             {
                 var check = new DrpInput
@@ -537,7 +537,7 @@ public static class NavexaSyncPlanner
             var match = existing.Trades.FirstOrDefault(e => Same(e.Exchange, t.Exchange) && Same(e.Code, t.Code) && Same(e.Type, t.Type)
                 && e.Date.Date == t.Date.Date && Math.Abs(e.Quantity) == t.Quantity && Math.Abs(e.Price - t.Price) <= 0.0001m);
             if (match is not null)
-                found = $"This portfolio already has a {match.Type} of {Math.Abs(match.Quantity):#,##0} {match.Code} on {match.Date:d} at {match.Price:0.####}.";
+                found = $"This portfolio already has a {match.Type} of {Math.Abs(match.Quantity):#,##0.########} {match.Code} on {match.Date:d} at {match.Price:0.####}.";
         }
         else if ((item.Payout?.Exchange ?? item.Drp?.Exchange) is { } ex)
         {
