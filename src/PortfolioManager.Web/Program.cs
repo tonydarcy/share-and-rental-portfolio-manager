@@ -63,6 +63,7 @@ builder.Services.AddScoped<ConsolidatedService>();
 builder.Services.AddScoped<LookThroughService>();
 builder.Services.AddScoped<FundTaxStatementService>();
 builder.Services.AddScoped<EssStatementService>();
+builder.Services.AddScoped<EssGrantService>();
 builder.Services.AddScoped<TradingStockService>();
 builder.Services.AddScoped<PortfolioManager.Core.Debt.LoanService>();
 builder.Services.AddScoped<PortfolioManager.Core.Debt.FixedIncomeService>();

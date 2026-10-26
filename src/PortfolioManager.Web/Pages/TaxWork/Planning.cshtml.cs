@@ -21,6 +21,8 @@ public class PlanningModel(CurrentPortfolio current, TaxWorkpaperService workpap
     [BindProperty(SupportsGet = true)] public bool SaleLong { get; set; } = true;
     [BindProperty(SupportsGet = true)] public decimal Contribution { get; set; }
     [BindProperty(SupportsGet = true)] public decimal ExtraDeductions { get; set; }
+    [BindProperty(SupportsGet = true)] public decimal FringeBenefits { get; set; }
+    [BindProperty(SupportsGet = true)] public decimal ReportableSuper { get; set; }
 
     public PlanResult? Now { get; private set; }
     public PlanResult? Plan { get; private set; }
@@ -40,8 +42,12 @@ public class PlanningModel(CurrentPortfolio current, TaxWorkpaperService workpap
         Rates = IndividualRates.For(Year);
         Caps = ContributionCaps.For(Year);
         var investment = w.Reconciliation.TaxableIncome - w.Cgt.NetCapitalGain;
-        var now = new PlanInputs(OtherIncome, investment, w.Rental?.Net ?? 0, w.Cgt.NetCapitalGain, OtherDeductions, 0,
-            w.Income.FrankingCredits, w.Income.TfnWithheld + w.Ess.TfnWithheld + Payg, w.Income.ForeignTax);
+        // Net investment losses for the ESS income test: a net loss on the rentals, or on the other investments
+        var rental = w.Rental?.Net ?? 0;
+        var now = new PlanInputs(OtherIncome, investment, rental, w.Cgt.NetCapitalGain, OtherDeductions, 0,
+            w.Income.FrankingCredits, w.Income.TfnWithheld + w.Ess.TfnWithheld + Payg, w.Income.ForeignTax,
+            w.Ess.UpfrontEligible, w.Ess.UpfrontNotEligible + w.Ess.Deferral + w.Ess.Pre2009, FringeBenefits, ReportableSuper,
+            Math.Max(0, -rental) + Math.Max(0, -investment));
         Now = TaxPlanner.Work(now, Rates);
         var sale = SaleProceeds is { } p && SaleCost is { } c ? new WhatIfSale(p, c, SaleLong) : null;
         Plan = TaxPlanner.Work(now with
