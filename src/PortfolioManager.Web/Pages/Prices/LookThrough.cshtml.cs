@@ -22,6 +22,7 @@ public class LookThroughModel(CurrentPortfolio current, LookThroughService lookT
     public IReadOnlyDictionary<(string, string), FundExposure> Funds { get; private set; } = new Dictionary<(string, string), FundExposure>();
     public FundExposure? Selected { get; private set; }
     public string? LoadError { get; private set; }
+    public string? FileMessage { get; private set; }
 
     public async Task OnGetAsync()
     {
@@ -51,6 +52,30 @@ public class LookThroughModel(CurrentPortfolio current, LookThroughService lookT
         }
         Success = $"Look-through for {key.Item2} saved.";
         return RedirectToPage(new { fund = Fund });
+    }
+
+    /// <summary>Reads an issuer's holdings file into the weights box, to be checked and saved.</summary>
+    [RequestSizeLimit(CsvUpload.RequestLimit)]
+    public async Task<IActionResult> OnPostReadFileAsync(IFormFile? file)
+    {
+        if (!await LoadAsync() || Key() is not { } key)
+            return Page();
+        Selected = Funds.GetValueOrDefault(key);
+        Weights = Selected is null ? "" : LookThrough.ToText(Selected.Weights);
+        AsAt = Selected?.AsAt;
+        var (text, error) = await CsvUpload.ReadAsync(file);
+        var read = text is null ? FundHoldingsRead.Failed(error!) : FundHoldingsFile.Parse(text);
+        if (read.Error is not null)
+        {
+            ModelState.AddModelError(nameof(Weights), read.Error);
+            return Page();
+        }
+        ModelState.Clear();
+        Weights = LookThrough.ToText(read.Weights);
+        AsAt = DateOnly.FromDateTime(DateTime.Today);
+        FileMessage = $"Read {read.Lines:N0} holdings from {file!.FileName}. Check the lines below (and the as-at date), then Save. "
+            + string.Join(" ", read.Warnings);
+        return Page();
     }
 
     public async Task<IActionResult> OnPostDeleteAsync()

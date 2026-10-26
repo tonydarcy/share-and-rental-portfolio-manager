@@ -52,6 +52,22 @@
     <div class="col-lg-8">
         @if (Model.Fund is not null)
         {
+            <form method="post" asp-page-handler="ReadFile" asp-route-fund="@Model.Fund" enctype="multipart/form-data" class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h2 class="h6">Read the fund's holdings file</h2>
+                    <p class="small text-muted mb-2">Download the full holdings list from the fund issuer's website (Vanguard, iShares,
+                        BetaShares, SPDR, VanEck and others publish one as a CSV) and choose it here. The sectors, countries and largest
+                        holdings are filled in below for you to check, then Save.</p>
+                    @if (Model.FileMessage is not null)
+                    {
+                        <div class="alert alert-info small py-2">@Model.FileMessage</div>
+                    }
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <input type="file" name="file" accept=".csv,.txt" class="form-control form-control-sm w-auto" required />
+                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Read the file</button>
+                    </div>
+                </div>
+            </form>
             <form method="post" asp-page-handler="Save" asp-route-fund="@Model.Fund" class="card shadow-sm">
                 <div class="card-body">
                     <h2 class="h6">@Model.Fund</h2>
