@@ -8,8 +8,24 @@
 }
 
 <div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
-    <h1 class="h2 mb-0">Consolidated view</h1>
-    <span class="text-muted">@Model.Period.Description</span>
+    <div>
+        <h1 class="h2 mb-0">@(Model.Pack && Model.Selected is not null ? $"{Model.Selected.Name}: investment report" : "Consolidated view")</h1>
+        <span class="text-muted">@Model.Period.Description@(Model.Pack ? $" · prepared {DateTime.Today:d MMMM yyyy}" : "")</span>
+    </div>
+    @if (Model.Selected is not null && !Model.Editing)
+    {
+        <div class="no-print d-flex gap-2">
+            @if (Model.Pack)
+            {
+                <a class="btn btn-sm btn-outline-secondary" asp-route-group="@Model.Selected.GroupId" asp-route-fy="@Model.Period.FinancialYear" asp-route-from="@Model.From" asp-route-to="@Model.To">Back to the view</a>
+                <button type="button" class="btn btn-sm btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+            }
+            else
+            {
+                <a class="btn btn-sm btn-outline-secondary" asp-route-group="@Model.Selected.GroupId" asp-route-fy="@Model.Period.FinancialYear" asp-route-from="@Model.From" asp-route-to="@Model.To" asp-route-pack="true"><i class="bi bi-file-earmark-text"></i> Pack for the adviser</a>
+            }
+        </div>
+    }
 </div>
 
 @if (Model.LoadError is not null)
@@ -22,7 +38,7 @@
     <div class="alert alert-success">@Model.Success</div>
 }
 
-<div class="d-flex flex-wrap gap-2 mb-3 no-print">
+<div class="d-flex flex-wrap gap-2 mb-3 no-print @(Model.Pack ? "d-none" : "")">
     @foreach (var g in Model.Groups)
     {
         <a class="btn btn-sm @(g.GroupId == Model.Selected?.GroupId && !Model.Editing ? "btn-primary" : "btn-outline-primary")"
@@ -78,7 +94,10 @@
     return;
 }
 
-<partial name="_PeriodFilter" model="Model" />
+@if (!Model.Pack)
+{
+    <partial name="_PeriodFilter" model="Model" />
+}
 
 @if (!r.OneCurrency)
 {
@@ -118,7 +137,61 @@
     </table>
 </div>
 
-<div class="card shadow-sm mb-3">
+@if (Model.Performance is { } perf)
+{
+    var g = perf.Group;
+    <div class="card shadow-sm mb-3">
+        <div class="card-body pb-0">
+            <h2 class="h6">Performance</h2>
+            <p class="small text-muted mb-2">Time-weighted return from @Model.Period.From.ToString("d MMM yyyy") to @((g?.Summary.To ?? Model.Period.To).ToString("d MMM yyyy")): growth and income, leaving out money added or taken out (including money moved between the group's entities).</p>
+            @foreach (var w in perf.Warnings)
+            {
+                <div class="small text-warning-emphasis">@w</div>
+            }
+        </div>
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Entity</th><th class="text-end">Value at start</th><th class="text-end">Money added</th><th class="text-end">Income</th><th class="text-end">Value at end</th><th class="text-end">Return</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var (id, s) in perf.Entities)
+                {
+                    var e = r.Entities.First(x => x.PortfolioId == id);
+                    <tr>
+                        <td>@e.Name</td>
+                        <td class="text-end">@Money(s.StartValue, e.Currency)</td>
+                        <td class="text-end">@Money(s.NetMoneyAdded, e.Currency)</td>
+                        <td class="text-end">@Money(s.Income, e.Currency)</td>
+                        <td class="text-end">@Money(s.EndValue, e.Currency)</td>
+                        <td class="text-end">@s.TimeWeightedReturn.ToString("P2")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (g is not null)
+            {
+                <tfoot class="table-light fw-semibold">
+                    <tr><td>Group</td><td class="text-end">@g.Summary.StartValue.ToString("C")</td><td class="text-end">@g.Summary.NetMoneyAdded.ToString("C")</td>
+                        <td class="text-end">@g.Summary.Income.ToString("C")</td><td class="text-end">@g.Summary.EndValue.ToString("C")</td>
+                        <td class="text-end">@g.Summary.TimeWeightedReturn.ToString("P2")@(g.Summary.AnnualisedReturn is { } ann ? $" ({ann:P2} a year)" : "")</td></tr>
+                </tfoot>
+            }
+        </table>
+        @if (g is { Months.Count: > 1 })
+        {
+            <div class="card-body">
+                <h3 class="h6">The group by month</h3>
+                <div class="d-flex flex-wrap gap-2 small">
+                    @foreach (var m in g.Months)
+                    {
+                        <div class="border rounded px-2 py-1"><span class="text-muted">@m.From.ToString("MMM yy")</span> <span class="@PeriodReportModel.GainClass((decimal)m.Return)">@m.Return.ToString("P1")</span></div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<div class="card shadow-sm mb-3" style="break-before: @(Model.Pack ? "page" : "auto")">
     <div class="card-body pb-0"><h2 class="h6">Holdings across the group</h2></div>
     <table class="table table-sm align-middle mb-0">
         <thead class="table-light">
@@ -152,5 +225,36 @@
         </tbody>
     </table>
 </div>
+@if (Model.Pack)
+{
+    @foreach (var e in r.Entities)
+    {
+        <div class="card shadow-sm mb-3" style="break-before: page">
+            <div class="card-body pb-0">
+                <h2 class="h6">@e.Name <span class="small text-muted">@e.EntityType</span></h2>
+                <p class="small mb-2">Total value @Money(e.TotalValue, e.Currency) (shares @Money(e.ShareValue, e.Currency), cash @Money(e.CashValue, e.Currency)).
+                    Income for the period @Money(e.Income, e.Currency); net capital gain @Money(e.NetCapitalGain, e.Currency).</p>
+            </div>
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Holding</th><th class="text-end">Units</th><th class="text-end">Price</th><th class="text-end">Value</th><th class="text-end">Gain</th><th class="text-end">Share of entity</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var h in e.Holdings.Where(h => h.Units != 0).OrderByDescending(h => h.MarketValue))
+                    {
+                        <tr>
+                            <td><strong>@h.StockCode</strong> <span class="small text-muted">@h.ExchangeCode</span></td>
+                            <td class="text-end">@h.Units.ToString("#,##0.########")</td>
+                            <td class="text-end">@h.Price.ToString("N4")</td>
+                            <td class="text-end">@Money(h.MarketValue, e.Currency)</td>
+                            <td class="text-end @PeriodReportModel.GainClass(h.CapitalGain)">@Money(h.CapitalGain, e.Currency)</td>
+                            <td class="text-end">@(e.ShareValue == 0 ? "" : (h.MarketValue / e.ShareValue).ToString("P1"))</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
 <p class="small text-muted">Values use the latest prices on file. Income and net capital gains are for the period chosen, from each
-    entity's own taxable income and capital gains reports. Each entity still lodges its own return.</p>
+    entity's own taxable income and capital gains reports. Each entity still lodges its own return.@(Model.Pack ? " This report is general information and is not financial advice." : "")</p>
