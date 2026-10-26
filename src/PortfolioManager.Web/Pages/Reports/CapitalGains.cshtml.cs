@@ -4,7 +4,7 @@ using PortfolioManager.Web.Services;
 
 namespace PortfolioManager.Web.Pages.Reports;
 
-public class CapitalGainsModel(CurrentPortfolio current, CapitalGainsService gains, CgtDiscountService discount, ParcelChoiceService parcelChoices) : PeriodReportModel
+public class CapitalGainsModel(CurrentPortfolio current, CgtDiscountService discount, ParcelChoiceService parcelChoices) : PeriodReportModel
 {
     public PortfolioSummary? Portfolio { get; private set; }
     public CapitalGainsReport Report { get; private set; } = new([], new(0, 0, 0));
@@ -20,8 +20,8 @@ public class CapitalGainsModel(CurrentPortfolio current, CapitalGainsService gai
         if (Portfolio is null)
             return;
 
-        Report = await gains.GetAsync(Portfolio.PortfolioId, Period.From, Period.To);
         Return = await discount.GetReturnAsync(Portfolio.PortfolioId, Portfolio.EntityType, Period);
+        Report = CapitalGainsService.FromEvents(Return.Events);
         var chosen = await parcelChoices.GetAsync(Portfolio.PortfolioId);
         ChosenSales = Return.Events.Where(e => chosen.ContainsKey(e.SellTradeId)).Select(e => e.SellTradeId).Distinct().Count();
     }

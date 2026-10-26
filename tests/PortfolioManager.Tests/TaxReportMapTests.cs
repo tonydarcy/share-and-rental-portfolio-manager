@@ -2,81 +2,53 @@ using PortfolioManager.Core.Tax;
 
 namespace PortfolioManager.Tests;
 
-public class CapitalGainsMapTests
+public class CapitalGainsSalesTests
 {
-    private static Dictionary<string, object?> Sale(string item, string date, double cost, double proceeds) => new()
-    {
-        ["Stock Exchange & Stock Code"] = item,
-        ["Date Sold"] = date,
-        ["Cost Basis Per Unit"] = cost / 100,
-        ["Total Cost Basis"] = cost,
-        ["Proceeds Per Unit"] = proceeds / 100,
-        ["Total Proceeds"] = proceeds,
-        ["Gain / Loss Per Unit"] = (proceeds - cost) / 100,
-        ["Total Gain / Loss"] = proceeds - cost,
-    };
-
-    private static Dictionary<string, object?> Total(object? cost, object? proceeds, object? gain) => new()
-    {
-        ["Stock Exchange & Stock Code"] = "Total:",
-        ["Date Sold"] = DBNull.Value,
-        ["Cost Basis Per Unit"] = DBNull.Value,
-        ["Total Cost Basis"] = cost,
-        ["Proceeds Per Unit"] = DBNull.Value,
-        ["Total Proceeds"] = proceeds,
-        ["Gain / Loss Per Unit"] = DBNull.Value,
-        ["Total Gain / Loss"] = gain,
-    };
+    private static readonly DateOnly Sold = new(2026, 3, 15);
 
     [Fact]
-    public void Takes_out_the_total_row_wherever_it_is_and_sorts_sales_by_date()
+    public void One_line_per_sale_with_its_parcels_added_together_sorted_by_date()
     {
-        var report = CapitalGainsService.Map([
-            Sale("ASX:CBA", "15 Mar 2026", 1000, 1200),
-            Total(1500.0, 1650.0, 150.0),
-            Sale("ASX:BHP", "02 Aug 2025", 500, 450),
-        ]);
+        CgtEvent[] events =
+        [
+            new("ASX", "CBA", new DateOnly(2020, 1, 1), Sold, 60, 600m, 900m, SellTradeId: 9, BuyTradeId: 1),
+            new("ASX", "CBA", new DateOnly(2024, 1, 1), Sold, 40, 800m, 600m, SellTradeId: 9, BuyTradeId: 2),
+            new("ASX", "BHP", new DateOnly(2020, 1, 1), new DateOnly(2025, 8, 2), 10, 500m, 450m, SellTradeId: 7, BuyTradeId: 3),
+            new("ASX", "XYZ", new DateOnly(2020, 1, 1), Sold, 10, 0m, 50m, CgtEventType.CapitalReturnExcess),
+        ];
+        var report = CapitalGainsService.FromEvents(events);
 
         Assert.Equal(["BHP", "CBA"], report.Lines.Select(l => l.StockCode));
-        Assert.Equal("ASX", report.Lines[0].ExchangeCode);
-        Assert.Equal(new DateOnly(2025, 8, 2), report.Lines[0].DateSold);
-        Assert.Equal(-50m, report.Lines[0].Gain);
-        Assert.Equal(1500m, report.Total.TotalCost);
-        Assert.Equal(1650m, report.Total.TotalProceeds);
-        Assert.Equal(150m, report.Total.Gain);
+        var cba = report.Lines[1];
+        Assert.Equal((1400m, 1500m, 100m, 14m, 15m, 1m), (cba.TotalCost, cba.TotalProceeds, cba.Gain, cba.CostPerUnit, cba.ProceedsPerUnit, cba.GainPerUnit));
+        Assert.Equal(Sold, cba.DateSold);
+        Assert.Equal((1900m, 1950m, 50m), (report.Total.TotalCost, report.Total.TotalProceeds, report.Total.Gain));
     }
 
     [Fact]
-    public void An_all_null_total_with_no_sales_is_zero()
+    public void A_chosen_parcel_shows_in_the_sales_table()
     {
-        var report = CapitalGainsService.Map([Total(DBNull.Value, DBNull.Value, DBNull.Value)]);
+        TradeLot[] trades =
+        [
+            new(1, "ASX", "CBA", "Buy", new DateOnly(2020, 1, 1), 100, 10m),
+            new(2, "ASX", "CBA", "Buy", new DateOnly(2024, 1, 1), 100, 30m),
+            new(3, "ASX", "CBA", "Sell", Sold, 100, 25m),
+        ];
+        var fifo = CapitalGainsService.FromEvents(CgtParcels.Match(trades).Events);
+        var picked = CapitalGainsService.FromEvents(CgtParcels.Match(trades, null, null,
+            new Dictionary<int, SaleParcelChoice> { [3] = new(3, ParcelMethod.Specific, [new ParcelPick(2, 100)]) }).Events);
+
+        Assert.Equal(1500m, fifo.Total.Gain);
+        Assert.Equal(-500m, picked.Total.Gain);
+    }
+
+    [Fact]
+    public void No_sales_is_an_empty_report()
+    {
+        var report = CapitalGainsService.FromEvents([]);
         Assert.Empty(report.Lines);
         Assert.Equal(0m, report.Total.Gain);
-        Assert.Equal(0m, report.Total.TotalCost);
     }
-
-    [Fact]
-    public void Works_out_a_total_when_the_proc_sends_none()
-    {
-        var report = CapitalGainsService.Map([Sale("ASX:CBA", "15 Mar 2026", 1000, 1200), Sale("ASX:BHP", "02 Aug 2025", 500, 450)]);
-        Assert.Equal(150m, report.Total.Gain);
-        Assert.Equal(1650m, report.Total.TotalProceeds);
-    }
-
-    [Fact]
-    public void An_unreadable_date_is_kept_as_text_and_sorted_last()
-    {
-        var report = CapitalGainsService.Map([Sale("ASX:ZZZ", "mars 2026", 1, 1), Sale("ASX:AAA", "01 Jul 2025", 1, 1)]);
-        Assert.Equal(["AAA", "ZZZ"], report.Lines.Select(l => l.StockCode));
-        Assert.Null(report.Lines[1].DateSold);
-        Assert.Equal("mars 2026", report.Lines[1].DateSoldText);
-    }
-
-    [Theory]
-    [InlineData("30 Jun 2026", 2026, 6, 30)]
-    [InlineData("01 Jul 2025", 2025, 7, 1)]
-    public void Reads_style_106_dates(string text, int y, int m, int d) =>
-        Assert.Equal(new DateOnly(y, m, d), CapitalGainsService.ParseDateSold(text));
 }
 
 public class UnrealisedGainsMapTests
@@ -125,6 +97,29 @@ public class UnrealisedGainsMapTests
         Assert.Null(report.Lines[0].MarketPrice);
         Assert.Equal(-500m, report.Lines[0].Gain);
         Assert.True(report.AnyMissingPrices);
+    }
+
+    [Fact]
+    public void Builds_lines_from_the_open_parcels_grouped_or_not()
+    {
+        OpenParcel[] open =
+        [
+            new("ASX", "CBA", new DateOnly(2020, 1, 1), 60, 10m),
+            new("ASX", "CBA", new DateOnly(2024, 1, 1), 40, 30m),
+            new("NASDAQ", "AAPL", new DateOnly(2024, 1, 1), 0.5m, 300m),
+        ];
+        var prices = new Dictionary<string, decimal> { ["ASX:CBA"] = 20m };
+
+        var byParcel = UnrealisedGainsService.Build(open, prices, groupByStock: false);
+        Assert.Equal(["AAPL", "CBA", "CBA"], byParcel.Lines.Select(l => l.StockCode));
+        Assert.Equal([600m, 1200m], byParcel.Lines.Where(l => l.StockCode == "CBA").Select(l => l.TotalCost));
+        Assert.True(byParcel.AnyMissingPrices);
+        Assert.Equal(-150m, byParcel.Lines[0].Gain); // no price: valued at nil
+
+        var grouped = UnrealisedGainsService.Build(open, prices, groupByStock: true);
+        var cba = grouped.Lines.Single(l => l.StockCode == "CBA");
+        Assert.Equal((100m, 18m, 1800m, 2000m, 200m), (cba.Units, cba.CostPerUnit, cba.TotalCost, cba.MarketValue, cba.Gain));
+        Assert.Equal(1950m, grouped.Total.TotalCost);
     }
 
     [Fact]

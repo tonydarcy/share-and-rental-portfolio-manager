@@ -1,8 +1,3 @@
-using System.Data;
-using System.Globalization;
-using Dapper;
-using PortfolioManager.Core.Data;
-
 namespace PortfolioManager.Core.Tax;
 
 public sealed record CapitalGainLine(
@@ -21,64 +16,41 @@ public sealed record CapitalGainsTotal(decimal TotalCost, decimal TotalProceeds,
 
 public sealed record CapitalGainsReport(IReadOnlyList<CapitalGainLine> Lines, CapitalGainsTotal Total);
 
-/// <summary>Realised capital gains (FIFO, no CGT discount) from the legacy CGT report (GetCapitalGainsTaxSummary).</summary>
-public sealed class CapitalGainsService(IDbConnectionFactory db)
+/// <summary>
+/// Realised capital gains by sale, before any CGT discount. Each sale's parcels are matched as the tax figures match them
+/// (<see cref="CgtDiscountService"/>): first in, first out unless parcels were chosen on the sale, after returns of capital.
+/// </summary>
+public sealed class CapitalGainsService(CgtDiscountService cgt)
 {
     public async Task<CapitalGainsReport> GetAsync(int portfolioId, DateOnly from, DateOnly to)
     {
-        await using var con = db.Create();
-        // The proc's column names contain spaces, so read rows as dictionaries
-        var rows = await con.QueryAsync("GetCapitalGainsTaxSummary",
-            new { iUserID = portfolioId, dtmStartDate = from.ToDateTime(TimeOnly.MinValue), dtmEndDate = to.ToDateTime(TimeOnly.MinValue) },
-            commandType: CommandType.StoredProcedure);
-        return Map(rows.Cast<IDictionary<string, object?>>());
+        var report = await cgt.GetReturnAsync(portfolioId, null, new ReportPeriod(null, from, to, null));
+        return FromEvents(report.Events);
     }
 
     /// <summary>
-    /// Turns the proc's rows into sales plus a total. The proc adds its "Total:" row with a UNION,
-    /// so it can come back anywhere and the sales come back in no useful order; they're sorted by
-    /// date sold then holding. With no sales the total row is all NULLs, so it shows as zero.
+    /// One line per sale (the parcels it took added together), sorted by date sold then holding. Returns of capital above a
+    /// parcel's cost base, fund gains and property sales aren't share sales, so they're left out here.
     /// </summary>
-    public static CapitalGainsReport Map(IEnumerable<IDictionary<string, object?>> rows)
+    public static CapitalGainsReport FromEvents(IEnumerable<CgtEvent> events)
     {
-        var lines = new List<CapitalGainLine>();
-        CapitalGainsTotal? total = null;
-
-        foreach (var r in rows)
-        {
-            var item = Convert.ToString(r["Stock Exchange & Stock Code"])?.Trim() ?? "";
-            if (item == "Total:")
+        var lines = events
+            .Where(e => e.Type == CgtEventType.Sale)
+            .GroupBy(e => (e.SellTradeId, Exchange: e.ExchangeCode.Trim().ToUpperInvariant(), Code: e.StockCode.Trim().ToUpperInvariant(), e.Disposed))
+            .Select(g =>
             {
-                total = new CapitalGainsTotal(Num.Dec(r, "Total Cost Basis"), Num.Dec(r, "Total Proceeds"), Num.Dec(r, "Total Gain / Loss"));
-                continue;
-            }
-
-            // item is "exchange:code"
-            var colon = item.IndexOf(':');
-            var dateText = r["Date Sold"] is null or DBNull ? "" : Convert.ToString(r["Date Sold"])!.Trim();
-            lines.Add(new CapitalGainLine(
-                colon >= 0 ? item[..colon] : "",
-                colon >= 0 ? item[(colon + 1)..] : item,
-                ParseDateSold(dateText),
-                dateText,
-                Num.Dec(r, "Cost Basis Per Unit"),
-                Num.Dec(r, "Total Cost Basis"),
-                Num.Dec(r, "Proceeds Per Unit"),
-                Num.Dec(r, "Total Proceeds"),
-                Num.Dec(r, "Gain / Loss Per Unit"),
-                Num.Dec(r, "Total Gain / Loss")));
-        }
-
-        lines = lines
-            .OrderBy(l => l.DateSold ?? DateOnly.MaxValue)
+                var units = g.Sum(e => e.Units);
+                var cost = g.Sum(e => e.CostBase);
+                var proceeds = g.Sum(e => e.Proceeds);
+                return new CapitalGainLine(g.Key.Exchange, g.Key.Code, g.Key.Disposed, g.Key.Disposed.ToString("dd MMM yyyy"),
+                    PerUnit(cost, units), cost, PerUnit(proceeds, units), proceeds, PerUnit(proceeds - cost, units), proceeds - cost);
+            })
+            .OrderBy(l => l.DateSold)
             .ThenBy(l => l.StockCode, StringComparer.OrdinalIgnoreCase)
             .ThenBy(l => l.ExchangeCode, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        total ??= new CapitalGainsTotal(lines.Sum(l => l.TotalCost), lines.Sum(l => l.TotalProceeds), lines.Sum(l => l.Gain));
-        return new CapitalGainsReport(lines, total);
+        return new CapitalGainsReport(lines, new CapitalGainsTotal(lines.Sum(l => l.TotalCost), lines.Sum(l => l.TotalProceeds), lines.Sum(l => l.Gain)));
     }
 
-    /// <summary>The proc formats the date with CONVERT style 106, e.g. "05 Mar 2025".</summary>
-    public static DateOnly? ParseDateSold(string text) =>
-        DateOnly.TryParseExact(text, ["dd MMM yyyy", "d MMM yyyy"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+    private static decimal PerUnit(decimal amount, decimal units) => units == 0 ? 0 : Math.Round(amount / units, 4, MidpointRounding.AwayFromZero);
 }
