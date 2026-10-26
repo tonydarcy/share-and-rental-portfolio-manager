@@ -15,7 +15,7 @@ public class AddDrpModel(CurrentPortfolio current, PayoutService payouts, CgtDis
 
     public PortfolioSummary? Portfolio { get; private set; }
 
-    /// <param name="announced">An announced dividend to start from (Corporate actions > Announced); the units and DRP price still need entering.</param>
+    /// <param name="announced">An announced dividend to start from (Corporate actions > Announced); the units and DRP price need entering unless the DRP price is on file.</param>
     public async Task OnGetAsync(int? announced)
     {
         Portfolio = await current.GetSelectedAsync();
@@ -28,6 +28,9 @@ public class AddDrpModel(CurrentPortfolio current, PayoutService payouts, CgtDis
                 StockExchangeCode = p.StockExchangeCode, StockCode = p.StockCode, Date = p.Date,
                 Franked = p.Franked, Unfranked = p.Unfranked, FrankingCredit = p.FrankingCredit, Comment = p.Comment,
             };
+            // With the DRP price known (Import > Dividend details), the whole units it buys
+            if (AnnouncedPayouts.DrpUnits(d) is { } drp)
+                (Input.Units, Input.Price) = drp;
         }
     }
 
