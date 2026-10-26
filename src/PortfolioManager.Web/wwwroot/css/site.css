@@ -190,3 +190,20 @@
     .table-responsive > .table > thead > tr > :first-child:not([colspan]), .table-responsive > .table > tfoot > tr > :first-child:not([colspan]) { background-color: var(--bs-tertiary-bg); }
     .btn-toolbar, .d-flex.flex-wrap { gap: .5rem; }
 }
+
+/* Phones: a table marked .table-stack shows each row as a small card, with the column name beside each value
+   (mobile.js copies the names from the table's header), instead of a table that scrolls sideways */
+@media (max-width: 575.98px) {
+    .table-stack > thead { display: none; }
+    .table-stack, .table-stack > tbody, .table-stack > tfoot, .table-stack > * > tr, .table-stack > * > tr > td { display: block; width: 100%; }
+    .table-stack > * > tr { border-bottom: 1px solid var(--bs-border-color); padding: .35rem 0; }
+    .table-stack > * > tr > td { border: 0; position: static !important; text-align: right; display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+    .table-stack > * > tr > td[data-label]::before { content: attr(data-label); color: var(--bs-secondary-color); font-size: .85em; text-align: left; flex: 0 0 auto; }
+    .table-stack > * > tr > td:empty, .table-stack > * > tr > td.stack-hide { display: none; }
+    .table-stack > * > tr > td:not([data-label]) { justify-content: flex-end; }
+    .table-stack > * > tr > td > .form-control, .table-stack > * > tr > td > .form-select, .table-stack > * > tr > td > select { max-width: 65%; }
+    .table-stack > * > tr > td.text-center[colspan] { justify-content: center; }
+}
+
+/* A page shown from the copy saved on this device while offline */
+.offline-copy { position: sticky; top: 0; z-index: 1050; background: #fff3cd; color: #664d03; border-bottom: 1px solid #ffe69c; padding: .4rem 1rem; font-size: .9rem; text-align: center; }
