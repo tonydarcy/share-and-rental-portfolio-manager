@@ -34,8 +34,20 @@ public class SmsfModel(CurrentPortfolio current, TaxWorkpaperService workpapers,
                 MemberAccountId = acc.MemberAccountId, MemberId = acc.MemberId, Phase = acc.Phase, Opening = acc.Opening,
                 Concessional = acc.Concessional, NonConcessional = acc.NonConcessional, RolloverIn = acc.RolloverIn,
                 PensionPaid = acc.PensionPaid, LumpSum = acc.LumpSum, Insurance = acc.Insurance,
+                PensionStart = acc.PensionStart?.ToDateTime(TimeOnly.MinValue), StartBalance = acc.StartBalance,
             };
         return Page();
+    }
+
+    /// <summary>The members' balances and flows as a CSV for the actuary's certificate.</summary>
+    public async Task<IActionResult> OnGetActuaryAsync()
+    {
+        if (await LoadAsync() is { } refusal)
+            return refusal;
+        var w = Workpaper!;
+        var label = Core.Tax.FinancialYear.Label(Year);
+        return File(SmsfActuaryFile.Build(w.Client.LegalName, w.Client.Abn, label, Core.Tax.FinancialYear.StartDate(Year), w.Members ?? []),
+            "text/csv", $"Actuary data {label}.csv");
     }
 
     public async Task<IActionResult> OnPostMemberAsync()

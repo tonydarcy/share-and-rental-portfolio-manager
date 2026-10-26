@@ -46,6 +46,16 @@ public class ViewModel(CurrentPortfolio current, InvoiceService invoices, Invoic
         return RedirectToPage(new { id = Id });
     }
 
+    /// <summary>Pays back what is left on a credit note: the bank goes down and the credit on the customer's account goes.</summary>
+    public async Task<IActionResult> OnPostRefundAsync(decimal amount, DateTime? date, int accountId, string? reference)
+    {
+        if (!await LoadAsync())
+            return RedirectToPage("/Invoices/Index");
+        var r = await Run(() => extras.RefundCreditNoteAsync(Portfolio!.PortfolioId, Id, DateOnly.FromDateTime(date ?? DateTime.Today), amount, accountId, reference));
+        TempData[r.Ok ? "Message" : "Error"] = r.Ok ? $"Refund of {amount:C} recorded and posted from the bank account." : r.Error;
+        return RedirectToPage(new { id = Id });
+    }
+
     /// <summary>Keeps this invoice as a repeating one; the first new one is due one period after this invoice's date.</summary>
     public async Task<IActionResult> OnPostRepeatAsync()
     {

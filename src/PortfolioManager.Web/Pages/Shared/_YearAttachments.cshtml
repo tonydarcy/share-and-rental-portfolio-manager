@@ -1,6 +1,6 @@
 @model IReadOnlyList<PortfolioManager.Core.Practice.Attachment>
 @using PortfolioManager.Core.Practice
-@* The year's supporting documents, listed in the printed packs; each opens from the Attachments page *@
+@* The year's supporting documents in the printed packs: pictures print on their own pages; everything printable also goes into one PDF *@
 <section class="pack-page mt-4">
     <h2 class="h4">Supporting documents</h2>
     @if (Model.Count == 0)
@@ -9,13 +9,20 @@
     }
     else
     {
+        <div class="no-print alert alert-light border small d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span>Pictures print with this pack. PDFs can't be printed from a web page, so download the files as one PDF
+                (a contents page, then every PDF, picture and text file) and put it behind the pack.</span>
+            <a asp-page="/Attachments/Index" asp-page-handler="Pack" asp-route-fy="@Model[0].Year" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-file-earmark-pdf"></i> Supporting documents as one PDF</a>
+        </div>
         <table class="table table-sm">
             <thead><tr><th>Document</th><th>For</th><th>Note</th></tr></thead>
             <tbody>
                 @foreach (var a in Model.OrderBy(a => a.Kind).ThenBy(a => a.FileName))
                 {
                     <tr>
-                        <td><a asp-page="/Attachments/Index" asp-page-handler="Download" asp-route-id="@a.Id">@a.FileName</a></td>
+                        <td><a asp-page="/Attachments/Index" asp-page-handler="Download" asp-route-id="@a.Id">@a.FileName</a>
+                            @if (AttachmentPack.NotPrintable(a.ContentType) is { } why) { <div class="small text-muted">@why</div> }</td>
                         <td>@AttachmentKinds.Label(a.Kind)@(a.TargetId is { } t ? $" {t}" : "")</td>
                         <td>@a.Note</td>
                     </tr>
@@ -24,3 +31,10 @@
         </table>
     }
 </section>
+@foreach (var a in Model.Where(a => a.ContentType is "image/jpeg" or "image/png").OrderBy(a => a.Kind).ThenBy(a => a.FileName))
+{
+    <section class="pack-page mt-4">
+        <h2 class="h6">@a.FileName <span class="text-muted fw-normal">(@AttachmentKinds.Label(a.Kind)@(a.TargetId is { } t ? $" {t}" : ""))</span></h2>
+        <img src="@Url.Page("/Attachments/Index", "View", new { id = a.Id })" alt="@a.FileName" loading="lazy" style="max-width:100%; max-height:240mm;" />
+    </section>
+}

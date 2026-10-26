@@ -67,7 +67,8 @@
 
 <p class="text-muted">
     @Model.Portfolio.Name, @r!.From.ToString("d MMM yyyy") to @r.To.ToString("d MMM yyyy").
-    Made from every bank allocation and journal line with a @tax code, by its date. Use it to fill in your
+    Made from every bank allocation and journal line with a @tax code, by its date@(Model.Bas.CashBasis ? "; on the cash basis, invoices and bills count when they are paid, in proportion to the part paid" : "").
+    Use it to fill in your
     @(Model.Preset.ReturnName.Length > 0 ? Model.Preset.ReturnName : "return"), or your country's equivalent.
 </p>
 
@@ -94,6 +95,82 @@
         </div></div>
     </div>
 </div>
+
+@if (Model.IsBas && Model.Statement is { } st)
+{
+    var sections = st.Lines.GroupBy(l => l.Section).ToList();
+    <h2 class="h5">Activity statement</h2>
+    @if (st.Warning is { } w) { <div class="alert alert-warning py-2">@w</div> }
+    <div class="row g-3 mb-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm"><div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <tbody>
+                        @foreach (var g in sections)
+                        {
+                            <tr class="table-light"><th colspan="3">@g.Key</th></tr>
+                            @foreach (var l in g)
+                            {
+                                <tr class="@(l.Label is "9" or "8A" or "8B" ? "fw-bold" : "")">
+                                    <td style="width:4rem">@l.Label</td>
+                                    <td>@l.Name <span class="small text-muted">(@l.Source)</span></td>
+                                    <td class="text-end">@(l.Amount is { } a ? l.Label is "T2" ? a.ToString("0.##") + "%" : l.Label is "T4" or "7C" ? a.ToString("0.##") : a.ToString("C0") : "")</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div></div>
+            <p class="small text-muted mt-2">Whole dollars, cents left off, as the ATO asks. GST labels come from the tax codes; W1 to W4 and the other taxes are typed in on
+                the right (payroll isn't run in this site). Labels 4 and 6A on the form are W5 and F1.</p>
+        </div>
+        <div class="col-lg-5 no-print">
+            <form method="post" asp-page-handler="Labels" class="card shadow-sm mb-3">
+                <input type="hidden" name="Period" value="@Model.Period" />
+                <input type="hidden" name="From" value="@Model.From?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="To" value="@Model.To?.ToString("yyyy-MM-dd")" />
+                <div class="card-body">
+                    <h3 class="h6">Amounts for this period</h3>
+                    <div class="row g-2">
+                        @foreach (var e in PortfolioManager.Core.SalesTax.ActivityStatementBuilder.Entered)
+                        {
+                            if (e.Label == "T1" && Model.Bas.PaygMethod != PortfolioManager.Core.SalesTax.PaygMethods.Rate) { continue; }
+                            <div class="col-sm-6">
+                                <label class="form-label small mb-0" for="lbl-@e.Label">@e.Label @e.Name</label>
+                                <input id="lbl-@e.Label" name="Labels[@e.Label]" type="number" step="any" class="form-control form-control-sm text-end"
+                                       value="@(Model.Entered.TryGetValue(e.Label, out var v) ? v.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                       placeholder="@(e.Label == "T1" ? Math.Round(Model.SuggestedT1, 0).ToString(System.Globalization.CultureInfo.InvariantCulture) : "")" />
+                                @if (e.Help is { } h) { <div class="form-text mt-0">@h</div> }
+                            </div>
+                        }
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary mt-2">Save amounts</button>
+                </div>
+            </form>
+            <form method="post" asp-page-handler="Settings" class="card shadow-sm">
+                <input type="hidden" name="Period" value="@Model.Period" />
+                <input type="hidden" name="From" value="@Model.From?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="To" value="@Model.To?.ToString("yyyy-MM-dd")" />
+                <div class="card-body">
+                    <h3 class="h6">How this portfolio's BAS is worked out</h3>
+                    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="CashBasis" value="true" id="cash" checked="@Model.Bas.CashBasis" />
+                        <label class="form-check-label small" for="cash">Cash basis: report invoices and bills when they are paid (for businesses with turnover under $10 million that chose it)</label></div>
+                    <label class="form-label small mb-1" for="payg">PAYG instalments</label>
+                    <select id="payg" name="PaygMethod" class="form-select form-select-sm mb-2">
+                        <option value="None" selected="@(Model.Bas.PaygMethod == "None")">None</option>
+                        <option value="Amount" selected="@(Model.Bas.PaygMethod == "Amount")">Option 1: the amount the ATO gives (T7)</option>
+                        <option value="Rate" selected="@(Model.Bas.PaygMethod == "Rate")">Option 2: instalment income times the ATO's rate (T1 x T2)</option>
+                    </select>
+                    <div class="row g-2">
+                        <div class="col-6"><label class="form-label small mb-0" for="pamt">Instalment amount (option 1)</label><input id="pamt" name="PaygAmount" type="number" step="0.01" min="0" value="@Model.Bas.PaygAmount?.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm" /></div>
+                        <div class="col-6"><label class="form-label small mb-0" for="prate">Instalment rate % (option 2)</label><input id="prate" name="PaygRate" type="number" step="0.01" min="0" max="100" value="@Model.Bas.PaygRate?.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm" /></div>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary mt-2">Save settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
 
 <h2 class="h5">Return boxes</h2>
 <div class="card shadow-sm mb-4">

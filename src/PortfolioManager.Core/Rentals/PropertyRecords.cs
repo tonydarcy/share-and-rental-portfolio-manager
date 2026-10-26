@@ -112,6 +112,47 @@ public sealed record RentalJob(int Id, int PropertyId, DateOnly Done, string Des
     public bool IsCapital => Treatment != JobTreatments.Repair;
 }
 
+/// <summary>Part of a capital job split out as a depreciating asset (Division 40): its share of the cost and how it is written off.</summary>
+public sealed record JobPart(string Description, decimal Amount, string Method, decimal? LifeYears);
+
+/// <summary>
+/// Splits an initial repair or improvement between depreciating assets (an oven, a hot water system, carpet) and capital works
+/// (the rest of the job: the building work itself), so each part is written off the right way.
+/// </summary>
+public static class JobSplit
+{
+    /// <summary>A low-cost asset (under $1,000) can go in the low-value pool.</summary>
+    public const decimal LowCostLimit = 1_000m;
+
+    public const decimal CapitalWorksRate = 2.5m;
+
+    public static (IReadOnlyList<TaxWork.RentalAsset> Assets, string? Error) Build(RentalJob job, IEnumerable<JobPart> parts)
+    {
+        var list = parts.Where(p => p.Amount > 0 || !string.IsNullOrWhiteSpace(p.Description)).ToList();
+        foreach (var p in list)
+        {
+            if (string.IsNullOrWhiteSpace(p.Description) || p.Amount <= 0)
+                return ([], "Give each depreciating asset a description and its part of the cost.");
+            if (p.Method == TaxWork.RentalAssetKinds.LowValuePool && p.Amount >= LowCostLimit)
+                return ([], $"{p.Description.Trim()} costs {LowCostLimit:C0} or more, so it can't go in the low-value pool.");
+            if (p.Method != TaxWork.RentalAssetKinds.LowValuePool && p.LifeYears is not > 0)
+                return ([], $"Enter the effective life of {p.Description.Trim()} (the ATO's ruling TR 2022/1 lists them).");
+        }
+        var parted = list.Sum(p => p.Amount);
+        if (parted > job.Cost)
+            return ([], $"The assets add up to {parted:C}, more than the job's cost of {job.Cost:C}.");
+        var assets = list.Select(p => new TaxWork.RentalAsset(0, job.PropertyId, TaxWork.RentalAssetKinds.Plant, p.Description.Trim(), job.Done, p.Amount,
+                p.Method == TaxWork.RentalAssetKinds.LowValuePool ? null : p.LifeYears,
+                p.Method is TaxWork.RentalAssetKinds.PrimeCost or TaxWork.RentalAssetKinds.LowValuePool ? p.Method : TaxWork.RentalAssetKinds.DiminishingValue,
+                null, null))
+            .ToList();
+        if (job.Cost - parted > 0)
+            assets.Add(new TaxWork.RentalAsset(0, job.PropertyId, TaxWork.RentalAssetKinds.Building, job.Description, job.Done, job.Cost - parted,
+                null, null, CapitalWorksRate, null));
+        return (assets, null);
+    }
+}
+
 public static class InspectionKinds
 {
     public const string Entry = "Entry", Routine = "Routine", Exit = "Exit";

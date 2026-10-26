@@ -226,10 +226,25 @@ public sealed record DepreciationScheduleRow(RentalAsset Asset, IReadOnlyList<As
 public static class RentalDepreciationSchedule
 {
     /// <summary>Each asset's opening value, deduction and closing value for the year and the years after it (projected).</summary>
-    public static IReadOnlyList<DepreciationScheduleRow> Build(IEnumerable<RentalAsset> assets, int fromYear, int years) =>
-        assets.Select(a => new DepreciationScheduleRow(a, Enumerable.Range(fromYear, years).Select(y => RentalDepreciation.For(a, y)).ToList()))
+    /// <summary>Pooled assets are shown as one low-value pool row, worked out for the pool as a whole.</summary>
+    public static IReadOnlyList<DepreciationScheduleRow> Build(IEnumerable<RentalAsset> assets, int fromYear, int years)
+    {
+        var list = assets.ToList();
+        var rows = list.Where(a => !a.IsPooled)
+            .Select(a => new DepreciationScheduleRow(a, Enumerable.Range(fromYear, years).Select(y => RentalDepreciation.For(a, y)).ToList()))
             .Where(r => r.Years.Any(y => y.Opening > 0))
             .ToList();
+        if (list.FirstOrDefault(a => a.IsPooled) is { } first)
+        {
+            var poolYears = Enumerable.Range(fromYear, years).Select(y =>
+                    RentalLowValuePool.Line(RentalLowValuePool.For(list, y), first.PropertyId, Tax.FinancialYear.StartDate(y))
+                    ?? new AssetYear(first, 0, 0, 0))
+                .ToList();
+            if (poolYears.Any(y => y.Opening > 0))
+                rows.Add(new DepreciationScheduleRow(poolYears.First(y => y.Asset.Id == 0 || y.Opening > 0).Asset with { Description = "Low-value pool", Cost = list.Where(a => a.IsPooled).Sum(a => a.Cost) }, poolYears));
+        }
+        return rows;
+    }
 }
 
 /// <summary>An income and expense statement for a property by month: the dated amounts in each month and the year's keyed figures.</summary>

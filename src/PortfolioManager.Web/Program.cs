@@ -110,6 +110,7 @@ builder.Services.AddScoped<TrustBeneficiaryService>();
 builder.Services.AddScoped<SmsfMemberService>();
 builder.Services.AddScoped<FrankingAccountService>();
 builder.Services.AddScoped<SalesTaxService>();
+builder.Services.AddScoped<ActivityStatementService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<RecurringJournalService>();
 builder.Services.AddScoped<PortfolioManager.Core.Practice.AttachmentService>();
@@ -120,6 +121,12 @@ builder.Services.AddScoped<PortfolioManager.Core.Practice.PracticeDashboardServi
 builder.Services.AddScoped<PortfolioManager.Core.Practice.OnboardingService>();
 builder.Services.AddScoped<PortfolioManager.Core.Invoicing.InvoiceExtrasService>();
 builder.Services.AddScoped<PortfolioManager.Core.Exports.LedgerExportService>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("AccountingLink").Get<PortfolioManager.Core.Exports.AccountingLinkOptions>()
+    ?? new PortfolioManager.Core.Exports.AccountingLinkOptions());
+builder.Services.AddSingleton<AccountingTokenProtector>();
+builder.Services.AddSingleton<PortfolioManager.Core.Exports.IAccountingTokenProtector>(sp => sp.GetRequiredService<AccountingTokenProtector>());
+builder.Services.AddHttpClient<PortfolioManager.Core.Exports.AccountingApiClient>(client => client.Timeout = TimeSpan.FromSeconds(100));
+builder.Services.AddScoped<PortfolioManager.Core.Exports.AccountingLinkService>();
 builder.Services.AddScoped<PortfolioManager.Core.TaxWork.RentalService>();
 builder.Services.AddScoped<PortfolioManager.Core.Rentals.PropertyService>();
 builder.Services.AddScoped<PortfolioManager.Core.TaxWork.SmsfExtrasService>();

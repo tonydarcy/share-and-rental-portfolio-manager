@@ -69,16 +69,22 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
   revaluation.
 - Locked periods, an audit trail (changes after a lock are marked), and attachments on trades, journals, clients,
   years and workpapers.
-- Export to Xero (manual journal CSV) and MYOB AccountRight (general journal).
+- Export to Xero (manual journal CSV) and MYOB AccountRight (general journal), or connect the portfolio to Xero or
+  MYOB and send the journals straight there (Xero gets them as drafts to check and post), with a history of each send
+  and a warning before the same dates go twice.
 - Financial statements with comparatives for each entity type, and a printable report pack with declarations and an
   APES 315 compilation report.
 - GST, VAT or sales tax codes, with a report by return box (presets for Australia, the UK, the US, Canada and India).
+- The whole activity statement in Australia: GST on an accruals or cash basis (invoices and bills counted when they
+  are paid), PAYG withholding (W1 to W5), PAYG instalments by the ATO's amount or by instalment income times the rate
+  (T1 suggested from the ledger, or a varied amount at T9), FBT instalments, wine and luxury car tax, fuel tax credits
+  and the summary to 9.
 
 ### Business books
 
 - Customers, invoices (with or without tax, discounts, your logo and payment details, print or save as PDF), quotes,
-  credit notes, repeating invoices, deposits matched to invoices, customer statements and aged receivables. Approved
-  invoices post to the ledger.
+  credit notes (and refunds of them to the customer), repeating invoices, deposits matched to an invoice or split over
+  several, customer statements and aged receivables. Approved invoices post to the ledger.
 - Suppliers, bills, repeating bills, purchase orders and aged payables.
 - Inventory and stocktakes, expense claims, and a fixed asset register with depreciation.
 
@@ -94,9 +100,14 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
 - Shares held as trading stock, with some holdings kept as investments if wanted, and the year's trading stock journal
   posted to the ledger.
 - Deductible interest on investment loans in the return labels and the tax reconciliation.
-- Income tax reconciliation, tax planning for individuals, workpapers and a year-end checklist.
-- Trust distribution statement and resolution; SMSF member accounts, contribution caps, minimum pensions, TBAR events,
-  ECPI, pension minute, investment strategy and audit pack; company tax, deferred tax check and franking account;
+- Income tax reconciliation, workpapers and a year-end checklist.
+- Tax planning: for individuals (with the Medicare levy low-income reduction, and seniors' thresholds), for a company
+  (and the largest fully franked dividend its tax would frank), for an SMSF (extra income, gains and contributions,
+  with the ECPI share left out of tax), and for a family trust (trying a split of income and gains between
+  beneficiaries and seeing each one's extra tax, and the trustee's on anything left undistributed).
+- Trust distribution statement and resolution; SMSF member accounts, contribution caps, minimum pensions (pro-rated
+  for a pension started during the year), TBAR events, ECPI and a member data file for the actuary, pension minute,
+  investment strategy and audit pack; company tax, deferred tax check and franking account;
   a Division 7A calculator.
 - ATO prefill comparison (paste or upload the prefill report), tax return labels for each entity type (a printable
   page and a CSV keying sheet for Xero Tax, HandiTax or LodgeiT), and a sheet to copy onto the ATO's paper return form.
@@ -107,21 +118,26 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
   21F and 21U and shown in the Taxable income report. Agent statements (rental payouts with the property's code), the
   maintenance log, the rent ledger, bills the tenant paid and linked loans fill it in, alongside figures keyed for the
   year.
-- Depreciating assets (diminishing value, prime cost or the low-value pool), capital works, balancing adjustments,
+- Depreciating assets (diminishing value, prime cost or the low-value pool, worked out for the pool as a whole, with a
+  sold or scrapped asset's value taken off the pool), capital works, balancing adjustments,
   holiday homes and private use, and private redraws on a property loan.
 - Income and expenses by month for any period, year on year with big changes flagged, a depreciation schedule a few
   years ahead, and a review checklist before the return goes in.
 - The sale of a property: the five cost base elements less capital works claimed, the main residence exemption, the
   six-year rule and the market value rule, going into the capital gains report.
 - Running the property: tenancies with the bond and lease dates, a rent ledger showing arrears, bills passed on to the
-  tenant, a maintenance log that decides repair or capital, inspections with photos, safety checks and renewals by
+  tenant, rent receipts and arrears reminders emailed to the tenant, a maintenance log that decides repair or capital
+  (and splits a job between capital works and depreciating assets such as an oven or carpet), inspections with photos, safety checks and renewals by
   state, documents, and reminders by email. Each property's value, loans, equity and yields, with equity counted in
   net worth on the dashboard.
 
 ### For accountants
 
 - Clients with entity type, ABN/ACN and officeholders, practice details, and a practice dashboard showing every
-  client's year status, open queries, unallocated bank lines and workpapers to review.
+  client's year status and year end (grouped by country, as each client's financial year follows its own country),
+  open queries, unallocated bank lines and workpapers to review.
+- Attachments for a year printed into the SMSF audit pack and the report pack, and a "supporting documents as one
+  PDF" download (PDFs, photos and text files; Word, Excel and email files are listed for downloading separately).
 - Client queries asked from a bank line or journal and answered by the client, and client onboarding.
 - Sharing: give someone a role in an entity's books by email, as owner (view, change and share), editor (view and
   change, for the accountant or bookkeeper) or read only (for an auditor). People who haven't signed up yet are
@@ -186,7 +202,8 @@ the published site (never in git); on your own computer, in user-secrets; with D
 | `Email` | Your SMTP server, for password resets, account checks, sharing invitations, emailed invoices and alerts. |
 | `Captcha` | A Cloudflare Turnstile "I'm human" check on the login, sign-up and reset forms. |
 | `DocumentReading:AnthropicApiKey` | Reading photos and scanned PDFs of receipts and bills (files are sent to Anthropic's API). |
-| `DataProtection:KeysPath` | Where the keys protecting sign-ins, two-factor secrets and saved Navexa keys are kept. |
+| `AccountingLink` | Your app registrations with Xero and MYOB, so portfolios can send journals straight to them. |
+| `DataProtection:KeysPath` | Where the keys protecting sign-ins, two-factor secrets and saved Navexa keys, Anthropic keys and Xero and MYOB sign-ins are kept. |
 | `SiteAdminUserIds` | Which logins can upload prices for everyone (the first account by default). |
 | `Prices:Eodhd` (price updater) | Your EODHD API key and exchange codes for the daily price download. |
 
@@ -212,6 +229,10 @@ then publish and copy the site again as in [SETUP.md](SETUP.md#updating-to-a-new
 - **No lodgment.** Returns are prepared for keying into tax software or copying onto the paper form; the site doesn't
   lodge with the ATO. The employer's ESS annual report is given as figures and a CSV, not the ATO's own file. There is
   no payroll and no live bank feed (bank statements are imported as files).
+- **Sending to Xero and MYOB** needs the site's host to register an app with each of them first. The MYOB API
+  address is a setting because it hasn't been tested against a live MYOB file yet.
+- **Tax planning** for trusts and SMSFs is an estimate: family Medicare thresholds, the trust's own losses and the
+  actuary's exact ECPI percentage aren't applied.
 - **English only.**
 - **Daily prices need an EODHD plan** that covers your exchanges (the free plan allows 20 calls a day and may not
   include the ASX). Without one, upload prices as a CSV.

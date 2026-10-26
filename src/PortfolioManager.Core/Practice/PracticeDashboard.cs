@@ -2,6 +2,7 @@ using Dapper;
 using PortfolioManager.Core.Accounting;
 using PortfolioManager.Core.Clients;
 using PortfolioManager.Core.Data;
+using PortfolioManager.Core.Regions;
 using PortfolioManager.Core.Tax;
 
 namespace PortfolioManager.Core.Practice;
@@ -18,8 +19,23 @@ public sealed record PracticeClientYear(
     int OpenQueries,
     int AnsweredQueries,
     int Unallocated,
-    DateOnly? LockedTo)
+    DateOnly? LockedTo,
+    RegionSettings? Region = null,
+    int Year = 0)
 {
+    /// <summary>The client's own country and year start (Australia when not set).</summary>
+    public RegionSettings Settings => Region ?? RegionSettings.Australia;
+
+    public string CountryName => Settings.Country.Name;
+
+    /// <summary>The last day of the client's own financial year that ends in <see cref="Year"/>, e.g. 5 April in the UK.</summary>
+    public DateOnly YearEnd => FinancialYear.EndDate(Year, Settings.YearStart);
+
+    public string YearLabel => FinancialYear.Label(Year, Settings.YearStart);
+
+    /// <summary>Days from <paramref name="today"/> to the year end; negative once it has passed.</summary>
+    public int DaysToYearEnd(DateOnly today) => YearEnd.DayNumber - today.DayNumber;
+
     /// <summary>What still needs doing, in a few words each.</summary>
     public IReadOnlyList<string> Outstanding
     {
@@ -43,7 +59,20 @@ public sealed record PracticeClientYear(
 public sealed class PracticeDashboardService(IDbConnectionFactory db, ClientService clients)
 {
     private sealed record Counts(int PortfolioId, string? Status, string? StatusNote, int ChecklistDone, int WorkpapersPrepared, int WorkpapersReviewed,
-        int OpenQueries, int AnsweredQueries, int Unallocated, DateTime? LockedTo);
+        int OpenQueries, int AnsweredQueries, int Unallocated, DateTime? LockedTo,
+        string? CountryCode = null, int? YearStartMonth = null, int? YearStartDay = null);
+
+    /// <summary>
+    /// Clients grouped by country, each group in year-end order, so a practice with overseas clients sees which year ends
+    /// come first. Australia comes first, then the other countries by name.
+    /// </summary>
+    public static IReadOnlyList<IGrouping<string, PracticeClientYear>> ByCountry(IEnumerable<PracticeClientYear> rows) =>
+        rows.OrderBy(r => r.Settings.IsAustralia ? 0 : 1)
+            .ThenBy(r => r.CountryName, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(r => r.YearEnd)
+            .ThenBy(r => r.Client.LegalName, StringComparer.CurrentCultureIgnoreCase)
+            .GroupBy(r => r.CountryName)
+            .ToList();
 
     /// <summary>Every client the login can open, for one financial year. Only <paramref name="accessibleIds"/> are read.</summary>
     public async Task<IReadOnlyList<PracticeClientYear>> GetAsync(int loginUserId, IReadOnlyCollection<int> accessibleIds, int year)
@@ -56,6 +85,7 @@ public sealed class PracticeDashboardService(IDbConnectionFactory db, ClientServ
         IEnumerable<Counts> counts;
         try
         {
+            // The year start columns come from the region migration (2026-10-15); a database without them still works below.
             counts = await con.QueryAsync<Counts>("""
                 SELECT P.Id AS PortfolioId,
                        S.strStatus AS Status, S.strNote AS StatusNote,
@@ -68,8 +98,9 @@ public sealed class PracticeDashboardService(IDbConnectionFactory db, ClientServ
                           JOIN tblChartOfAccounts CA ON CA.iAccountID = JL.iAccountID
                         WHERE J.iUserID = P.Id AND J.strSourceModule = 'BankImport' AND JL.iMatchedJournalID IS NULL
                           AND CA.strAccountName = @suspense) AS Unallocated,
-                       CAST(L.dtmLockedTo AS datetime) AS LockedTo
-                FROM (SELECT iUserId AS Id FROM tblUsers WHERE iUserId IN @ids) P
+                       CAST(L.dtmLockedTo AS datetime) AS LockedTo,
+                       P.strCountryCode AS CountryCode, P.iYearStartMonth AS YearStartMonth, P.iYearStartDay AS YearStartDay
+                FROM (SELECT iUserId AS Id, strCountryCode, iYearStartMonth, iYearStartDay FROM tblUsers WHERE iUserId IN @ids) P
                 LEFT JOIN tblYearStatus S ON S.iUserID = P.Id AND S.iYear = @year
                 LEFT JOIN tblLockedPeriod L ON L.iUserID = P.Id
                 """, new { ids, year, suspense = BankImportService.SuspenseAccountName });
@@ -79,14 +110,16 @@ public sealed class PracticeDashboardService(IDbConnectionFactory db, ClientServ
             counts = [];
         }
         var byId = counts.ToDictionary(c => c.PortfolioId);
-        var yearEnd = FinancialYear.EndDate(year);
         return list.Select(c =>
         {
             var n = byId.GetValueOrDefault(c.PortfolioId);
+            var region = RegionSettings.From(n?.CountryCode, n?.YearStartMonth, n?.YearStartDay, null, null);
+            // Each client's year ends on its own date: "2026" is 30 June 2026 in Australia, 5 April 2026 in the UK, 31 December 2026 in the US.
+            var yearEnd = FinancialYear.EndDate(year, region.YearStart);
             var locked = n?.LockedTo is { } l ? DateOnly.FromDateTime(l) : (DateOnly?)null;
             return new PracticeClientYear(c, YearStatuses.Effective(n?.Status, locked >= yearEnd), n?.StatusNote, n?.ChecklistDone ?? 0,
                 YearEndChecklist.For(c.EntityType).Count, n?.WorkpapersPrepared ?? 0, n?.WorkpapersReviewed ?? 0, n?.OpenQueries ?? 0,
-                n?.AnsweredQueries ?? 0, n?.Unallocated ?? 0, locked);
+                n?.AnsweredQueries ?? 0, n?.Unallocated ?? 0, locked, region, year);
         }).ToList();
     }
 }

@@ -247,6 +247,28 @@
                         }
                     </div>
                 </form>
+                <form method="post" asp-page-handler="Refund" asp-route-id="@i.InvoiceId" class="card shadow-sm mt-3">
+                    <div class="card-body">
+                        <h2 class="h6">Refund to the customer</h2>
+                        @if (i.Currency is not null)
+                        {
+                            <p class="small text-muted mb-0">Credit notes in @i.Currency can't be refunded here yet. Post the refund as a journal.</p>
+                        }
+                        else
+                        {
+                            <p class="small text-muted">Money paid back instead of keeping the credit for a later invoice. Posts from the bank account to Accounts Receivable.</p>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6"><input type="date" name="date" value="@Model.Today.ToString("yyyy-MM-dd")" class="form-control" aria-label="Date refunded" /></div>
+                                <div class="col-6"><input type="number" name="amount" step="0.01" min="0.01" value="@i.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control text-end" aria-label="Amount refunded" /></div>
+                            </div>
+                            <select name="accountId" class="form-select mb-2" aria-label="Paid from">
+                                @foreach (var a in Model.BankAccounts) { <option value="@a.AccountId">Paid from @a.DisplayName</option> }
+                            </select>
+                            <input name="reference" class="form-control mb-2" maxlength="180" placeholder="Reference (optional)" aria-label="Reference" />
+                            <button type="submit" class="btn btn-outline-success">Record refund</button>
+                        }
+                    </div>
+                </form>
             </div>
         }
         @if (canEdit && !credit && i.Balance > 0)

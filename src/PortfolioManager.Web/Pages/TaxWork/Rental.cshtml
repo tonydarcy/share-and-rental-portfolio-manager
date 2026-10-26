@@ -146,11 +146,20 @@
                                 <td>@a.Start.ToString("d")</td>
                                 <td class="text-end">@a.Cost.ToString("C")</td>
                                 <td>@a.HowText</td>
-                                <td class="text-end">@ay.Opening.ToString("C")</td>
-                                <td class="text-end">@ay.Days</td>
-                                <td class="text-end fw-bold">@ay.Deduction.ToString("C")</td>
-                                <td class="text-end">@ay.Closing.ToString("C")</td>
+                                @if (a.IsPooled && a.Id > 0)
+                                {
+                                    <td colspan="4" class="text-muted">In the low-value pool below</td>
+                                }
+                                else
+                                {
+                                    <td class="text-end">@ay.Opening.ToString("C")</td>
+                                    <td class="text-end">@(a.Id > 0 ? ay.Days : "")</td>
+                                    <td class="text-end fw-bold">@ay.Deduction.ToString("C")</td>
+                                    <td class="text-end">@ay.Closing.ToString("C")</td>
+                                }
                                 <td class="text-end no-print text-nowrap">
+                                    @if (a.Id > 0)
+                                    {
                                     <details class="d-inline-block text-start">
                                         <summary class="small">Disposal</summary>
                                         <form method="post" asp-page-handler="Asset" asp-route-fy="@Model.Year" class="d-flex gap-1 mt-1">
@@ -167,6 +176,7 @@
                                     <form method="post" asp-page-handler="DeleteAsset" asp-route-id="@a.Id" asp-route-fy="@Model.Year" class="d-inline ms-2" onsubmit="return confirm('Delete this asset for every year?');">
                                         <button type="submit" class="btn btn-sm btn-link text-danger p-0">Delete</button>
                                     </form>
+                                    }
                                 </td>
                             </tr>
                         }

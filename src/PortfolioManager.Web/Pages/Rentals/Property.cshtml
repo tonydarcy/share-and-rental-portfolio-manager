@@ -94,6 +94,16 @@
                         @if (pos.Arrears > 0) { <span class="badge text-bg-danger">@pos.Arrears.ToString("C") behind</span> <span>since @pos.OldestUnpaid?.ToString("d MMM yyyy")</span> }
                         else if (pos.Credit > 0) { <span class="badge text-bg-success">@pos.Credit.ToString("C") in advance</span> }
                         @if (pos.PaidTo is { } pt) { <div>Paid to @pt.ToString("d MMM yyyy")</div> }
+                        @if (pos.Arrears > 0 && Model.CanEmail && t.Email is not null)
+                        {
+                            <details class="no-print text-start">
+                                <summary class="small">Email a reminder</summary>
+                                <form method="post" asp-page-handler="EmailReminder" asp-route-id="@p.Id" asp-route-itemId="@t.Id" class="mt-1">
+                                    <textarea name="note" rows="2" maxlength="1000" class="form-control form-control-sm mb-1" placeholder="Anything to add (optional)"></textarea>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Send reminder to @t.Email</button>
+                                </form>
+                            </details>
+                        }
                     </div>
                 </div>
                 <details class="mt-2">
@@ -103,7 +113,9 @@
                         @foreach (var pay in payments)
                         {
                             <tr><td>@pay.Paid.ToString("d MMM yyyy")</td><td class="text-end">@pay.Amount.ToString("C")</td><td>@pay.Note</td>
-                                <td class="text-end no-print"><form method="post" asp-page-handler="DeletePayment" asp-route-id="@p.Id" asp-route-itemId="@pay.Id"><button class="btn btn-link btn-sm text-danger p-0">Delete</button></form></td></tr>
+                                <td class="text-end no-print text-nowrap">
+                                    @if (Model.CanEmail && t.Email is not null) { <form method="post" asp-page-handler="EmailReceipt" asp-route-id="@p.Id" asp-route-itemId="@pay.Id" class="d-inline me-2"><button class="btn btn-link btn-sm p-0">Email receipt</button></form> }
+                                    <form method="post" asp-page-handler="DeletePayment" asp-route-id="@p.Id" asp-route-itemId="@pay.Id" class="d-inline"><button class="btn btn-link btn-sm text-danger p-0">Delete</button></form></td></tr>
                         }
                     </table>
                     <form method="post" asp-page-handler="Payment" asp-route-id="@p.Id" class="row g-2 align-items-end no-print">
@@ -180,7 +192,28 @@
                         <form method="post" asp-page-handler="Upload" asp-route-id="@p.Id" asp-route-kind="@AttachmentKinds.RentalJob" asp-route-target="@j.Id" enctype="multipart/form-data" class="d-flex gap-1 no-print">
                             <input type="file" name="Upload" class="form-control form-control-sm" style="max-width: 12rem" required /><button class="btn btn-sm btn-outline-secondary">Attach</button></form></td>
                     <td class="text-end no-print text-nowrap">
-                        @if (j.IsCapital) { <form method="post" asp-page-handler="JobToAsset" asp-route-id="@p.Id" asp-route-itemId="@j.Id" class="d-inline"><button class="btn btn-link btn-sm p-0" title="Adds it to the depreciating assets and capital works at 2.5% a year">Add as capital works</button></form> }
+                        @if (j.IsCapital)
+                        {
+                            <form method="post" asp-page-handler="JobToAsset" asp-route-id="@p.Id" asp-route-itemId="@j.Id" class="d-inline"><button class="btn btn-link btn-sm p-0" title="Adds it to the depreciating assets and capital works at 2.5% a year">Add as capital works</button></form>
+                            <details class="d-inline-block text-start ms-2">
+                                <summary class="small">Split</summary>
+                                <form method="post" asp-page-handler="JobSplit" asp-route-id="@p.Id" asp-route-itemId="@j.Id" class="mt-1" style="min-width: 28rem">
+                                    <div class="small text-muted mb-1">Name the depreciating assets in the job (an oven, carpet, a hot water system) and their cost. The rest of the @j.Cost.ToString("C") goes to capital works at 2.5%.</div>
+                                    @for (var k = 0; k < 3; k++)
+                                    {
+                                        <div class="d-flex gap-1 mb-1">
+                                            <input name="partDesc" maxlength="300" placeholder="Asset" class="form-control form-control-sm" aria-label="Asset" />
+                                            <input name="partAmount" type="number" step="0.01" min="0" placeholder="Cost" class="form-control form-control-sm" style="width: 6rem" aria-label="Cost" />
+                                            <select name="partMethod" class="form-select form-select-sm" style="width: 9rem" aria-label="Method">
+                                                <option value="DV">Diminishing value</option><option value="PC">Prime cost</option><option value="LV">Low-value pool</option>
+                                            </select>
+                                            <input name="partLife" type="number" step="0.01" min="0" placeholder="Life (yrs)" class="form-control form-control-sm" style="width: 6rem" aria-label="Effective life" />
+                                        </div>
+                                    }
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">Split into assets</button>
+                                </form>
+                            </details>
+                        }
                         <form method="post" asp-page-handler="DeleteJob" asp-route-id="@p.Id" asp-route-itemId="@j.Id" class="d-inline ms-2"><button class="btn btn-link btn-sm text-danger p-0">Delete</button></form></td></tr>
             }
         </table>
