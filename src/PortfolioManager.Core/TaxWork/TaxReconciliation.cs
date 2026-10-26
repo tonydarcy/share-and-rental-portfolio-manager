@@ -119,6 +119,36 @@ public sealed record LedgerYear(LedgerSnapshot Opening, LedgerSnapshot Closing)
     public static readonly LedgerYear Empty = new(new LedgerSnapshot(default, [], 0, 0), new LedgerSnapshot(default, [], 0, 0));
 }
 
+/// <summary>
+/// The year's interest and fees on margin and investment loans: everything charged, the deductible part on loans for shares
+/// and other investments, and the deductible part on loans linked to a rental property (which the rental schedule claims).
+/// </summary>
+public sealed record LoanInterestYear(decimal Charged, decimal Deductible, decimal RentalDeductible)
+{
+    public static readonly LoanInterestYear None = new(0, 0, 0);
+
+    /// <summary>The ledger account loan interest and fees are posted to.</summary>
+    public const int Account = 5300;
+
+    public static LoanInterestYear For(IEnumerable<Debt.Loan> loans, IEnumerable<Debt.LoanEntry> entries, IReadOnlyDictionary<int, int> rentalLinks, int year)
+    {
+        var from = FinancialYear.StartDate(year);
+        var to = FinancialYear.EndDate(year);
+        var list = entries.ToList();
+        var years = loans.Select(l => Debt.LoanCalc.Year(l, list, from, to)).ToList();
+        return new LoanInterestYear(years.Sum(y => y.Interest + y.Fees),
+            years.Where(y => !rentalLinks.ContainsKey(y.Loan.Id)).Sum(y => y.Deductible),
+            years.Where(y => rentalLinks.ContainsKey(y.Loan.Id)).Sum(y => y.Deductible));
+    }
+
+    /// <summary>
+    /// What the reconciliation adjusts: the loan interest in the accounts (account 5300) is taken out and the deductible part
+    /// on investment loans put in, so the private part, accruals not yet charged, and rental loans (claimed in the rental
+    /// schedule, which is kept outside the reconciliation) come out.
+    /// </summary>
+    public decimal Adjustment(LedgerYear ledger) => ledger.Movement(a => a.Number == Account) - Deductible;
+}
+
 public enum TaxRecStyle { Item, Subtotal, Total, Info }
 
 /// <summary>One line of the reconciliation. Info lines explain a figure but aren't added in.</summary>
@@ -158,6 +188,9 @@ public sealed record TaxReconciliation(
     /// forward. Franking credits are already grossed up in dividend income (4200), so they're shown
     /// but not added again. A partnership's capital gains belong to the partners, so they're left out.
     /// </summary>
+    /// <summary>Accrued Interest Receivable, from the year-end interest accruals.</summary>
+    public const int AccruedInterestAccount = 1450;
+
     public static TaxReconciliation Build(
         string entityType,
         LedgerYear ledger,
@@ -165,7 +198,8 @@ public sealed record TaxReconciliation(
         TaxIncomeFacts income,
         TaxYearData data,
         SmsfTaxInputs? smsf = null,
-        decimal? tradingProfit = null)
+        decimal? tradingProfit = null,
+        LoanInterestYear? loans = null)
     {
         var lines = new List<TaxRecLine>();
         var profit = ledger.ProfitBeforeTax;
@@ -199,6 +233,17 @@ public sealed record TaxReconciliation(
             lines.Add(new("Franking credits (already included in dividend income)", income.DividendFrankingCredits, null, TaxRecStyle.Info));
         Add("Fund tax statements: income attributed less distributions in the accounts", income.StatementAdjustment,
             $"{income.Statements} fund statement(s). Their capital gains are in the net capital gain above, and their cost base changes in the parcels.");
+
+        if (loans is not null && loans.Adjustment(ledger) is var loanAdjustment and not 0)
+            Add(loanAdjustment > 0 ? "Add: loan interest in the accounts that isn't deductible here" : "Less: deductible interest on investment loans",
+                Round(loanAdjustment),
+                $"Charged {loans.Charged:#,##0.00}; deductible {loans.Deductible:#,##0.00} on investment loans"
+                + (loans.RentalDeductible != 0 ? $" and {loans.RentalDeductible:#,##0.00} on rental loans (claimed in the rental schedule)" : "") + ".");
+
+        // Year-end accruals (Debt > Fixed income) put interest earned but not yet paid in the accounts; it's taxed when paid
+        if (ledger.Movement(a => a.Number == AccruedInterestAccount) is var accrued and not 0)
+            Add("Less: interest accrued at the year end, taxed when it's paid", -Round(accrued),
+                "The change in Accrued Interest Receivable over the year.");
 
         foreach (var a in data.Adjustments)
             Add($"{TaxAdjustmentKinds.Label(a.Kind)}: {a.Description}", a.Signed);

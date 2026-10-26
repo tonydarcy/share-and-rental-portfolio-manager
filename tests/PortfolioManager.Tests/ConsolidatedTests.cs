@@ -44,7 +44,7 @@ public class ConsolidatedTests
     [InlineData("Smiths", new[] { 1, 99 }, "Pick at least two portfolios.")]
     public async Task Save_checks_before_writing(string name, int[] ids, string error)
     {
-        var service = new ConsolidatedService(null!, null!, null!, null!, null!);
+        var service = new ConsolidatedService(null!, null!, null!, null!, null!, null!);
         var result = await service.SaveAsync(1, 0, name, ids, new HashSet<int> { 1, 2 });
         Assert.Equal(error, result.Error);
     }

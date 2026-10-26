@@ -95,4 +95,45 @@ public class TradingStockTests
         Assert.Equal(500m, labels["P8"]);
         Assert.False(labels.ContainsKey("18H"));
     }
+
+    [Fact]
+    public void A_holding_kept_as_an_investment_is_left_out_of_the_stock()
+    {
+        var settings = new ShareTraderSettings(2026, TradingStockValuation.Cost, new HashSet<(string, string)> { ("ASX", "AAA") });
+        var r = TradingStock.Build(2026, From, To, settings, Trades, new HashSet<int>(),
+            CgtParcels.Match(Trades, From.AddDays(-1)).Open, CgtParcels.Match(Trades, To).Open, NoPrices, NoPrices);
+        Assert.Equal(["BBB"], r.Lines.Select(l => l.StockCode));
+        Assert.Equal((0m, 500m), (r.OpeningValue, r.Profit));
+        Assert.True(r.StaysCapital(new CgtEvent("asx", "aaa ", new(2020, 1, 1), new(2026, 3, 1), 1, 1, 2)));
+        Assert.False(r.StaysCapital(new CgtEvent("ASX", "BBB", new(2020, 1, 1), new(2026, 3, 1), 1, 1, 2)));
+    }
+
+    [Fact]
+    public void The_workpaper_keeps_capital_gains_on_investments()
+    {
+        var events = new List<CgtEvent>
+        {
+            new("ASX", "AAA", new(2020, 1, 1), new(2026, 3, 1), 100, 1000, 3000),
+            new("ASX", "BBB", new(2025, 8, 1), new(2026, 3, 1), 50, 1000, 1500),
+        };
+        var report = new CgtReturnReport(CgtDiscount.Summarise(events, HalfRate), events, true, []);
+        var trading = Run(TradingStockValuation.Cost) with { Investments = new HashSet<(string, string)> { ("ASX", "AAA") } };
+        var w = TaxWorkpaperService.Assemble(ClientDetails.Unsaved(1, "Jo", "Individual"), 2026, Year(), TaxYearData.Empty, report, TaxIncomeFacts.None, trading: trading);
+        Assert.Equal(1000m, w.Cgt.NetCapitalGain); // AAA's $2,000 gain, discounted; BBB's is trading profit
+    }
+
+    [Fact]
+    public void The_ledger_journal_splits_the_profit_into_realised_gains_and_the_change_in_stock_value()
+    {
+        var atCost = Run(TradingStockValuation.Cost);
+        Assert.Equal((500m, 0m), (atCost.Realised, atCost.ValuationChange));
+
+        // At market: AAA falls $200 below cost, BBB rises $250 above it
+        var market = Run(TradingStockValuation.Market);
+        Assert.Equal((500m, 50m, 550m), (market.Realised, market.ValuationChange, market.Profit));
+        var p = TradingStockService.PostParameters(9, market);
+        object? Get(string name) => p.GetType().GetProperty(name)!.GetValue(p);
+        Assert.Equal((9, 2026, new DateTime(2026, 6, 30), 500m, 50m),
+            ((int)Get("iUserID")!, (int)Get("iYear")!, (DateTime)Get("dtmYearEnd")!, (decimal)Get("dblRealised")!, (decimal)Get("dblAdjustment")!));
+    }
 }

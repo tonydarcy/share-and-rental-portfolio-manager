@@ -81,6 +81,21 @@ public static class LoanCalc
             Sum(LoanEntryKinds.Fee), opening + year.Sum(e => e.Signed), mine.Where(e => e.Kind == LoanEntryKinds.Redraw && e.Date <= to).Sum(e => e.Amount));
     }
 
+    /// <summary>
+    /// Interest owed at the date but not yet charged: the balance at the loan's rate for the days since interest was last
+    /// charged (or since the loan was opened), actual days over 365.
+    /// </summary>
+    public static decimal AccruedInterest(Loan loan, IEnumerable<LoanEntry> entries, DateOnly date)
+    {
+        var mine = entries.Where(e => e.LoanId == loan.Id && e.Date <= date).ToList();
+        var balance = mine.Sum(e => e.Signed);
+        if (balance <= 0 || loan.RatePercent <= 0)
+            return 0;
+        var since = mine.Where(e => e.Kind == LoanEntryKinds.Interest).Select(e => (DateOnly?)e.Date).Max() ?? loan.Opened;
+        var days = date.DayNumber - since.DayNumber;
+        return days <= 0 ? 0 : Math.Round(balance * loan.RatePercent / 100m * days / 365m, 2, MidpointRounding.AwayFromZero);
+    }
+
     public static IReadOnlyList<string> Validate(Loan l)
     {
         var errors = new List<string>();
@@ -135,27 +150,63 @@ public sealed class LoanService(IDbConnectionFactory db)
         return ProcResult.From(row.Result, "Success", row.Id);
     }
 
-    public async Task<ProcResult> DeleteAsync(int portfolioId, int loanId) =>
-        await ResultAsync("uspDeleteLoan", new { iUserID = portfolioId, iLoanID = loanId });
+    // (Re)posts or removes a loan entry's ledger journal, once 2026-10-26-07-loans-in-ledger.sql has been run
+    private const string PostJournal = """
+        IF OBJECT_ID('dbo.uspPostLoanEntryJournal', 'P') IS NOT NULL
+            EXEC dbo.uspPostLoanEntryJournal @iUserID, @iLoanEntryID;
+        """;
 
+    /// <summary>Deletes the loan, its entries and their journals, in one transaction.</summary>
+    public async Task<ProcResult> DeleteAsync(int portfolioId, int loanId)
+    {
+        await using var con = db.Create();
+        await con.OpenAsync();
+        await using var tx = await con.BeginTransactionAsync();
+        var entryIds = (await con.QueryAsync<int>(
+            "SELECT E.iLoanEntryID FROM tblLoanEntries E JOIN tblLoans L ON L.iLoanID = E.iLoanID WHERE L.iLoanID = @loanId AND L.iUserID = @portfolioId",
+            new { loanId, portfolioId }, tx)).ToList();
+        var result = ProcResult.From(await con.ExecuteScalarAsync<string>("uspDeleteLoan", new { iUserID = portfolioId, iLoanID = loanId }, tx,
+            commandType: CommandType.StoredProcedure), "Success");
+        if (!result.Ok)
+            return result;
+        foreach (var id in entryIds)
+            await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iLoanEntryID = id }, tx);
+        await tx.CommitAsync();
+        return result;
+    }
+
+    /// <summary>Adds the entry and posts its journal (Hybrid and double-entry portfolios), in one transaction.</summary>
     public async Task<ProcResult> AddEntryAsync(int portfolioId, LoanEntry e)
     {
         await using var con = db.Create();
+        await con.OpenAsync();
+        await using var tx = await con.BeginTransactionAsync();
         var row = await con.QuerySingleAsync<(string Result, int? Id)>("uspAddLoanEntry", new
         {
             iUserID = portfolioId, iLoanID = e.LoanId, dtmDate = e.Date.ToDateTime(TimeOnly.MinValue), strKind = e.Kind,
             dblAmount = (double)e.Amount, strComment = Clean(e.Comment),
-        }, commandType: CommandType.StoredProcedure);
-        return ProcResult.From(row.Result, "Success", row.Id);
+        }, tx, commandType: CommandType.StoredProcedure);
+        var result = ProcResult.From(row.Result, "Success", row.Id);
+        if (!result.Ok || row.Id is not { } id)
+            return result;
+        await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iLoanEntryID = id }, tx);
+        await tx.CommitAsync();
+        return result;
     }
 
-    public async Task<ProcResult> DeleteEntryAsync(int portfolioId, int entryId) =>
-        await ResultAsync("uspDeleteLoanEntry", new { iUserID = portfolioId, iLoanEntryID = entryId });
-
-    private async Task<ProcResult> ResultAsync(string proc, object args)
+    /// <summary>Deletes the entry and its journal, in one transaction.</summary>
+    public async Task<ProcResult> DeleteEntryAsync(int portfolioId, int entryId)
     {
         await using var con = db.Create();
-        return ProcResult.From(await con.ExecuteScalarAsync<string>(proc, args, commandType: CommandType.StoredProcedure), "Success");
+        await con.OpenAsync();
+        await using var tx = await con.BeginTransactionAsync();
+        var result = ProcResult.From(await con.ExecuteScalarAsync<string>("uspDeleteLoanEntry", new { iUserID = portfolioId, iLoanEntryID = entryId }, tx,
+            commandType: CommandType.StoredProcedure), "Success");
+        if (!result.Ok)
+            return result;
+        await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iLoanEntryID = entryId }, tx);
+        await tx.CommitAsync();
+        return result;
     }
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

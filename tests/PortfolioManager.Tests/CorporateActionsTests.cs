@@ -318,14 +318,13 @@ public class CapitalReturnTests
 
         var match = CgtParcels.Match(ExampleTrades, null, [new CapitalReturn("ASX", "XYZ", D(2025, 7, 1), preview.Total)]);
         var report = CgtDiscountService.Build(match, CgtDiscount.RateFor("Individual"),
-            FinancialYear.Resolve(2026, null, null, D(2026, 10, 15)), CgtParcels.Match(ExampleTrades));
+            FinancialYear.Resolve(2026, null, null, D(2026, 10, 15)));
         Assert.Equal(3980m, report.Summary.DiscountGains); // the 2022 parcel, held over 12 months
         Assert.Equal(1490m, report.Summary.OtherGains);    // the April 2025 parcel
         Assert.Equal(1990m, report.Summary.Discount);
         Assert.Equal(3480m, report.Summary.NetCapitalGain);
         Assert.Equal(5470m, report.CapitalReturnGains);
         Assert.Equal(1, report.CapitalReturns);
-        Assert.True(report.AgreesWith(0m)); // the legacy report has no sales to compare
         Assert.All(match.Open, p => Assert.Equal(0m, p.TotalCost));
         Assert.Equal(2500m, match.Open.Sum(p => p.Units));
     }
@@ -353,7 +352,7 @@ public class CapitalReturnTests
     }
 
     [Fact]
-    public void Comparison_with_the_legacy_report_leaves_out_returns_of_capital()
+    public void Sales_table_follows_returns_of_capital()
     {
         var trades = new[]
         {
@@ -362,12 +361,10 @@ public class CapitalReturnTests
         };
         var returns = new[] { new CapitalReturn("ASX", "XYZ", D(2025, 12, 1), 100m) };
         var period = FinancialYear.Resolve(2026, null, null, D(2026, 10, 15));
-        var report = CgtDiscountService.Build(CgtParcels.Match(trades, null, returns), CgtDiscount.RateFor("Individual"),
-            period, CgtParcels.Match(trades));
+        var report = CgtDiscountService.Build(CgtParcels.Match(trades, null, returns), CgtDiscount.RateFor("Individual"), period);
         Assert.Equal(300m, report.TotalGain);
-        Assert.Equal(200m, report.ComparableGain);
-        Assert.True(report.AgreesWith(200m));
-        Assert.False(report.AgreesWith(300m));
+        var sales = CapitalGainsService.FromEvents(report.Events);
+        Assert.Equal((900m, 1200m, 300m), (sales.Total.TotalCost, sales.Total.TotalProceeds, sales.Total.Gain));
     }
 
     private static CapitalReturnForm Form(decimal? perUnit = null, decimal? total = 100m) =>

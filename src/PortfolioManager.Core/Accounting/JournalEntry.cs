@@ -154,6 +154,7 @@ public static class JournalRules
         "Revaluation" => "Market value revaluation",
         "Invoice" => "Customer invoice",
         "InvoicePayment" => "Invoice payment",
+        "FundStatement" => "Fund tax statement",
         var other => other,
     };
 }

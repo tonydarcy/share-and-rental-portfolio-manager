@@ -194,6 +194,7 @@
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Workpapers">Workpapers and year-end checklist</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Prefill">ATO prefill</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Planning">Tax planning</a></li>
+                                <li><a class="dropdown-item" asp-page="/TaxWork/EssReport">ESS annual report (employers)</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Rental">Rental properties</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Distribution">Trust distribution</a></li>
@@ -217,6 +218,7 @@
                                 @if (Admin.IsAdmin(User))
                                 {
                                     <li><a class="dropdown-item" asp-page="/Import/Prices">Share prices (CSV)</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Import/DividendDetails">Dividend details (CSV)</a></li>
                                 }
                             </ul>
                         </li>
@@ -268,6 +270,7 @@
                             <li><a class="dropdown-item" asp-page="/Account/TwoFactor">Two-factor sign-in</a></li>
                             <li><a class="dropdown-item" asp-page="/Account/ApiKeys">API keys and AI assistants</a></li>
                             <li><a class="dropdown-item" asp-page="/Account/Alerts">Email alerts</a></li>
+                            <li><a class="dropdown-item" href="#" id="offlineCopies" title="Save the main pages on this device as you open them, to look at with no connection">Offline copies on this device: <span data-state>off</span></a></li>
                             @if (Admin.IsAdmin(User))
                             {
                                 <li><a class="dropdown-item" asp-page="/Account/TestEmail">Check email settings</a></li>

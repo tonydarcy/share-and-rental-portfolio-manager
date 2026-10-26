@@ -30,7 +30,7 @@
                 <option value="">Choose...</option>
                 @foreach (var h in Model.Holdings)
                 {
-                    <option value="@h.Key">@h.Key (@h.Units.ToString("#,##0.####") units)</option>
+                    <option value="@h.Key">@h.Key (@h.Units.ToString("#,##0.########") units)</option>
                 }
             </select>
         </div>
@@ -138,7 +138,7 @@
                 {
                     <tr>
                         <td>@e.Acquired.ToString("d MMM yyyy")</td>
-                        <td class="text-end">@e.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@e.Units.ToString("#,##0.########")</td>
                         <td class="text-end">@e.CostBase.ToString("N2")</td>
                         <td class="text-end">@e.Proceeds.ToString("N2")</td>
                         <td class="text-end @(e.Gain < 0 ? "text-danger" : "")">@e.Gain.ToString("N2")</td>

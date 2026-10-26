@@ -4,6 +4,7 @@ using Dapper;
 using PortfolioManager.Core.Dashboard;
 using PortfolioManager.Core.Data;
 using PortfolioManager.Core.Holdings;
+using PortfolioManager.Core.Performance;
 using PortfolioManager.Core.Tax;
 
 namespace PortfolioManager.Core.Reports;
@@ -52,12 +53,71 @@ public sealed record ConsolidatedReport(IReadOnlyList<EntityFigures> Entities, I
     }
 }
 
+/// <summary>One entity's return over the period, and the group's.</summary>
+public sealed record GroupPerformance(PerformanceResult? Group, IReadOnlyList<(int PortfolioId, PerformanceSummary Summary)> Entities,
+    IReadOnlyList<string> Warnings);
+
+/// <summary>
+/// The group's time-weighted return: each day's values, money in and out and income are added across the entities, then
+/// the days are chained as for one portfolio (<see cref="PerformanceCalculator.DailyReturn"/>). Money moved between two of
+/// the group's entities shows as money out of one and into the other, so it isn't counted as growth.
+/// </summary>
+public static class GroupReturns
+{
+    public static PerformanceResult? Combine(IReadOnlyList<PerformanceResult> entities)
+    {
+        var withDays = entities.Where(e => e.Days.Count > 0).ToList();
+        if (withDays.Count == 0)
+            return null;
+        var dates = withDays.SelectMany(e => e.Days.Select(d => d.Date)).Distinct().Order().ToList();
+        var byDate = withDays.Select(e => e.Days.ToDictionary(d => d.Date)).ToList();
+        var last = new PerformanceDay?[withDays.Count];
+        var days = new List<PerformanceDay>(dates.Count);
+        var growth = 1d;
+        // The group's value the day before the period starts
+        var previous = withDays.Sum(e => e.Summary.StartValue);
+        foreach (var date in dates)
+        {
+            decimal cash = 0, market = 0, value = 0, moneyIn = 0, moneyOut = 0, income = 0;
+            for (var i = 0; i < withDays.Count; i++)
+            {
+                if (byDate[i].TryGetValue(date, out var d))
+                {
+                    last[i] = d;
+                    moneyIn += d.MoneyIn;
+                    moneyOut += d.MoneyOut;
+                    income += d.Income;
+                }
+                // A day one entity has no row for keeps its last value
+                if (last[i] is { } held)
+                {
+                    cash += held.Cash;
+                    market += held.MarketValue;
+                    value += held.Value;
+                }
+            }
+            var r = PerformanceCalculator.DailyReturn(previous, value, moneyIn, moneyOut, income);
+            growth *= 1 + r;
+            days.Add(new PerformanceDay(date, cash, market, value, moneyIn, moneyOut, income, r, growth - 1));
+            previous = value;
+        }
+
+        var from = withDays.Min(e => e.Summary.From);
+        var to = withDays.Max(e => e.Summary.To);
+        var span = to.DayNumber - from.DayNumber + 1;
+        double? annualised = span > 366 && growth > 0 ? Math.Pow(growth, 365.25 / span) - 1 : null;
+        var summary = new PerformanceSummary(from, to, withDays.Sum(e => e.Summary.StartValue), days[^1].Value,
+            days.Sum(d => d.MoneyIn), days.Sum(d => d.MoneyOut), days.Sum(d => d.Income), growth - 1, annualised);
+        return new PerformanceResult(summary, days, PerformanceCalculator.Monthly(days), withDays.SelectMany(e => e.Warnings).Distinct().ToList());
+    }
+}
+
 /// <summary>
 /// Family groups (Reports > Consolidated) and the figures across them. Groups belong to a login; callers pass the
 /// portfolios that login can open, and only those are ever read.
 /// </summary>
 public sealed class ConsolidatedService(IDbConnectionFactory db, DashboardService dashboard, HoldingsService holdings,
-    TaxableIncomeService income, CgtDiscountService cgt)
+    TaxableIncomeService income, CgtDiscountService cgt, PerformanceService performance)
 {
     public const int MaxNameLength = 100;
 
@@ -97,6 +157,27 @@ public sealed class ConsolidatedService(IDbConnectionFactory db, DashboardServic
         var result = await con.ExecuteScalarAsync<string>("uspDeleteFamilyGroup", new { iLoginID = loginId, iFamilyGroupID = groupId },
             commandType: CommandType.StoredProcedure);
         return ProcResult.From(result, "Success");
+    }
+
+    /// <summary>
+    /// Each entity's time-weighted return over the period (up to today) and the group's. The group's return needs every entity
+    /// in the same currency; otherwise only each entity's own is given.
+    /// </summary>
+    public async Task<GroupPerformance> GetPerformanceAsync(IReadOnlyList<Portfolios.PortfolioSummary> portfolios, ReportPeriod period, DateOnly today,
+        bool oneCurrency)
+    {
+        var to = period.To > today ? today : period.To;
+        var results = new List<(int, PerformanceResult)>();
+        var warnings = new List<string>();
+        if (period.From > to)
+            return new GroupPerformance(null, [], ["The period hasn't started yet."]);
+        foreach (var p in portfolios)
+            results.Add((p.PortfolioId, await performance.GetAsync(p.PortfolioId, period.From, to)));
+        if (!oneCurrency)
+            warnings.Add("The group's return isn't worked out because the entities use different currencies.");
+        var group = oneCurrency ? GroupReturns.Combine(results.Select(r => r.Item2).ToList()) : null;
+        return new GroupPerformance(group, results.Select(r => (r.Item1, r.Item2.Summary)).ToList(),
+            [.. warnings, .. group?.Warnings ?? []]);
     }
 
     /// <summary>Each entity's value now, and its income and net capital gain for the period.</summary>

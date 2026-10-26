@@ -18,7 +18,7 @@
             <dt class="col-sm-4">Date</dt>
             <dd class="col-sm-8">@t.Date.ToString("dd-MMM-yyyy")</dd>
             <dt class="col-sm-4">Details</dt>
-            <dd class="col-sm-8">@t.Type.Trim().ToUpperInvariant() @t.Quantity.ToString("#,##0.####") × @t.StockCode (@t.ExchangeCode) @@ @t.PricePerUnit.ToString("#,##0.00##")</dd>
+            <dd class="col-sm-8">@t.Type.Trim().ToUpperInvariant() @t.Quantity.ToString("#,##0.########") × @t.StockCode (@t.ExchangeCode) @@ @t.PricePerUnit.ToString("#,##0.00##")</dd>
             <dt class="col-sm-4">Order total</dt>
             <dd class="col-sm-8">@t.OrderTotal.ToString("#,##0.00") @t.Currency</dd>
             @if (!string.IsNullOrWhiteSpace(t.Comment))

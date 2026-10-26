@@ -14,6 +14,9 @@ public class ConsolidatedModel(CurrentPortfolio current, ConsolidatedService con
 {
     [BindProperty(SupportsGet = true)] public int? Group { get; set; }
 
+    /// <summary>The printable pack for the adviser: everything on the page plus each entity's details, laid out for printing.</summary>
+    [BindProperty(SupportsGet = true)] public bool Pack { get; set; }
+
     [BindProperty] public string? Name { get; set; }
     [BindProperty] public List<int> Members { get; set; } = [];
 
@@ -23,6 +26,7 @@ public class ConsolidatedModel(CurrentPortfolio current, ConsolidatedService con
     public IReadOnlyList<FamilyGroup> Groups { get; private set; } = [];
     public FamilyGroup? Selected { get; private set; }
     public ConsolidatedReport? Report { get; private set; }
+    public GroupPerformance? Performance { get; private set; }
     public bool Editing { get; private set; }
     public string? LoadError { get; private set; }
 
@@ -43,6 +47,8 @@ public class ConsolidatedModel(CurrentPortfolio current, ConsolidatedService con
         }
         var members = Accessible.Where(p => Selected.PortfolioIds.Contains(p.PortfolioId)).ToList();
         Report = await consolidated.GetAsync(members, Period);
+        if (!Editing)
+            Performance = await consolidated.GetPerformanceAsync(members, Period, Today, Report.OneCurrency);
     }
 
     public async Task<IActionResult> OnPostSaveAsync(int id)

@@ -242,8 +242,7 @@ public class CgtDiscountTests
         Assert.Equal(600m, s.NetCapitalGain);
         Assert.Equal(0m, s.LossCarriedForward);
         Assert.True(r.PriorYearLossesIncluded);
-        Assert.True(r.AgreesWith(1100m));
-        Assert.False(r.AgreesWith(1000m));
+        Assert.Equal(1100m, r.TotalGain);
     }
 
     [Fact]

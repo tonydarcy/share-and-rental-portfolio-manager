@@ -26,6 +26,14 @@
     <a asp-page="/Trades/Add">Share trades</a> as a purchase at their market value on the taxing point (that's their cost base, and the
     date they were acquired). Exercising rights or options is on <a asp-page="/CorporateActions/AddTransfer" asp-route-kind="OptionExercise">Corporate actions</a>.</p>
 
+<div class="alert alert-light border small">
+    <strong>The $1,000 reduction.</strong> Up to @EssReduction.Cap.ToString("C0") of the discount at label D (taxed upfront, eligible for the
+    reduction) isn't taxed when the income test is met: taxable income (before the reduction), reportable fringe benefits, reportable
+    super contributions and net investment losses add up to @EssReduction.IncomeTestLimit.ToString("C0") or less. Label D still shows the
+    full discount; the ATO works out the reduction from the return. <a asp-page="/TaxWork/Planning">Tax planning</a> shows its effect on the tax.
+    Giving shares to your own employees? Use <a asp-page="/TaxWork/EssReport">ESS annual report</a>.
+</div>
+
 <div class="card shadow-sm mb-3">
     <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">

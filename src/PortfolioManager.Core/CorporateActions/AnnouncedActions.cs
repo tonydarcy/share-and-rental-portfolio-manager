@@ -15,7 +15,7 @@ public sealed record FrankingGuess(decimal FrankedShare, decimal CreditPerFranke
 /// <summary>An announced dividend on units this portfolio held at the ex-date, with no payout recorded for it yet.</summary>
 public sealed record DividendSuggestion(
     int Id, string ExchangeCode, string StockCode, DateOnly ExDate, DateOnly? PaymentDate, decimal AmountPerUnit,
-    string? Currency, string? Period, decimal Units, FrankingGuess? Franking, bool LastWasDrp, string Source)
+    string? Currency, string? Period, decimal Units, FrankingGuess? Franking, bool LastWasDrp, string Source, decimal? DrpPrice = null)
 {
     public DateOnly PayDate => PaymentDate ?? ExDate;
 
@@ -39,6 +39,29 @@ public sealed record AnnouncedSuggestions(IReadOnlyList<DividendSuggestion> Divi
 /// <summary>The pure rules: franking from the last payout, the payout to add, and whether one click is safe.</summary>
 public static class AnnouncedPayouts
 {
+    /// <summary>The franking from the dividend details file (Import > Dividend details), at the 30% company rate. Null when not known.</summary>
+    public static FrankingGuess? FromAnnouncement(decimal? frankedPercent, string? source)
+    {
+        if (frankedPercent is not { } pct || pct < 0 || pct > 100)
+            return null;
+        var share = Math.Round(pct / 100, 4);
+        var from = string.IsNullOrWhiteSpace(source) ? "as announced" : $"as announced ({source.Trim()})";
+        var basis = share switch
+        {
+            1m => $"fully franked, {from}",
+            0m => $"unfranked, {from}",
+            _ => $"{pct:0.##}% franked, {from}",
+        };
+        return new FrankingGuess(share, FrankingGuess.StandardCreditRate, basis);
+    }
+
+    /// <summary>
+    /// The DRP to suggest: the whole units the dividend buys at the DRP price (registries issue whole units; a managed fund
+    /// may issue part units, which can be typed in). Null when the price isn't known.
+    /// </summary>
+    public static (decimal Units, decimal Price)? DrpUnits(DividendSuggestion d) =>
+        d.DrpPrice is { } price and > 0 ? (Math.Floor(ToPayout(d).Total / price), price) : null;
+
     /// <summary>
     /// The last payout's mix of franked and unfranked, and its credit per franked dollar (30/70 when it had none).
     /// Null when there was no earlier dividend to go by.
@@ -67,7 +90,7 @@ public static class AnnouncedPayouts
     public static string? NeedsReview(DividendSuggestion d, string portfolioCurrency)
     {
         if (d.Currency is { Length: > 0 } c && !c.Equals(portfolioCurrency, StringComparison.OrdinalIgnoreCase))
-            return $"Paid in {c}: enter the {portfolioCurrency} amount received.";
+            return $"Paid in {c}: check the amounts on Review; they're converted to {portfolioCurrency} at the day's rate.";
         if (d.IsAustralian && d.Franking is null)
             return "Franking isn't known: check the dividend statement.";
         if (d.LastWasDrp)
@@ -91,8 +114,10 @@ public static class AnnouncedPayouts
             Franked = franked,
             Unfranked = total - franked,
             FrankingCredit = credit,
-            Comment = $"{period}dividend {d.AmountPerUnit:0.######} a unit on {d.Units:0.####} units, ex {d.ExDate:d MMM yyyy} (announced, {d.Source})",
+            Comment = $"{period}dividend {d.AmountPerUnit:0.######} a unit on {d.Units:0.########} units, ex {d.ExDate:d MMM yyyy} (announced, {d.Source})",
             Confirmed = true,
+            // A foreign dividend is entered in its own currency and converted when saved (the Add payout page)
+            Currency = string.IsNullOrWhiteSpace(d.Currency) ? null : d.Currency.Trim().ToUpperInvariant(),
         };
     }
 
@@ -113,7 +138,8 @@ public sealed class AnnouncedActionsService(IDbConnectionFactory db, PayoutServi
     private sealed record DividendRow(
         int Id, string ExchangeCode, string StockCode, DateTime ExDate, DateTime? PaymentDate, double AmountPerUnit,
         string? Currency, string? Period, string Source, double? Units, double? LaterFactor,
-        double? LastFranked, double? LastUnfranked, double? LastCredit, int? LastDrpTradeId);
+        double? LastFranked, double? LastUnfranked, double? LastCredit, int? LastDrpTradeId,
+        double? FrankedPercent, double? DrpPrice, string? DetailsSource);
 
     private sealed record SplitRow(int Id, string ExchangeCode, string StockCode, DateTime EffectiveDate, int NewUnits, int OldUnits, string Source, double? Units);
 
@@ -135,7 +161,8 @@ public sealed class AnnouncedActionsService(IDbConnectionFactory db, PayoutServi
                      WHERE A.iUserID = @portfolioId AND A.strStockExchangeCode = D.strStockExchangeCode AND A.strStockCode = D.strStockCode
                        AND A.strActionType IN ('SPLIT', 'CONSOLIDATION') AND A.dblRatio > 0 AND A.dtmActionDate > D.dtmExDate) AS LaterFactor,
                    L.dblFrankedAmount AS LastFranked, L.dblUnFrankedAmount AS LastUnfranked, L.dblFrankingCredit AS LastCredit,
-                   L.iReinvestmentTradeID AS LastDrpTradeId
+                   L.iReinvestmentTradeID AS LastDrpTradeId,
+                   D.dblFrankedPercent AS FrankedPercent, D.dblDrpPrice AS DrpPrice, D.strDetailsSource AS DetailsSource
             FROM tblAnnouncedDividends D
             OUTER APPLY (SELECT TOP 1 P.dblFrankedAmount, P.dblUnFrankedAmount, P.dblFrankingCredit, P.iReinvestmentTradeID
                            FROM tblPayouts P
@@ -181,8 +208,10 @@ public sealed class AnnouncedActionsService(IDbConnectionFactory db, PayoutServi
                 .Select(r => new DividendSuggestion(r.Id, r.ExchangeCode, r.StockCode, DateOnly.FromDateTime(r.ExDate),
                     r.PaymentDate is { } p ? DateOnly.FromDateTime(p) : null, (decimal)r.AmountPerUnit, r.Currency, r.Period,
                     AnnouncedPayouts.UnitsOnTheDay((decimal)(r.Units ?? 0), (decimal)(r.LaterFactor ?? 1)),
-                    AnnouncedPayouts.FromLastPayout((decimal?)r.LastFranked, (decimal?)r.LastUnfranked, (decimal?)r.LastCredit),
-                    r.LastDrpTradeId is > 0, r.Source))
+                    // The announced franking when the details file gave it, otherwise the last payout's
+                    AnnouncedPayouts.FromAnnouncement((decimal?)r.FrankedPercent, r.DetailsSource)
+                        ?? AnnouncedPayouts.FromLastPayout((decimal?)r.LastFranked, (decimal?)r.LastUnfranked, (decimal?)r.LastCredit),
+                    r.LastDrpTradeId is > 0, r.Source, r.DrpPrice is > 0 ? Math.Round((decimal)r.DrpPrice.Value, 4) : null))
                 .Where(d => d.Units > 0.0001m && d.Total > 0)
                 .ToList(),
             splits
@@ -213,6 +242,33 @@ public sealed class AnnouncedActionsService(IDbConnectionFactory db, PayoutServi
 
     public async Task<DividendSuggestion?> GetDividendAsync(int portfolioId, int id, DateOnly today) =>
         (await GetAsync(portfolioId, today, onlyDividendId: id, onlySplitId: -1)).Dividends.FirstOrDefault();
+
+    /// <summary>
+    /// Saves the franking and DRP prices from a dividend details file through uspSaveAnnouncedDividendDetails. These are
+    /// shared by every portfolio, so only the site admin uploads them. Returns how many were updated and added, and the errors.
+    /// </summary>
+    public async Task<(int Updated, int Added, IReadOnlyList<string> Errors)> SaveDetailsAsync(IEnumerable<Imports.DividendDetailsRow> rows, string source)
+    {
+        await using var con = db.Create();
+        int updated = 0, added = 0;
+        var errors = new List<string>();
+        foreach (var r in rows)
+        {
+            var result = await con.ExecuteScalarAsync<string>("uspSaveAnnouncedDividendDetails", new
+            {
+                strStockExchangeCode = r.ExchangeCode, strStockCode = r.StockCode, dtmExDate = r.ExDate.ToDateTime(TimeOnly.MinValue),
+                dblFrankedPercent = (double?)r.FrankedPercent, dblDrpPrice = (double?)r.DrpPrice, strDetailsSource = source,
+                dblAmountPerUnit = (double?)r.AmountPerUnit, dtmPaymentDate = r.PaymentDate?.ToDateTime(TimeOnly.MinValue),
+            }, commandType: CommandType.StoredProcedure);
+            if (result == "Updated")
+                updated++;
+            else if (result == "Added")
+                added++;
+            else
+                errors.Add($"{r.StockCode} ex {r.ExDate:d MMM yyyy}: {ProcResult.From(result, "Updated").Error ?? result}");
+        }
+        return (updated, added, errors);
+    }
 
     /// <summary>Stops offering an announcement to this portfolio.</summary>
     public async Task DismissAsync(int portfolioId, string kind, int id)

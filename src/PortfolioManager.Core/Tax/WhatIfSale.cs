@@ -65,7 +65,7 @@ public static class WhatIf
         var without = CgtDiscountService.Build(CgtParcels.Match(trades, null, returns, choices), rate, year).Summary;
         string? error = sale.Units <= 0 ? "Enter the units to sell."
             : sale.Price < 0 || sale.Brokerage < 0 ? "The price and brokerage can't be negative."
-            : held.Sum(h => h.Units) < sale.Units ? $"Only {held.Sum(h => h.Units):#,##0.####} units are held on {sale.Date:d MMM yyyy}."
+            : held.Sum(h => h.Units) < sale.Units ? $"Only {held.Sum(h => h.Units):#,##0.########} units are held on {sale.Date:d MMM yyyy}."
             : null;
         if (error is not null)
             return new WhatIfResult(sale, held, [], without, without, year, taxRate, error);

@@ -158,7 +158,7 @@
                 <div class="accordion-body">
                     <p class="small text-muted">Records the deposit as a payment of the invoice: the bank goes up and the amount the customer owes comes down.
                         Exact amounts first. A deposit paying several invoices: record the payments on each invoice instead.</p>
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 table-stack">
                         <thead><tr><th>Invoice</th><th>Customer</th><th>Due</th><th class="text-end">Owing</th><th></th></tr></thead>
                         <tbody>
                             @foreach (var m in Model.InvoiceMatches)

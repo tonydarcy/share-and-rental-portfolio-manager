@@ -24,7 +24,76 @@
 <p class="text-muted">Enter each ETF's or managed fund's annual tax statement once the year is over. For that fund and year, the
     tax workpapers and return labels use the statement's figures instead of the payouts' breakdown; its capital gains go into
     the capital gains report (discount method gains are grossed up, so your own discount applies); and its cost base increase
-    or decrease changes the cost base of the units held at the year end. The ledger doesn't change.</p>
+    or decrease changes the cost base of the units held at the year end. In a Hybrid or double-entry portfolio the cost base change
+    is also posted to the ledger at the year end, between Trust Distribution Income and the fund's cost base account.</p>
+
+<form method="post" asp-page-handler="Preview" enctype="multipart/form-data" class="card shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h6">Read statements from a file</h2>
+        <p class="small text-muted mb-2">A CSV with one line per fund per year, such as the annual tax statement export from the share
+            registry (Computershare, MUFG / Link, Boardroom, Automic) or your fund manager. Columns are found by their names, for example
+            "Franked distributions" or "AMIT cost base net amount - excess"; Code and Year are needed. Or use these headings:
+            <code class="small">@FundStatementCsv.Template</code>. A statement already entered for the same fund and year is replaced.</p>
+        <span asp-validation-for="Upload" class="text-danger small d-block"></span>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <input type="file" asp-for="Upload" accept=".csv,.txt" class="form-control form-control-sm w-auto" required />
+            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Check the file</button>
+        </div>
+    </div>
+</form>
+
+@if (Model.Preview is { } preview)
+{
+    <div class="card shadow-sm mb-3 border-primary">
+        <div class="card-body pb-0">
+            <h2 class="h6">What the file holds</h2>
+            @if (preview.FileError is not null)
+            {
+                <div class="alert alert-danger small">@preview.FileError</div>
+            }
+            else
+            {
+                <p class="small mb-2">@preview.ValidCount statement@(preview.ValidCount == 1 ? "" : "s") ready to save@(preview.ErrorCount > 0 ? $", {preview.ErrorCount} line{(preview.ErrorCount == 1 ? "" : "s")} with problems (skipped)" : "").</p>
+            }
+        </div>
+        @if (preview.Lines.Count > 0)
+        {
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light"><tr><th>Line</th><th>Fund</th><th>Year</th><th class="text-end">Cash</th><th class="text-end">Income</th>
+                    <th class="text-end">Capital gains (gross)</th><th class="text-end">Cost base change</th><th>Notes</th></tr></thead>
+                <tbody>
+                    @foreach (var l in preview.Lines)
+                    {
+                        <tr class="@(l.IsValid ? "" : "table-danger")">
+                            <td>@l.LineNumber</td>
+                            @if (l.Value is { } s)
+                            {
+                                <td>@s.StockCode <span class="small text-muted">@s.ExchangeCode</span></td>
+                                <td>@FinancialYear.Label(s.Year)</td>
+                                <td class="text-end">@s.CashDistribution.ToString("C")</td>
+                                <td class="text-end">@s.AssessableIncome.ToString("C")</td>
+                                <td class="text-end">@((s.GrossDiscountGain + s.OtherGain).ToString("C"))</td>
+                                <td class="text-end">@(s.NetCostBaseDecrease == 0 ? "" : s.NetCostBaseDecrease > 0 ? $"{s.NetCostBaseDecrease:C} decrease" : $"{-s.NetCostBaseDecrease:C} increase")</td>
+                            }
+                            else
+                            {
+                                <td colspan="6" class="small text-muted text-truncate" style="max-width: 30rem">@l.Text</td>
+                            }
+                            <td class="small">@string.Join(" ", l.Errors.Concat(l.Warnings))</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        @if (preview.ValidCount > 0)
+        {
+            <form method="post" asp-page-handler="Import" class="card-body">
+                <input type="hidden" asp-for="Data" />
+                <button class="btn btn-primary">Save @preview.ValidCount statement@(preview.ValidCount == 1 ? "" : "s")</button>
+            </form>
+        }
+    </div>
+}
 
 <div class="card shadow-sm mb-3">
     <table class="table table-sm table-hover align-middle mb-0">

@@ -8,7 +8,7 @@ public sealed record ShareTradeRow(
     string Name,
     string Type,
     DateTime Date,
-    int Quantity,
+    decimal Quantity,
     decimal Price,
     decimal Brokerage,
     string Currency,
@@ -20,7 +20,7 @@ public sealed record ShareTradeRow(
 
     public static string TradeKey(string exchange, string code, string type, DateTime date, decimal quantity, decimal price) =>
         string.Join('|', exchange.Trim().ToUpperInvariant(), code.Trim().ToUpperInvariant(), type.Trim().ToUpperInvariant(),
-            date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), quantity.ToString("0.####", CultureInfo.InvariantCulture),
+            date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), Math.Round(quantity, 8).ToString("0.########", CultureInfo.InvariantCulture),
             Math.Round(price, 4).ToString("0.####", CultureInfo.InvariantCulture));
 }
 
@@ -87,11 +87,13 @@ public static class ShareTradeCsv
                 else
                     errors.Add($"'{f[4]}' isn't a date (use e.g. 2024-02-29 or 29-Feb-2024).");
 
-                int quantity = 0;
-                if (!CsvImport.TryNumber(f[5], out var q) || q <= 0 || q != decimal.Truncate(q) || q > int.MaxValue)
-                    errors.Add("The quantity must be a whole number above zero.");
+                decimal quantity = 0;
+                if (!CsvImport.TryNumber(f[5], out var q))
+                    errors.Add("The quantity must be a number above zero.");
+                else if (Validation.FormRules.UnitsProblem(q) is { } problem)
+                    errors.Add(problem);
                 else
-                    quantity = (int)q;
+                    quantity = q;
 
                 if (!CsvImport.TryNumber(f[6], out var price) || price < 0)
                     errors.Add("The price must be a number (zero or more).");

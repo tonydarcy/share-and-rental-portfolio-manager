@@ -1,0 +1,117 @@
+@page
+@model PortfolioManager.Web.Pages.Import.DividendDetailsModel
+@{
+    ViewData["Title"] = "Import dividend details";
+    var preview = Model.Preview;
+    const int sampleSize = 100;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Import dividend details</h1>
+    <a asp-page="/CorporateActions/Announced" class="btn btn-sm btn-outline-secondary">Announced dividends</a>
+</div>
+
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <p class="mb-2">
+            The daily price feed gives each announced dividend's amount and dates, but not how much is franked or the DRP price.
+            Upload them here (from the companies' ASX announcements or your registry) and Corporate actions &gt; Announced uses them
+            instead of guessing the franking from the last payout, and fills in the units on Add as DRP.
+            These details are shared by <strong>every portfolio</strong>. A dividend the feed hasn't got yet is added when the amount
+            per share is given.
+        </p>
+        <p class="font-monospace small bg-body-secondary p-2 rounded">
+            @DividendDetailsCsv.Header<br />
+            ASX,CBA,2026-08-20,100,165.20,2.25,2026-09-29<br />
+            ASX,WES,2026-09-01,100,,<br />
+            ASX,VAS,2026-10-01,,98.4321
+        </p>
+        <form method="post" asp-page-handler="Preview" enctype="multipart/form-data" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label asp-for="Source" class="form-label">Where the figures came from</label>
+                <input asp-for="Source" class="form-control" maxlength="100" required />
+            </div>
+            <div class="col-md-5">
+                <label asp-for="Upload" class="form-label">CSV file (up to @(CsvImport.MaxFileBytes / (1024 * 1024)) MB)</label>
+                <input asp-for="Upload" type="file" accept=".csv,.txt,text/csv" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100">Preview</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (preview is not null)
+{
+    if (preview.FileError is not null)
+    {
+        <div class="alert alert-danger">@preview.FileError</div>
+        return;
+    }
+
+    var errorLines = preview.Lines.Where(l => !l.IsValid).Take(200).ToList();
+    var sample = preview.Lines.Where(l => l.IsValid).Take(sampleSize).ToList();
+    <div class="card shadow-sm">
+        <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+            <div>
+                <strong>@preview.ValidCount.ToString("N0")</strong> dividends ready,
+                <strong class="@(preview.ErrorCount > 0 ? "text-danger" : "")">@preview.ErrorCount.ToString("N0")</strong> lines with errors (these will be skipped)
+            </div>
+            @if (preview.ValidCount > 0)
+            {
+                <form method="post" asp-page-handler="Import" class="ms-auto"
+                      data-confirm="Save @preview.ValidCount.ToString("N0") dividends' details for every portfolio?" onsubmit="return confirm(this.dataset.confirm);">
+                    <input type="hidden" asp-for="Data" />
+                    <input type="hidden" asp-for="Source" />
+                    <button type="submit" class="btn btn-success">Save @preview.ValidCount.ToString("N0") dividends</button>
+                </form>
+            }
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Line</th>
+                        <th>Code</th>
+                        <th>Ex date</th>
+                        <th class="text-end">Franked</th>
+                        <th class="text-end">DRP price</th>
+                        <th class="text-end">Amount</th>
+                        <th>Paid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in errorLines)
+                    {
+                        <tr class="table-danger">
+                            <td class="text-muted">@line.LineNumber</td>
+                            <td colspan="3" class="font-monospace small text-break">@line.Text</td>
+                            <td colspan="3" class="small">
+                                @foreach (var e in line.Errors)
+                                {
+                                    <div class="text-danger">@e</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var line in sample)
+                    {
+                        var d = line.Value!;
+                        <tr>
+                            <td class="text-muted">@line.LineNumber</td>
+                            <td><span class="fw-bold">@d.StockCode</span> <span class="small text-muted">@d.ExchangeCode</span></td>
+                            <td class="text-nowrap">@d.ExDate.ToString("d MMM yyyy")</td>
+                            <td class="text-end">@(d.FrankedPercent is { } f ? $"{f:0.##}%" : "")</td>
+                            <td class="text-end">@(d.DrpPrice?.ToString("0.0000") ?? "")</td>
+                            <td class="text-end">@(d.AmountPerUnit?.ToString("0.00####") ?? "")</td>
+                            <td class="text-nowrap">@(d.PaymentDate?.ToString("d MMM yyyy") ?? "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

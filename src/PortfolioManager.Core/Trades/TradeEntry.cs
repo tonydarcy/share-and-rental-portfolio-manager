@@ -36,7 +36,7 @@ public sealed record NewTrade(
     string Market,
     string Code,
     string? Name,
-    int Quantity,
+    decimal Quantity,
     decimal Price,
     decimal Brokerage,
     string Currency,
@@ -56,7 +56,7 @@ public sealed record NewTrade(
 
 public static class TradeEntry
 {
-    public static decimal OrderTotal(TradeType type, int quantity, decimal price, decimal brokerage) =>
+    public static decimal OrderTotal(TradeType type, decimal quantity, decimal price, decimal brokerage) =>
         type == TradeType.Buy ? price * quantity + brokerage : price * quantity - brokerage;
 
     public static TradeType? ParseType(string? value) => value?.Trim().ToUpperInvariant() switch
@@ -94,15 +94,13 @@ public static class TradeEntry
         var name = FormRules.Clean(f.Name);
         FormRules.MaxLength(errors, nameof(f.Name), "Stock name", name, 500);
 
-        int quantity = 0;
+        decimal quantity = 0;
         if (f.Quantity is not { } q)
             errors.Add(new(nameof(f.Quantity), "Enter the number of units."));
-        else if (q <= 0)
-            errors.Add(new(nameof(f.Quantity), "Units must be more than zero."));
-        else if (q != decimal.Truncate(q) || q > int.MaxValue)
-            errors.Add(new(nameof(f.Quantity), "Units must be a whole number."));
+        else if (FormRules.UnitsProblem(q) is { } problem)
+            errors.Add(new(nameof(f.Quantity), problem));
         else
-            quantity = (int)q;
+            quantity = q;
 
         if (f.Price is not { } price)
             errors.Add(new(nameof(f.Price), "Enter the price per unit."));
@@ -191,7 +189,7 @@ public static class TradeEntry
         ["strName"] = t.Name,
         ["strType"] = t.TypeText,
         ["dtmDateOfTransaction"] = t.Date.ToDateTime(TimeOnly.MinValue),
-        ["iQuantity"] = t.Quantity,
+        ["iQuantity"] = (double)t.Quantity,
         ["dblPricePerUnit"] = t.Price,
         ["dblBrokerage"] = t.Brokerage,
         ["strCurrency"] = t.Currency,
@@ -215,7 +213,7 @@ public static class TradeEntry
             ["strName"] = t.Name,
             ["strType"] = t.TypeText,
             ["dtmDateOfTransaction"] = t.Date.ToDateTime(TimeOnly.MinValue),
-            ["iQuantity"] = t.Quantity,
+            ["iQuantity"] = (double)t.Quantity,
             ["dblPricePerUnit"] = t.Price,
             ["dblBrokerage"] = t.Brokerage,
             ["strCurrency"] = t.Currency,

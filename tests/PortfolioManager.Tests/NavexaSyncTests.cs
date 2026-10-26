@@ -271,7 +271,7 @@ public class NavexaSyncTests
     }
 
     [Fact]
-    public void Fractional_units_and_crypto_are_not_brought_across()
+    public void Part_units_are_brought_across_but_crypto_trades_are_not()
     {
         var fractional = Tx("""
             {"id":"50","type":"trade","date":"2025-02-03T00:00:00Z","tradeTypeId":1,"currency":"AUD",
@@ -279,7 +279,8 @@ public class NavexaSyncTests
             """);
         var crypto = Tx("""{"id":"51","type":"cryptoTrade","date":"2025-02-03T00:00:00Z"}""");
         var plan = Plan([fractional, crypto], Settings());
-        Assert.All(plan.Items, i => Assert.Equal(SyncStatus.Skipped, i.Status));
+        Assert.Equal(1.5m, plan.Items.Single(i => i.NavexaId == "50").Trade!.Quantity);
+        Assert.Equal(SyncStatus.Skipped, plan.Items.Single(i => i.NavexaId == "51").Status);
     }
 
     [Fact]

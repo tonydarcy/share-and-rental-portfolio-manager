@@ -18,36 +18,42 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
 
 - Several portfolios per login, one per person or entity, with a picker in the menu bar. Each has its own country,
   financial year, currency and number format (Australia, 1 July to 30 June, AUD by default).
-- Holdings with today's value, gain and 200-day trend; share trades, cash accounts, and payouts (dividends,
-  distributions, interest and rent) with franking credits and foreign tax.
+- Holdings with today's value, gain and 200-day trend; share trades (part units too, up to 8 decimal places, for crypto
+  and managed funds), cash accounts, and payouts (dividends, distributions, interest and rent) with franking credits and
+  foreign tax.
 - Dividend reinvestment plans (DRP), splits and consolidations, bonus issues, returns of capital, demergers (the cost
-  base split by percentage), takeovers with or without scrip-for-scrip rollover, code and name changes, worthless or
-  delisted shares, and options exercised or lapsed.
+  base split by percentage, and a demerger paid partly as a dividend), takeovers with or without scrip-for-scrip
+  rollover (including one where only some shares are taken up), code and name changes, worthless or delisted shares,
+  and options exercised or lapsed.
 - Announced dividends and splits for the stocks you hold, fetched daily, ready to confirm with one click
-  (Corporate actions > Announced).
-- Foreign shares in their own currency. Trades take that day's exchange rate when none is entered, and a check page
-  flags rates that look wrong.
+  (Corporate actions > Announced). Their franking and DRP price come from a dividend details file the site admin
+  uploads (Import > Dividend details), so a DRP can be added with its units worked out.
+- Foreign shares in their own currency. Trades and payouts take that day's exchange rate when none is entered, the
+  ledger is kept in the portfolio's currency, and a check page flags rates that look wrong.
 - Managed funds, unlisted shares, property and other assets with prices you enter or upload; crypto priced daily.
 - Margin and investment loans (loan-to-value ratio, interest and its deductible part), and term deposits and bonds
-  (interest earned and accrued at the year end).
+  (interest earned and accrued at the year end), posted to the ledger with year-end interest accruals.
 - Custom groups, to classify holdings your own way (for example by risk or strategy).
 
 ### Reports
 
 - Performance (time-weighted return, monthly returns) against an index or any share, and contribution by holding,
   split into price gain, income and currency.
-- Diversity by sector, country and company, looking through ETFs and funds.
+- Diversity by sector, country and company, looking through ETFs and funds (from the fund issuer's holdings file, the
+  price feed, or entered by hand).
 - Income calendar, what-if sale, tax-loss selling (with a warning about wash sales), capital gains, unrealised gains
-  and taxable income.
-- A consolidated view across a family's portfolios: each entity's value, cash, income and net capital gain, and every
-  holding across the group.
+  and taxable income. The capital gains and unrealised gains reports follow the parcels chosen on each sale.
+- A consolidated view across a family's portfolios: each entity's value, cash, income and net capital gain, the
+  group's performance over time (and each entity's), every holding across the group, and a printable pack for the
+  adviser.
 - Share quotes and price trends.
 
 ### Imports and prices
 
 - Broker CSV exports: CommSec, CMC, SelfWealth, Stake, Pearler, Superhero, Interactive Brokers, and any CSV with a
   header row. An example file is in `samples/`.
-- Bank statements (QIF, OFX or CSV) with allocation rules, then bank reconciliation.
+- Bank statements (QIF, OFX or CSV) with allocation rules, then bank reconciliation. Bank allocation and journals
+  have phone layouts.
 - A one-off Navexa import (from its CSV files) and an ongoing Navexa sync (with your Navexa API key).
 - End-of-day prices, exchange rates, dividends and splits from [EODHD](https://eodhd.com), downloaded each day by the
   price updater, for the ASX and US, UK, Canadian, NZ, Hong Kong, Singapore and Indian exchanges. Prices can also be
@@ -80,9 +86,14 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
 
 - First in, first out capital gains with the 50% discount for assets held more than 12 months, or a choice of parcels
   on each sale (picked, smallest gain or largest gain).
-- Fund tax statements (AMIT/AMMA), which replace the payouts' breakdown in the workpapers and labels and adjust the
-  cost base of units held.
-- Employee share schemes and shares held as trading stock.
+- Fund tax statements (AMIT/AMMA), entered or read from a registry's statement file, which replace the payouts'
+  breakdown in the workpapers and labels, adjust the cost base of units held, and post the cost base change to the
+  ledger.
+- Employee share schemes: the employee's statements (with the $1,000 reduction and its income test in tax planning),
+  and for an employer, a register of grants, each employee's ESS statement and the ESS annual report figures.
+- Shares held as trading stock, with some holdings kept as investments if wanted, and the year's trading stock journal
+  posted to the ledger.
+- Deductible interest on investment loans in the return labels and the tax reconciliation.
 - Income tax reconciliation, tax planning for individuals, workpapers and a year-end checklist.
 - Trust distribution statement and resolution; SMSF member accounts, contribution caps, minimum pensions, TBAR events,
   ECPI, pension minute, investment strategy and audit pack; company tax, deferred tax check and franking account;
@@ -132,7 +143,9 @@ one is logged. Details are in [README-razor-pages.md](README-razor-pages.md#api-
 
 Email checks for new accounts, password reset by email, two-factor sign-in with any authenticator app, limits on
 password guessing, an optional "I'm human" check, and email alerts for price targets, announced dividends, failed
-syncs and bank lines waiting to be allocated. The site works on a phone and can be added to the home screen.
+syncs and bank lines waiting to be allocated. The site works on a phone and can be added to the home screen, and
+"Offline copies on this device" (account menu) keeps the main pages to look at with no connection, deleted on
+signing out.
 
 ## Running it yourself
 
@@ -191,13 +204,14 @@ then publish and copy the site again as in [SETUP.md](SETUP.md#updating-to-a-new
   the law requires pooled or average cost (the UK and Canada, for example). London prices from the daily feed come in
   pence, so they show 100 times too high. What is missing for the UK, the US, Canada and India is listed in
   [ROADMAP.md](ROADMAP.md#using-it-outside-australia).
-- **Whole units only.** Fractions of a unit (crypto, some managed funds) can't be recorded yet.
-- **Foreign trades in the ledger** post the foreign amount without converting it, and payouts are entered in the
-  portfolio's own currency.
-- **Announced dividends** have no franking or DRP price in the feed: the franking is taken from the last payout, so
-  check each one against the statement.
+- **Part units** go to 8 decimal places.
+- **Announced dividends** have no franking or DRP price in the daily feed. Until the site admin uploads a dividend
+  details file for them, the franking is taken from the last payout, so check each one against the statement.
+- **Statement and holdings files** from fund registries and issuers are read by their column names, and haven't yet
+  been checked against every registry's layout. PDF statements aren't read.
 - **No lodgment.** Returns are prepared for keying into tax software or copying onto the paper form; the site doesn't
-  lodge with the ATO. There is no payroll and no live bank feed (bank statements are imported as files).
+  lodge with the ATO. The employer's ESS annual report is given as figures and a CSV, not the ATO's own file. There is
+  no payroll and no live bank feed (bank statements are imported as files).
 - **English only.**
 - **Daily prices need an EODHD plan** that covers your exchanges (the free plan allows 20 calls a day and may not
   include the ASX). Without one, upload prices as a CSV.

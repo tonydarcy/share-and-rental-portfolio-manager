@@ -25,9 +25,10 @@
 <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
 
 <p class="text-muted">Enter each term deposit, bond or hybrid. The page works out the interest earned in the financial year and the interest built
-    up but not yet paid at its end, on simple interest (actual days over 365). Record the interest when it's paid as a payout as usual; the
-    accrued figure is for accounts kept on an accruals basis (a company or a fund), as a year-end adjustment. Listed bonds and hybrids bought
-    on the market are also share trades, for their price.</p>
+    up but not yet paid at its end, on simple interest (actual days over 365). Record the interest when it's paid as a payout as usual. At the
+    year end the accrued interest can be posted to the ledger (and reversed the next day), so the accounts show the interest earned in the
+    year; the tax workpapers take it back out, as interest is taxed when it's paid. Listed bonds and hybrids bought on the market are also
+    share trades, for their price.</p>
 
 <form method="get" class="mb-2 no-print">
     <label for="fy" class="form-label small text-muted mb-1">Financial year</label>
@@ -74,6 +75,31 @@
         </table>
     </div>
 </div>
+
+@if (Model.Accruals is { } acc && (acc.Receivable.Count > 0 || acc.Payable.Count > 0))
+{
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h2 class="h6">Interest accruals at @acc.YearEnd.ToString("d MMMM yyyy")</h2>
+            <table class="table table-sm mb-2" style="max-width: 44rem">
+                <tbody>
+                    @foreach (var l in acc.Receivable)
+                    {
+                        <tr><td>@l.Name <span class="small text-muted">@l.Note</span></td><td>Earned, not yet paid</td><td class="text-end">@l.Amount.ToString("C")</td></tr>
+                    }
+                    @foreach (var l in acc.Payable)
+                    {
+                        <tr><td>@l.Name <span class="small text-muted">@l.Note</span></td><td>Loan interest owed, not yet charged</td><td class="text-end">@l.Amount.ToString("C")</td></tr>
+                    }
+                </tbody>
+            </table>
+            <form method="post" asp-page-handler="Accrue" asp-route-fy="@Model.Year" class="no-print">
+                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-journal-check"></i> Post the accruals to the ledger</button>
+                <span class="small text-muted ms-2">Posting again replaces them. Hybrid and double-entry portfolios only.</span>
+            </form>
+        </div>
+    </div>
+}
 
 <form method="post" asp-page-handler="Save" asp-route-fy="@Model.Year" class="card shadow-sm no-print">
     <div class="card-body">

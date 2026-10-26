@@ -74,7 +74,7 @@ public class AddModel(CurrentPortfolio current, TradeService trades, CashService
 
         await trades.AddAsync(Portfolio!.PortfolioId, trade);
 
-        Success = $"{trade.TypeText} of {trade.Quantity:N0} {trade.Code} on {trade.Date:d} recorded"
+        Success = $"{trade.TypeText} of {trade.Quantity:#,##0.########} {trade.Code} on {trade.Date:d} recorded"
             + (trade.Currency.Equals(PortfolioCurrency, StringComparison.OrdinalIgnoreCase)
                 ? $" ({trade.OrderTotal:C})."
                 : $" ({trade.OrderTotal:N2} {trade.Currency}, {trade.PortfolioCurrencyTotal:C} {PortfolioCurrency}).")

@@ -75,12 +75,24 @@ public class TradeEntryTests
     [Theory]
     [InlineData(0)]
     [InlineData(-5)]
-    [InlineData(10.5)]
-    public void Units_must_be_a_positive_whole_number(double units)
+    [InlineData(10.123456789)]
+    public void Units_must_be_positive_with_at_most_eight_decimals(double units)
     {
         var f = Valid();
         f.Quantity = (decimal)units;
         Assert.Contains(nameof(TradeForm.Quantity), Fields(TradeEntry.Validate(f, Today)));
+    }
+
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(0.00012345)]
+    public void Part_units_are_accepted(double units)
+    {
+        var f = Valid();
+        f.Quantity = (decimal)units;
+        var t = TradeEntry.Validate(f, Today).Value!;
+        Assert.Equal((decimal)units, t.Quantity);
+        Assert.Equal(units, (double)TradeEntry.ShareTradeParameters(1, t)["iQuantity"]!, 10);
     }
 
     [Theory]
@@ -230,7 +242,7 @@ public class TradeEntryTests
         Assert.Equal(42, p["iUserId"]);
         Assert.Equal("Buy", p["strType"]);
         Assert.Equal(new DateTime(2026, 10, 14), p["dtmDateOfTransaction"]);
-        Assert.Equal(100, p["iQuantity"]);
+        Assert.Equal(100d, p["iQuantity"]);
         Assert.Equal("", p["strComment"]);
         Assert.Null(p["iBankStatementId"]);
     }

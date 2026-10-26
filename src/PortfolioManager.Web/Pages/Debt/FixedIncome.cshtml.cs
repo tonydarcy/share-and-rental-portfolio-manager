@@ -8,7 +8,7 @@ using PortfolioManager.Web.Services;
 namespace PortfolioManager.Web.Pages.Debt;
 
 /// <summary>Term deposits, bonds and hybrids: interest earned in a financial year and accrued at its end.</summary>
-public class FixedIncomeModel(CurrentPortfolio current, FixedIncomeService service) : PageModel
+public class FixedIncomeModel(CurrentPortfolio current, FixedIncomeService service, InterestAccrualService accruals) : PageModel
 {
     public sealed class HoldingForm
     {
@@ -34,6 +34,7 @@ public class FixedIncomeModel(CurrentPortfolio current, FixedIncomeService servi
     public int Year { get; private set; }
     public IReadOnlyList<int> Years { get; private set; } = [];
     public IReadOnlyList<FixedIncomeYear> Rows { get; private set; } = [];
+    public InterestAccruals? Accruals { get; private set; }
 
     public async Task OnGetAsync()
     {
@@ -45,6 +46,16 @@ public class FixedIncomeModel(CurrentPortfolio current, FixedIncomeService servi
                 Id = h.Id, Kind = h.Kind, Name = h.Name, ExchangeCode = h.ExchangeCode, StockCode = h.StockCode, FaceValue = h.FaceValue,
                 RatePercent = h.RatePercent, Start = h.Start, Maturity = h.Maturity, Frequency = h.Frequency, Comment = h.Comment,
             };
+    }
+
+    /// <summary>Posts the year-end interest accruals (and their reversal the next day) to the ledger.</summary>
+    public async Task<IActionResult> OnPostAccrueAsync()
+    {
+        if (!await LoadAsync())
+            return Page();
+        var result = await accruals.PostAsync(Portfolio!.PortfolioId, Year);
+        Message = result.Ok ? $"The interest accruals at the end of {FinancialYear.Label(Year)} are posted, and reversed the next day." : result.Error;
+        return RedirectToPage(new { fy = Year });
     }
 
     public async Task<IActionResult> OnPostSaveAsync()
@@ -84,6 +95,7 @@ public class FixedIncomeModel(CurrentPortfolio current, FixedIncomeService servi
         var from = FinancialYear.StartDate(Year);
         var to = FinancialYear.EndDate(Year);
         Rows = (await service.GetAsync(Portfolio.PortfolioId)).Select(h => FixedIncomeCalc.Year(h, from, to)).ToList();
+        Accruals = await accruals.GetAsync(Portfolio.PortfolioId, Year);
         return true;
     }
 }

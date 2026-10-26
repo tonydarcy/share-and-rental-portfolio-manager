@@ -52,10 +52,15 @@ public sealed record PlanInputs(
     decimal ConcessionalDeduction,
     decimal FrankingCredits,
     decimal Withheld,
-    decimal ForeignTaxOffset);
+    decimal ForeignTaxOffset,
+    decimal EssUpfrontEligible = 0,
+    decimal EssOtherDiscounts = 0,
+    decimal ReportableFringeBenefits = 0,
+    decimal ReportableSuper = 0,
+    decimal NetInvestmentLoss = 0);
 
 public sealed record PlanResult(PlanInputs In, decimal TaxableIncome, decimal IncomeTax, decimal Lito, decimal Medicare, decimal Payable, decimal MarginalRate,
-    decimal ContributionsTax)
+    decimal ContributionsTax, decimal EssReduction = 0, decimal EssIncomeTest = 0)
 {
     /// <summary>Tax the person pays plus the 15% (or 30%) the fund pays on the deductible contribution.</summary>
     public decimal TotalTax => Payable + In.Withheld + ContributionsTax;
@@ -76,7 +81,13 @@ public static class TaxPlanner
 
     public static PlanResult Work(PlanInputs p, IndividualRates rates)
     {
-        var taxable = Math.Max(0, Math.Round(p.OtherIncome + p.InvestmentIncome + p.RentalNet + p.NetCapitalGain - p.Deductions - p.ConcessionalDeduction, 0));
+        // ESS discounts are income; the $1,000 reduction depends on the income test, worked out before it.
+        // Reportable super contributions include the deductible contribution.
+        var before = p.OtherIncome + p.InvestmentIncome + p.RentalNet + p.NetCapitalGain + p.EssUpfrontEligible + p.EssOtherDiscounts
+            - p.Deductions - p.ConcessionalDeduction;
+        var incomeTest = Tax.EssReduction.IncomeTest(before, p.ReportableFringeBenefits, p.ReportableSuper + p.ConcessionalDeduction, p.NetInvestmentLoss);
+        var reduction = p.EssUpfrontEligible > 0 ? Tax.EssReduction.For(p.EssUpfrontEligible, incomeTest) : 0;
+        var taxable = Math.Max(0, Math.Round(before - reduction, 0));
         var tax = rates.Tax(taxable);
         var lito = Math.Min(IndividualRates.LowIncomeOffset(taxable), tax);
         var medicare = rates.Medicare(taxable);
@@ -85,7 +96,7 @@ public static class TaxPlanner
         var payable = beforeCredits - p.FrankingCredits - p.Withheld;
         var contributionsRate = taxable + p.ConcessionalDeduction > Division293Threshold ? 0.30m : 0.15m;
         return new PlanResult(p, taxable, tax, lito, medicare, Math.Round(payable, 2), rates.MarginalRate(taxable),
-            Math.Round(p.ConcessionalDeduction * contributionsRate, 2));
+            Math.Round(p.ConcessionalDeduction * contributionsRate, 2), reduction, incomeTest);
     }
 
     /// <summary>

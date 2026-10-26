@@ -1,6 +1,7 @@
 @page
 @model PlanningModel
 @using PortfolioManager.Core.TaxWork
+@using PortfolioManager.Core.Tax
 @{
     ViewData["Title"] = "Tax planning";
     var a = Model.Now;
@@ -39,6 +40,12 @@
                     <div class="col-sm-4"><label asp-for="OtherIncome" class="form-label small mb-1">Salary and other income</label><input asp-for="OtherIncome" type="number" step="1" class="form-control form-control-sm" /></div>
                     <div class="col-sm-4"><label asp-for="Payg" class="form-label small mb-1">PAYG withheld</label><input asp-for="Payg" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
                     <div class="col-sm-4"><label asp-for="OtherDeductions" class="form-label small mb-1">Other deductions</label><input asp-for="OtherDeductions" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                    @if (Model.Workpaper!.Ess.UpfrontEligible > 0)
+                    {
+                        <div class="col-sm-6"><label asp-for="FringeBenefits" class="form-label small mb-1">Reportable fringe benefits</label><input asp-for="FringeBenefits" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                        <div class="col-sm-6"><label asp-for="ReportableSuper" class="form-label small mb-1">Reportable employer super (salary sacrifice)</label><input asp-for="ReportableSuper" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                        <p class="small text-muted mb-0">These are for the income test on the $1,000 employee share scheme reduction.</p>
+                    }
                 </div>
             </div></div>
         </div>
@@ -68,6 +75,15 @@
                 <tr><td>Salary and other income</td><td class="text-end">@a.In.OtherIncome.ToString("C")</td><td class="text-end">@b.In.OtherIncome.ToString("C")</td><td></td></tr>
                 <tr><td>Investment income (dividends grossed up, interest, distributions, less expenses)</td><td class="text-end">@a.In.InvestmentIncome.ToString("C")</td><td class="text-end">@b.In.InvestmentIncome.ToString("C")</td><td></td></tr>
                 <tr><td>Net rent</td><td class="text-end">@a.In.RentalNet.ToString("C")</td><td class="text-end">@b.In.RentalNet.ToString("C")</td><td></td></tr>
+                @if (a.In.EssUpfrontEligible + a.In.EssOtherDiscounts > 0)
+                {
+                    <tr><td>Employee share scheme discounts</td><td class="text-end">@((a.In.EssUpfrontEligible + a.In.EssOtherDiscounts).ToString("C"))</td><td class="text-end">@((b.In.EssUpfrontEligible + b.In.EssOtherDiscounts).ToString("C"))</td><td></td></tr>
+                }
+                @if (a.In.EssUpfrontEligible > 0)
+                {
+                    <tr><td>$1,000 ESS reduction <span class="small text-muted">(income test @a.EssIncomeTest.ToString("C0") / @b.EssIncomeTest.ToString("C0"), limit @EssReduction.IncomeTestLimit.ToString("C0"))</span></td>
+                        <td class="text-end">@((-a.EssReduction).ToString("C"))</td><td class="text-end">@((-b.EssReduction).ToString("C"))</td><td class="text-end">@Diff(-a.EssReduction, -b.EssReduction)</td></tr>
+                }
                 <tr><td>Net capital gain</td><td class="text-end">@a.In.NetCapitalGain.ToString("C")</td><td class="text-end">@b.In.NetCapitalGain.ToString("C")</td><td class="text-end">@Diff(a.In.NetCapitalGain, b.In.NetCapitalGain)</td></tr>
                 <tr><td>Deductions</td><td class="text-end">@((-a.In.Deductions).ToString("C"))</td><td class="text-end">@((-b.In.Deductions).ToString("C"))</td><td class="text-end">@Diff(-a.In.Deductions, -b.In.Deductions)</td></tr>
                 <tr><td>Personal super contribution claimed</td><td class="text-end">@((-a.In.ConcessionalDeduction).ToString("C"))</td><td class="text-end">@((-b.In.ConcessionalDeduction).ToString("C"))</td><td class="text-end">@Diff(-a.In.ConcessionalDeduction, -b.In.ConcessionalDeduction)</td></tr>

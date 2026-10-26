@@ -20,25 +20,42 @@ public static class TradingStockValuation
     };
 }
 
-/// <summary>A portfolio's shares are trading stock from FromYear (the financial year it ends) on; null when they're investments.</summary>
-public sealed record ShareTraderSettings(int? FromYear, string Valuation)
+/// <summary>
+/// A portfolio's shares are trading stock from FromYear (the financial year it ends) on; null when they're investments.
+/// Investments are the holdings a trader keeps as investments instead (exchange and code, upper case): their gains stay capital gains.
+/// </summary>
+public sealed record ShareTraderSettings(int? FromYear, string Valuation, IReadOnlySet<(string, string)>? Investments = null)
 {
     public static readonly ShareTraderSettings None = new(null, TradingStockValuation.Cost);
 
     public bool IsTraderIn(int year) => FromYear is { } y && year >= y;
+
+    public bool IsInvestment(string exchange, string code) => Investments?.Contains(TradingStock.Key(exchange, code)) == true;
 }
 
 /// <summary>One holding's trading stock figures for the year, in the portfolio's currency.</summary>
 public sealed record TradingStockLine(
     string ExchangeCode, string StockCode, decimal OpeningUnits, decimal OpeningValue, decimal Purchases, decimal Sales,
-    decimal ClosingUnits, decimal ClosingCost, decimal? ClosingMarket, decimal ClosingValue)
+    decimal ClosingUnits, decimal ClosingCost, decimal? ClosingMarket, decimal ClosingValue, decimal OpeningCost = 0)
 {
     /// <summary>Sales plus closing stock, less opening stock and purchases (s70-35).</summary>
     public decimal Profit => Sales + ClosingValue - OpeningValue - Purchases;
+
+    /// <summary>The part of the profit from shares sold, at cost: what the ledger has as realised gains.</summary>
+    public decimal Realised => Sales + ClosingCost - OpeningCost - Purchases;
 }
 
-public sealed record TradingStockReport(int Year, string Valuation, bool FirstYear, IReadOnlyList<TradingStockLine> Lines, IReadOnlyList<string> Problems)
+public sealed record TradingStockReport(int Year, string Valuation, bool FirstYear, IReadOnlyList<TradingStockLine> Lines, IReadOnlyList<string> Problems,
+    IReadOnlySet<(string, string)>? Investments = null)
 {
+    public decimal Realised => Lines.Sum(l => l.Realised);
+
+    /// <summary>The rest of the profit: this year's change in the closing stock's value over its cost (nil when valued at cost).</summary>
+    public decimal ValuationChange => Profit - Realised;
+
+    /// <summary>A capital gains event that stays a capital gain: one on a holding kept as an investment.</summary>
+    public bool StaysCapital(CgtEvent e) => Investments?.Contains(TradingStock.Key(e.ExchangeCode, e.StockCode)) == true;
+
     public decimal OpeningValue => Lines.Sum(l => l.OpeningValue);
     public decimal Purchases => Lines.Sum(l => l.Purchases);
     public decimal Sales => Lines.Sum(l => l.Sales);
@@ -60,9 +77,10 @@ public static class TradingStock
     {
         var first = settings.FromYear is not { } y || y >= year;
         var problems = new List<string>();
-        var open = Totals(opening);
-        var close = Totals(closing);
-        var inYear = trades.Where(t => t.Date >= from && t.Date <= to).ToList();
+        bool Stock(string exchange, string code) => !settings.IsInvestment(exchange, code);
+        var open = Totals(opening.Where(p => Stock(p.ExchangeCode, p.StockCode)));
+        var close = Totals(closing.Where(p => Stock(p.ExchangeCode, p.StockCode)));
+        var inYear = trades.Where(t => t.Date >= from && t.Date <= to && Stock(t.ExchangeCode, t.StockCode)).ToList();
         var keys = open.Keys.Concat(close.Keys).Concat(inYear.Select(t => Key(t.ExchangeCode, t.StockCode))).Distinct()
             .OrderBy(k => k.Item2, StringComparer.OrdinalIgnoreCase).ThenBy(k => k.Item1, StringComparer.OrdinalIgnoreCase);
 
@@ -77,9 +95,10 @@ public static class TradingStock
 
             var openingValue = first ? oc : Value(k, ou, oc, openingPrices, settings.Valuation, from.AddDays(-1), problems).Value;
             var (closingValue, market) = Value(k, cu, cc, closingPrices, settings.Valuation, to, problems);
-            lines.Add(new TradingStockLine(k.Item1, k.Item2, ou, openingValue, purchases, sales, cu, cc, market, closingValue));
+            lines.Add(new TradingStockLine(k.Item1, k.Item2, ou, openingValue, purchases, sales, cu, cc, market, closingValue, oc));
         }
-        return new TradingStockReport(year, settings.Valuation, first, lines.Where(l => l.OpeningUnits != 0 || l.ClosingUnits != 0 || l.Purchases != 0 || l.Sales != 0).ToList(), problems);
+        return new TradingStockReport(year, settings.Valuation, first, lines.Where(l => l.OpeningUnits != 0 || l.ClosingUnits != 0 || l.Purchases != 0 || l.Sales != 0).ToList(), problems,
+            settings.Investments ?? new HashSet<(string, string)>());
     }
 
     private static (decimal Value, decimal? Market) Value((string, string) k, decimal units, decimal cost, IReadOnlyDictionary<(string, string), decimal> prices,
@@ -121,8 +140,45 @@ public sealed class TradingStockService(IDbConnectionFactory db, CgtDiscountServ
             return ShareTraderSettings.None;
         var row = await con.QueryFirstOrDefaultAsync<(int? FromYear, string? Valuation)>("uspGetShareTrader", new { iUserID = portfolioId },
             commandType: CommandType.StoredProcedure);
-        return new ShareTraderSettings(row.FromYear, TradingStockValuation.All.Contains(row.Valuation) ? row.Valuation! : TradingStockValuation.Cost);
+        var investments = await con.ExecuteScalarAsync<int>("SELECT CASE WHEN OBJECT_ID('dbo.uspGetShareTraderHoldings', 'P') IS NULL THEN 0 ELSE 1 END") == 0
+            ? []
+            : (await con.QueryAsync<(string Exchange, string Code)>("uspGetShareTraderHoldings", new { iUserID = portfolioId }, commandType: CommandType.StoredProcedure))
+                .Select(h => TradingStock.Key(h.Exchange, h.Code)).ToHashSet();
+        return new ShareTraderSettings(row.FromYear, TradingStockValuation.All.Contains(row.Valuation) ? row.Valuation! : TradingStockValuation.Cost, investments);
     }
+
+    /// <summary>Keeps a holding as an investment (its gains stay capital gains), or makes it trading stock again.</summary>
+    public async Task<ProcResult> SetInvestmentAsync(int portfolioId, string exchange, string code, bool investment)
+    {
+        var settings = await GetSettingsAsync(portfolioId);
+        await using var con = db.Create();
+        var result = await con.ExecuteScalarAsync<string>("uspSetShareTraderHolding", new
+        {
+            iUserID = portfolioId, strStockExchangeCode = exchange, strStockCode = code, bInvestment = investment,
+            dtmFirstYearEnd = settings.FromYear is { } y ? FinancialYear.EndDate(y).ToDateTime(TimeOnly.MinValue) : (DateTime?)null,
+        }, commandType: CommandType.StoredProcedure);
+        return ProcResult.From(result, "Success");
+    }
+
+    /// <summary>
+    /// Posts the year's trading stock journal at the year end: the gains on trading stock sold move from realised gains to
+    /// trading profit, and the change in the closing stock's value over cost goes to the valuation adjustment.
+    /// </summary>
+    public async Task<ProcResult> PostLedgerAsync(int portfolioId, int year)
+    {
+        if (await GetYearAsync(portfolioId, year) is not { } report)
+            return ProcResult.Failed("The shares aren't trading stock in that year.");
+        await using var con = db.Create();
+        var result = await con.ExecuteScalarAsync<string>("uspPostTradingStockJournal", PostParameters(portfolioId, report),
+            commandType: CommandType.StoredProcedure);
+        return ProcResult.From(result, "Success");
+    }
+
+    public static object PostParameters(int portfolioId, TradingStockReport report) => new
+    {
+        iUserID = portfolioId, iYear = report.Year, dtmYearEnd = FinancialYear.EndDate(report.Year).ToDateTime(TimeOnly.MinValue),
+        dblRealised = report.Realised, dblAdjustment = report.ValuationChange,
+    };
 
     public async Task<ProcResult> SaveSettingsAsync(int portfolioId, ShareTraderSettings settings)
     {

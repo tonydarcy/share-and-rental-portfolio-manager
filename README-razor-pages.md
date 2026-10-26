@@ -271,6 +271,43 @@ over a SQL Server database whose stored procedures post the double-entry journal
   Accounting gets *tracking categories* on invoice, bill, claim and journal lines with a profit and loss by option,
   *budgets* by account and month with budget against actual, and *foreign currency* bank accounts, invoices and bills with
   realised gains and losses on payment and a revaluation at a date's rates.
+- **October 2026 extras** (migrations 2026-10-26-01 to -07):
+  - *Part units*: trades, DRPs, demergers, takeovers and option exercises take up to 8 decimal places (`FormRules.UnitsProblem`),
+    and journal descriptions show them without trailing zeros (`fnUnitsText`).
+  - *Payouts in another currency* (Payouts > Add): the currency and rate (that day's rate when left blank) convert the
+    amounts to the portfolio's currency before `uspAddPayout`; what was entered is kept and shown on the payout.
+  - *Dividend details* (Import > Dividend details, site admin only): a CSV of franked % and DRP price by stock and ex-date,
+    saved on the announced dividends (`uspSaveAnnouncedDividendDetails`). The announced franking then wins over the last
+    payout's, and Add as DRP works out the units.
+  - *Parcel choice in the older reports*: the capital gains Sales table is built from the same parcel matching as the CGT
+    report (`CapitalGainsService.FromEvents`), and unrealised gains from the open parcels (`UnrealisedGainsService.Build`).
+  - *Phone layouts and offline copies*: tables marked `table-stack` (unallocated bank lines, allocation matches,
+    reconciliation, journals and the journal entry lines) show each row as a card on a phone (`mobile.js` labels the
+    cells). "Offline copies on this device" in the account menu lets `sw.js` keep the main read-only pages as they're
+    opened, shown with an "offline copy" banner when there's no connection, and deleted when it's switched off or on
+    signing out.
+  - *Consolidated view*: the group's time-weighted return (daily values, money in and out and income added across the
+    entities, `GroupReturns.Combine`) and each entity's, a monthly strip, and `?pack=true` for a printable adviser pack
+    with each entity's holdings.
+  - *Fund look-through files* (Prices > Fund look-through): reads an issuer's holdings CSV (`FundHoldingsFile`), finding
+    the header row by its column names, into sectors, countries and the 25 largest holdings, to check and save.
+  - *Fund tax statement files* (Payouts > Fund tax statements): a statement CSV (`FundStatementCsv`, columns found by
+    name) previewed and saved all or nothing, replacing statements for the same fund and year. Saving or deleting a
+    statement (re)posts its cost base journal (`uspPostFundTaxStatementJournal`, source `FundStatement`).
+  - *Corporate actions*: a takeover can take only some shares (the oldest parcels go first), and a demerger can be paid
+    partly as a dividend (posted with `uspAddPayout` to the new shares' cost base account, franking at 30%).
+  - *Employee share schemes*: tax planning adds the ESS discounts and the $1,000 reduction when the income test
+    (taxable income, reportable fringe benefits, reportable super and net investment losses) is $180,000 or less
+    (`EssReduction`). Tax > ESS annual report keeps an employer's grants (`tblEssGrants`), prints each employee's
+    statement and gives the year's figures as a CSV; no TFNs are kept.
+  - *Trading stock*: holdings can be kept as investments (`tblShareTraderHoldings`; their gains stay capital gains),
+    and "Post the journal" moves the gains on stock sold from 4500 to 4550 Trading Profit on Shares and records the
+    change in closing stock over cost in 1395 (`uspPostTradingStockJournal`, source `TradingStock`).
+  - *Loans and fixed income*: each loan entry posts a journal (`uspPostLoanEntryJournal`, source `LoanEntry`; the loan
+    has its own liability account under 2300, interest and fees go to 5300). Debt > Fixed income posts the year-end
+    accruals and their reversal (`uspPostInterestAccruals`, source `InterestAccrual`). The tax reconciliation takes out
+    what's in 5300 and puts in the deductible part of the investment loans, takes accrued interest back out, and D8
+    shows the deductible loan interest.
 - **Create an account** from the login page (`AddNewUser`, password stored as a PBKDF2 hash).
 - An optional link on the login page to an older site (`Site:OldSiteUrl`), for people moving across.
 
@@ -476,6 +513,25 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
     and the attachment kinds `Property`, `RentalJob` and `Inspection` (`uspAddAttachment`).
   - `2026-10-23-03-assistant.sql`: the Assistant page. Adds `tblAssistantSettings` and `tblAssistantChats` with their procs,
     and changes `uspGetApiAuditLog` so the change log shows the assistant's changes as "Site assistant".
+  - `2026-10-26-01-part-units.sql`: part units (up to 8 decimal places). Adds `fnUnitsText` and changes the unit
+    parameters of `uspAddShareTrade`, `AddShareTradeWithCashTransaction`, `uspAddDRPTransaction`, `uspApplyDemerger`,
+    `uspApplyTakeover` and `uspExerciseOptions` to FLOAT, and `tblCGTParcelMatching.iMatchedQuantity` too.
+  - `2026-10-26-02-payout-currency.sql`: payouts in another currency. Adds `strCurrency`, `dblExchangeRate` and
+    `dblForeignTotal` to `tblPayouts` and the matching optional parameters to `uspAddPayout`; the journal stays in the
+    portfolio's currency.
+  - `2026-10-26-03-dividend-details.sql`: Import > Dividend details. Adds the franked percentage, DRP price and source to
+    `tblAnnouncedDividends`, and `uspSaveAnnouncedDividendDetails`. It only adds things.
+  - `2026-10-26-04-fund-statement-journal.sql`: fund tax statements in the ledger. Adds `uspPostFundTaxStatementJournal`
+    (the AMIT cost base change between Trust Distribution Income and the fund's cost base account) and posts the
+    statements already entered.
+  - `2026-10-26-05-ess-employer-register.sql`: Tax > ESS annual report. Adds `tblEssGrants`, `uspSaveEssGrant` and
+    `uspDeleteEssGrant`. It only adds things.
+  - `2026-10-26-06-trading-stock-extras.sql`: trading stock. Adds `tblShareTraderHoldings` (holdings kept as investments)
+    with `uspGetShareTraderHoldings` and `uspSetShareTraderHolding`, and `uspPostTradingStockJournal` with system accounts
+    1395 Trading Stock Valuation Adjustment and 4550 Trading Profit on Shares (made when first used).
+  - `2026-10-26-07-loans-in-ledger.sql`: loans and fixed income in the ledger. Adds `tblLoans.iAccountID`,
+    `uspPostLoanEntryJournal` and `uspPostInterestAccruals` (accounts 2300, 1450, 2390 and 5300 are made when first
+    used), and posts the loan entries already recorded.
 - `2026-10-21-08-alerts.sql`: Email alerts. Run after `2026-10-21-02-announced-actions.sql`. Adds `tblAlertSettings`,
   `tblPriceAlerts`, `uspSaveAlertSettings`, `uspSavePriceAlert`, `uspDeletePriceAlert`, `uspMarkPriceAlertSent` and
   `uspMarkAlertsChecked`. It only adds things.

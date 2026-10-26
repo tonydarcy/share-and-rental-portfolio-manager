@@ -1,4 +1,5 @@
 using System.Globalization;
+using PortfolioManager.Core.Validation;
 
 namespace PortfolioManager.Core.Import;
 
@@ -39,7 +40,7 @@ public sealed class NavexaTrade : NavexaRow
     public string RawType { get; set; } = "";
     /// <summary>"Buy" or "Sell", as the trade procs expect.</summary>
     public string Type { get; set; } = "";
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public decimal Price { get; set; }
     public decimal Brokerage { get; set; }
     /// <summary>Units of the trade currency per 1 unit of portfolio currency (1 when they are the same), as tblShareTrades stores it.</summary>
@@ -86,7 +87,7 @@ public static class NavexaParser
         new("Code", true, ["Symbol", "Code", "Ticker", "Stock Code", "Security Code", "ASX Code"], "CBA.AX and ASX:CBA are also understood."),
         new("Exchange", false, ["Exchange", "Market", "Exchange Code", "Stock Exchange"], "Navexa codes like AXW or NAS become ASX or NASDAQ. Missing: ASX."),
         new("Type", true, ["Type", "Trade Type", "Transaction Type", "Action"], "Buy and Sell are imported (Opening Balance as a Buy); others are listed but not imported."),
-        new("Quantity", true, ["Quantity", "Units", "Qty", "Shares", "Number of Units"], "Whole units only. A negative sell quantity is fine."),
+        new("Quantity", true, ["Quantity", "Units", "Qty", "Shares", "Number of Units"], "Part units are fine (up to 8 decimal places). A negative sell quantity is fine."),
         new("Price", true, ["Price", "Unit Price", "Price per Unit", "Trade Price"], "In the trade currency."),
         new("Brokerage", false, ["Brokerage", "Fees", "Fee", "Commission", "Brokerage Fee"], "In the trade currency. Missing: 0."),
         new("BrokerageCurrency", false, ["Brokerage Currency", "Fee Currency", "Brokerage Currency Code"], "Only needed when brokerage was paid in another currency."),
@@ -161,17 +162,15 @@ public static class NavexaParser
             var qtyError = Number(get("Quantity"), out var qty);
             qty = Math.Abs(qty);
             if (row.Unsupported is not null)
-                row.Quantity = qtyError is null && qty == decimal.Truncate(qty) && qty <= int.MaxValue ? (int)qty : 0;
+                row.Quantity = qtyError is null && FormRules.UnitsProblem(qty) is null ? qty : 0;
             else if (qtyError is not null)
                 row.Errors.Add($"Quantity {qtyError}");
             else if (qty == 0)
                 row.Errors.Add("Quantity is zero.");
-            else if (qty != decimal.Truncate(qty))
-                row.Errors.Add($"Fractional units ({qty:0.######}) can't be recorded: trades are stored in whole units.");
-            else if (qty > int.MaxValue)
-                row.Errors.Add("Quantity is too large.");
+            else if (FormRules.UnitsProblem(qty) is { } problem)
+                row.Errors.Add(problem);
             else
-                row.Quantity = (int)qty;
+                row.Quantity = qty;
 
             var priceError = Number(get("Price"), out var price);
             if (row.Unsupported is not null)
@@ -411,7 +410,7 @@ public static class NavexaParser
     }
 
     internal static string TradeKey(NavexaTrade t) =>
-        $"{t.Exchange}|{t.Code}|{t.Type}|{t.Date:yyyyMMdd}|{t.Quantity}|{t.Price:0.0000}".ToUpperInvariant();
+        $"{t.Exchange}|{t.Code}|{t.Type}|{t.Date:yyyyMMdd}|{t.Quantity:0.########}|{t.Price:0.0000}".ToUpperInvariant();
 
     internal static string PayoutKey(NavexaPayout p) =>
         $"{p.Exchange}|{p.Code}|{p.Date:yyyyMMdd}|{p.Net:0.00}".ToUpperInvariant();

@@ -8,64 +8,49 @@ one tool can cover every entity a client has.
 
 This page lists only what is **not built yet**. Everything already in the site is described in the
 [README](README.md#what-it-does). Items are ordered by value to users and accountants against effort. Anything marked
-**good first issue** is a self-contained job for a new contributor. Last reviewed 23 October 2026.
+**good first issue** is a self-contained job for a new contributor. Last reviewed 26 October 2026.
 
 ## Next: investor features
 
-1. **Part units.** The trade procedures take whole units only, but crypto and some managed funds trade in fractions.
-2. **Foreign shares in the ledger.** The journals of a foreign trade post the foreign order total without converting it
-   to the portfolio currency, and payouts have no currency of their own (they are entered in the portfolio currency).
-3. **Franking and DRP prices for announced dividends.** EODHD's feeds have neither, so announced dividends take the
-   franking from the stock's last payout. An ASX announcements source would fill this in.
-4. **Broker imports checked against real files.** Each broker CSV layout (CommSec, CMC, SelfWealth, Stake, Pearler,
+1. **Broker imports checked against real files.** Each broker CSV layout (CommSec, CMC, SelfWealth, Stake, Pearler,
    Superhero, Interactive Brokers) needs checking against real export files, and PDF contract notes aren't read yet.
    **Good first issue** (one broker each).
-5. **Parcel choice in the older reports.** The capital gains Sales table and the unrealised gains report still match
-   first in, first out, even when a sale used a different parcel choice.
-6. **API and MCP server extras.** Sign-in by OAuth, so an assistant can connect without pasting a key; more tools
+2. **API and MCP server extras.** Sign-in by OAuth, so an assistant can connect without pasting a key; more tools
    (payouts, journals, creating and sending invoices, editing and deleting); and an OpenAPI description for app
    builders. **Good first issue:** a new tool is one entry in `src/PortfolioManager.Web/Api/AgentTools.cs`.
-7. **Alerts by text message or phone notification**, as well as email.
-8. **Phone layouts for the busiest pages** (bank allocation, journals), and viewing offline.
-9. **Consolidated view extras.** Performance over time for a family group, and a printable pack for the adviser.
-10. **Fund look-through files.** Importing fund issuers' holdings files for ETF look-through, instead of entering
-    them by hand or using EODHD fundamentals.
-11. **Fund tax statement extras.** Importing the fund registries' AMIT/AMMA statement files, and posting the cost base
-    change to the ledger.
-12. **More corporate actions.** A takeover where only some shares are taken up, and a demerger paid partly as a
-    dividend.
-13. **Employee share scheme extras.** The $1,000 upfront reduction from the income test, and the ESS annual report for
-    employers.
-14. **Trading stock extras.** Some holdings as trading stock and others as investments in one portfolio, and posting
-    the stock movement to the ledger.
-15. **Loans and fixed income in the ledger.** Posting loan entries and the year-end interest accrual, and feeding the
-    deductible interest into the return labels.
+3. **Alerts by text message or phone notification**, as well as email.
+4. **Franking and DRP prices fetched automatically.** Announced dividends get their franking and DRP price from a file
+   the site admin uploads (Import > Dividend details). An ASX announcements feed would fill them in by itself, but the
+   ASX's data needs a paid licence.
+5. **Registry statement files checked against real ones.** Fund tax statement files and fund holdings files are read
+   by their column names; each registry's and issuer's layout (Computershare, MUFG / Link, Boardroom, Automic, Vanguard,
+   iShares, BetaShares) needs checking against real files, and PDF statements aren't read. **Good first issue.**
 
 ## Next: accountant features
 
-16. **Year ends by country** on the practice dashboard, for clients in other countries.
-17. **Attachments printed into the packs.** The SMSF audit pack and report pack list attachments; the files themselves
+6. **Year ends by country** on the practice dashboard, for clients in other countries.
+7. **Attachments printed into the packs.** The SMSF audit pack and report pack list attachments; the files themselves
     should be printed into the pack instead of downloaded one by one.
-18. **Invoicing extras.** Refunding a credit note, and one deposit paying several invoices.
-19. **Sending straight to Xero and MYOB.** Today the exports are import files; sending them through Xero's and MYOB's
+8. **Invoicing extras.** Refunding a credit note, and one deposit paying several invoices.
+9. **Sending straight to Xero and MYOB.** Today the exports are import files; sending them through Xero's and MYOB's
     APIs would save a step.
-20. **SMSF extras.** The actuary data as a file, and pro-rata minimum pensions for pensions started during the year.
-21. **Tax planning for other entities.** Companies, trusts and SMSFs (individuals are done), and the Medicare levy
+10. **SMSF extras.** The actuary data as a file, and pro-rata minimum pensions for pensions started during the year.
+11. **Tax planning for other entities.** Companies, trusts and SMSFs (individuals are done), and the Medicare levy
     low-income reduction.
-22. **More of the BAS.** Cash-basis reporting of invoiced sales (they are reported by invoice date today), PAYG
+12. **More of the BAS.** Cash-basis reporting of invoiced sales (they are reported by invoice date today), PAYG
     instalments and the other BAS labels.
 
 ## Next: rental properties
 
-23. **Rental property extras.** Low-value pool disposals taken off the pool balance (they are worked out per asset
+13. **Rental property extras.** Low-value pool disposals taken off the pool balance (they are worked out per asset
    today), splitting a maintenance job between capital works and depreciating assets, and rent receipts and reminders
    emailed to tenants.
 
 ## Next: business books
 
-24. **Pay an invoice online.** A card or bank payment link on invoices (Stripe or similar), with the payment matched
+14. **Pay an invoice online.** A card or bank payment link on invoices (Stripe or similar), with the payment matched
     to the invoice when it lands.
-25. **Assistant extras.** Replies that appear as they are written, reading an attached receipt or statement in the
+15. **Assistant extras.** Replies that appear as they are written, reading an attached receipt or statement in the
     chat, and a monthly spending limit when the host shares their own Anthropic key with every user.
 
 ## Using it outside Australia
@@ -180,6 +165,10 @@ or checked by someone who works with that country's tax.
   security framework, product registration and conformance testing for each return and year, or a partnership with a
   sending service provider or an existing lodgment service. Until then, Tax > Paper tax return covers lodging by post,
   and the label summary CSV covers keying into Xero Tax, HandiTax or LodgeiT.
+- **The ESS annual report file for the ATO.** Tax > ESS annual report keeps an employer's register, prints each
+  employee's statement and gives the figures as a CSV, but not the ATO's own ESS annual report file. That file needs
+  each employee's TFN, date of birth and address, which the site deliberately doesn't keep, and lodging it
+  electronically has the same digital service provider requirements as SBR above.
 - **Bank feeds** (deferred, like payroll: not until a hosted version has paying customers). In Australia a legal
   feed means the Consumer Data Right (CDR). Screen-scraping (handing a provider the bank login) is still legal but
   against most banks' terms and is being phased out, so it isn't worth building on. Three ways in, cheapest last:

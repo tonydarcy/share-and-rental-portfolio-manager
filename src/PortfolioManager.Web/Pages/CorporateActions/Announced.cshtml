@@ -60,11 +60,17 @@
                         </td>
                         <td><span class="fw-bold">@d.StockCode</span> <span class="text-muted small">@d.ExchangeCode</span></td>
                         <td class="text-end">@d.AmountPerUnit.ToString("0.00####") @(d.Currency ?? "")</td>
-                        <td class="text-end">@d.Units.ToString("N0")</td>
+                        <td class="text-end">@d.Units.ToString("#,##0.########")</td>
                         <td class="text-end">@d.Total.ToString("N2")</td>
                         @if (Model.Region.IsAustralia)
                         {
-                            <td class="small">@(d.Franking?.Basis ?? (d.IsAustralian ? "Not known" : "Foreign dividend"))</td>
+                            <td class="small">
+                                @(d.Franking?.Basis ?? (d.IsAustralian ? "Not known" : "Foreign dividend"))
+                                @if (d.DrpPrice is { } drpPrice)
+                                {
+                                    <div class="text-muted">DRP price @drpPrice.ToString("C4")</div>
+                                }
+                            </td>
                         }
                         <td class="text-end text-nowrap">
                             @if (review is null)
@@ -77,7 +83,7 @@
                             {
                                 <div class="small text-muted mb-1">@review</div>
                             }
-                            @if (d.LastWasDrp)
+                            @if (d.LastWasDrp || d.DrpPrice is not null)
                             {
                                 <a asp-page="/Payouts/AddDrp" asp-route-announced="@d.Id" class="btn btn-sm btn-outline-primary">Add as DRP</a>
                             }

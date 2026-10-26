@@ -45,7 +45,7 @@
 
 @if (Model.Report.AnyMissingPrices)
 {
-    <div class="alert alert-warning">Some holdings have no price on file in the year before this date, so their market value is counted as zero.</div>
+    <div class="alert alert-warning">Some holdings have no price on file in the year before this date (or, for a foreign share, no exchange rate in the week before it), so their market value is counted as zero.</div>
 }
 
 <div class="card shadow-sm">
@@ -73,7 +73,7 @@
                     <tr>
                         <td class="fw-bold">@l.StockCode</td>
                         <td class="text-muted small">@l.ExchangeCode</td>
-                        <td class="text-end">@l.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@l.Units.ToString("#,##0.########")</td>
                         <td class="text-end">@l.CostPerUnit.ToString("C3")</td>
                         <td class="text-end">@l.TotalCost.ToString("C")</td>
                         <td class="text-end">@(l.MarketPrice?.ToString("C3") ?? "No price")</td>
@@ -109,14 +109,14 @@
 
 <h2 class="h5 mt-4">@(au ? "CGT discount by parcel" : "Parcels held")</h2>
 <p class="text-muted small">
-    Each purchase still held, matched first-in, first-out.
+    Each purchase still held, matched first-in, first-out unless you chose the parcels on a sale.
     @if (au)
     {
         <text>A parcel qualifies for the @Model.Rate.RateText discount when it's sold after being held for more than 12 months, so from the day after the anniversary of the purchase.</text>
     }
     @if (Model.Parcels.CapitalReturns > 0)
     {
-        <text>Cost bases here are after returns of capital; the table above, from the older report, doesn't include them.</text>
+        <text>Cost bases here and above are after returns of capital.</text>
     }
     @if (Model.Rate.Kind == CgtEntityKind.Company)
     {
@@ -164,7 +164,7 @@
                         <td class="fw-bold">@p.StockCode</td>
                         <td class="text-muted small">@p.ExchangeCode</td>
                         <td>@p.Acquired.ToString("d MMM yyyy")</td>
-                        <td class="text-end">@p.Units.ToString("#,##0.####")</td>
+                        <td class="text-end">@p.Units.ToString("#,##0.########")</td>
                         <td class="text-end">@p.TotalCost.ToString("C")</td>
                         <td class="text-end @(gain is { } g ? PeriodReportModel.GainClass(g) : "")">@(gain?.ToString("C") ?? "No price")</td>
                         @if (au)
