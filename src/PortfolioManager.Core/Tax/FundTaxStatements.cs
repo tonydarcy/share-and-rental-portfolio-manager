@@ -107,9 +107,49 @@ public sealed class FundTaxStatementService(IDbConnectionFactory db)
         }
     }
 
+    // Posts (or removes) the statement's cost base journal, once 2026-10-26-04-fund-statement-journal.sql has been run
+    private const string PostJournal = """
+        IF OBJECT_ID('dbo.uspPostFundTaxStatementJournal', 'P') IS NOT NULL
+            EXEC dbo.uspPostFundTaxStatementJournal @iUserID, @iFundTaxStatementID;
+        """;
+
+    /// <summary>Saves the statement and posts its cost base change to the ledger, in one transaction.</summary>
     public async Task<ProcResult> SaveAsync(int portfolioId, FundTaxStatement s)
     {
         await using var con = db.Create();
+        await con.OpenAsync();
+        await using var tx = await con.BeginTransactionAsync();
+        var result = await SaveAsync(con, tx, portfolioId, s);
+        if (result.Ok)
+            await tx.CommitAsync();
+        return result;
+    }
+
+    /// <summary>
+    /// Saves statements read from a file, replacing any already entered for the same fund and year, all or nothing.
+    /// Returns how many were added and replaced, or the first error.
+    /// </summary>
+    public async Task<(int Added, int Replaced, string? Error)> ImportAsync(int portfolioId, IReadOnlyList<FundTaxStatement> rows)
+    {
+        var existing = (await GetAsync(portfolioId)).ToDictionary(e => (e.ExchangeCode.ToUpperInvariant(), e.StockCode.ToUpperInvariant(), e.Year), e => e.Id);
+        await using var con = db.Create();
+        await con.OpenAsync();
+        await using var tx = await con.BeginTransactionAsync();
+        int added = 0, replaced = 0;
+        foreach (var row in rows)
+        {
+            var id = existing.GetValueOrDefault((row.ExchangeCode.ToUpperInvariant(), row.StockCode.ToUpperInvariant(), row.Year));
+            var result = await SaveAsync(con, tx, portfolioId, row with { Id = id });
+            if (!result.Ok)
+                return (0, 0, $"{row.StockCode} {FinancialYear.Label(row.Year)}: {result.Error}");
+            if (id > 0) replaced++; else added++;
+        }
+        await tx.CommitAsync();
+        return (added, replaced, null);
+    }
+
+    private static async Task<ProcResult> SaveAsync(System.Data.Common.DbConnection con, System.Data.Common.DbTransaction tx, int portfolioId, FundTaxStatement s)
+    {
         var row = await con.QuerySingleAsync<(string Result, int? Id)>("uspSaveFundTaxStatement", new
         {
             iUserID = portfolioId, iFundTaxStatementID = s.Id, strStockExchangeCode = s.ExchangeCode, strStockCode = s.StockCode,
@@ -120,15 +160,25 @@ public sealed class FundTaxStatementService(IDbConnectionFactory db)
             dblForeignTaxCredits = (double)s.ForeignTaxCredits, dblTfnWithheld = (double)s.TfnWithheld,
             dblCostBaseIncrease = (double)s.CostBaseIncrease, dblCostBaseDecrease = (double)s.CostBaseDecrease,
             strComment = string.IsNullOrWhiteSpace(s.Comment) ? null : s.Comment.Trim(),
-        }, commandType: CommandType.StoredProcedure);
-        return ProcResult.From(row.Result, "Success", row.Id);
+        }, tx, commandType: CommandType.StoredProcedure);
+        var result = ProcResult.From(row.Result, "Success", row.Id);
+        if (result.Ok && row.Id is { } id)
+            await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iFundTaxStatementID = id }, tx);
+        return result;
     }
 
+    /// <summary>Deletes the statement and its cost base journal, in one transaction.</summary>
     public async Task<ProcResult> DeleteAsync(int portfolioId, int id)
     {
         await using var con = db.Create();
-        var result = await con.ExecuteScalarAsync<string>("uspDeleteFundTaxStatement", new { iUserID = portfolioId, iFundTaxStatementID = id },
-            commandType: CommandType.StoredProcedure);
-        return ProcResult.From(result, "Success");
+        await con.OpenAsync();
+        await using var tx = await con.BeginTransactionAsync();
+        var result = ProcResult.From(await con.ExecuteScalarAsync<string>("uspDeleteFundTaxStatement",
+            new { iUserID = portfolioId, iFundTaxStatementID = id }, tx, commandType: CommandType.StoredProcedure), "Success");
+        if (!result.Ok)
+            return result;
+        await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iFundTaxStatementID = id }, tx);
+        await tx.CommitAsync();
+        return result;
     }
 }

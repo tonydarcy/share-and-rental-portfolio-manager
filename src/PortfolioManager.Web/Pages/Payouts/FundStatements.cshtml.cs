@@ -1,13 +1,16 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PortfolioManager.Core.Holdings;
+using PortfolioManager.Core.Imports;
 using PortfolioManager.Core.Portfolios;
 using PortfolioManager.Core.Tax;
 using PortfolioManager.Web.Services;
 
 namespace PortfolioManager.Web.Pages.Payouts;
 
-/// <summary>ETF and managed fund annual tax statements (AMMA / AMIT), entered once a year per fund.</summary>
+/// <summary>ETF and managed fund annual tax statements (AMMA / AMIT), entered once a year per fund or read from a file.</summary>
+[RequestSizeLimit(CsvUpload.RequestLimit)]
+[RequestFormLimits(MultipartBodyLengthLimit = CsvUpload.RequestLimit)]
 public class FundStatementsModel(CurrentPortfolio current, FundTaxStatementService statements, HoldingsService holdings) : PageModel
 {
     public sealed class StatementForm
@@ -36,6 +39,9 @@ public class FundStatementsModel(CurrentPortfolio current, FundTaxStatementServi
     [BindProperty] public StatementForm Input { get; set; } = new();
     [BindProperty(SupportsGet = true)] public int? Edit { get; set; }
     [TempData] public string? Success { get; set; }
+    [BindProperty] public IFormFile? Upload { get; set; }
+    [BindProperty] public string? Data { get; set; }
+    public ImportPreview<FundTaxStatement>? Preview { get; private set; }
 
     public PortfolioSummary? Portfolio { get; private set; }
     public IReadOnlyList<FundTaxStatement> Statements { get; private set; } = [];
@@ -82,6 +88,57 @@ public class FundStatementsModel(CurrentPortfolio current, FundTaxStatementServi
             + (statement.Difference is var d && Math.Abs(d) >= 1 ? $" Its parts are {Math.Abs(d):C} {(d > 0 ? "more" : "less")} than the cash distribution: check the figures." : "");
         return RedirectToPage();
     }
+
+    /// <summary>Reads a statement file and shows what would be saved.</summary>
+    public async Task<IActionResult> OnPostPreviewAsync()
+    {
+        if (!await LoadAsync())
+            return Page();
+        var (text, error) = await CsvUpload.ReadAsync(Upload);
+        if (error is not null)
+        {
+            ModelState.AddModelError(nameof(Upload), error);
+            return Page();
+        }
+        Preview = Check(FundStatementCsv.Parse(text!));
+        Data = CsvUpload.Encode(text!);
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostImportAsync()
+    {
+        if (!await LoadAsync())
+            return Page();
+        if (CsvUpload.Decode(Data) is not { } text)
+        {
+            ModelState.AddModelError(nameof(Upload), "The preview couldn't be read back. Choose the file again.");
+            return Page();
+        }
+        Preview = Check(FundStatementCsv.Parse(text));
+        if (Preview.FileError is not null || Preview.ValidCount == 0)
+        {
+            ModelState.AddModelError(nameof(Upload), "There are no statements to save.");
+            return Page();
+        }
+        var (added, replaced, failed) = await statements.ImportAsync(Portfolio!.PortfolioId, Preview.ValidRows.ToList());
+        if (failed is not null)
+        {
+            ModelState.AddModelError(nameof(Upload), $"Nothing was saved. {failed}");
+            return Page();
+        }
+        Success = $"Saved {added:N0} new statement{(added == 1 ? "" : "s")}" + (replaced > 0 ? $" and replaced {replaced:N0}" : "") + "."
+            + (Preview.ErrorCount > 0 ? $" {Preview.ErrorCount:N0} line{(Preview.ErrorCount == 1 ? "" : "s")} with problems {(Preview.ErrorCount == 1 ? "was" : "were")} skipped." : "");
+        return RedirectToPage();
+    }
+
+    // Only funds this portfolio holds or has held
+    private ImportPreview<FundTaxStatement> Check(ImportPreview<FundTaxStatement> preview) =>
+        preview with
+        {
+            Lines = preview.Lines.Select(l => l.Value is { } s && !Funds.Contains($"{s.ExchangeCode}:{s.StockCode}", StringComparer.OrdinalIgnoreCase)
+                ? l with { Value = null, Errors = [.. l.Errors, $"{s.ExchangeCode}:{s.StockCode} isn't in this portfolio."] }
+                : l).ToList(),
+        };
 
     public async Task<IActionResult> OnPostDeleteAsync(int id)
     {
