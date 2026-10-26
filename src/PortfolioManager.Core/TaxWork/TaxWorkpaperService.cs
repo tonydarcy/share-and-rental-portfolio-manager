@@ -82,9 +82,10 @@ public sealed class TaxWorkpaperService(
         var summary = data.Settings.CapitalLossesBroughtForward is { } losses
             ? CgtDiscount.Summarise(cgtReport.Events, cgtReport.Summary.Rate, losses)
             : cgtReport.Summary;
-        // Shares held as trading stock make a trading profit instead of capital gains; losses brought forward wait for a later gain
+        // Shares held as trading stock make a trading profit instead of capital gains; losses brought forward wait for a later gain.
+        // Holdings a trader keeps as investments still make capital gains.
         if (trading is not null)
-            summary = CgtDiscount.Summarise([], cgtReport.Summary.Rate, summary.PriorYearLosses);
+            summary = CgtDiscount.Summarise(cgtReport.Events.Where(trading.StaysCapital).ToList(), cgtReport.Summary.Rate, summary.PriorYearLosses);
         var rec = TaxReconciliation.Build(client.EntityType, ledger, summary, income, data, smsf?.TaxInputs, trading?.Profit);
         var tax = TaxCalculation.For(client.EntityType, rec, income, data.Settings);
 

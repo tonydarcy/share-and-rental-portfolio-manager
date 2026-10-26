@@ -56,6 +56,33 @@
     </div>
 </form>
 
+@if (Model.Settings.FromYear is not null && Model.Codes.Count > 0)
+{
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-body">
+            <h2 class="h6">Holdings kept as investments</h2>
+            <p class="small text-muted mb-2">A trader can also hold shares as long-term investments, kept apart from the trading stock. Their gains
+                stay capital gains (with the CGT discount when held over 12 months) and they're left out of the trading stock. The choice
+                applies from the first trading stock year; a holding that changes from one to the other part-way through is a CGT event
+                (or a deemed sale into stock) that isn't worked out here.</p>
+            <div class="d-flex flex-wrap gap-2">
+                @foreach (var (ex, code) in Model.Codes)
+                {
+                    var investment = Model.Settings.IsInvestment(ex, code);
+                    <form method="post" asp-page-handler="Holding" asp-route-fy="@Model.Year" class="d-inline">
+                        <input type="hidden" name="fund" value="@ex:@code" />
+                        <input type="hidden" name="investment" value="@(investment ? "false" : "true")" />
+                        <button class="btn btn-sm @(investment ? "btn-outline-primary" : "btn-outline-secondary")" disabled="@Model.Locked"
+                                title="@(investment ? "Kept as an investment: click to make it trading stock" : "Trading stock: click to keep it as an investment")">
+                            @code <span class="small">@(investment ? "investment" : "stock")</span>
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @if (Model.Workpaper?.Trading is not { } t)
 {
     <div class="alert alert-secondary">The shares aren't trading stock in @FinancialYear.Label(Model.Year), so their gains are capital gains (Reports > Realised capital gains).</div>
@@ -112,6 +139,19 @@
                 </tr>
             </tfoot>
         </table>
+    </div>
+</div>
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h6">In the ledger</h2>
+        <p class="small mb-2">The trades already put the shares in the ledger at cost, and each sale's gain in Realised Gains on Investments. At the
+            year end a journal moves the gains on trading stock sold (@t.Realised.ToString("C")) to Trading Profit on Shares, and records the
+            change in the closing stock's value over its cost (@t.ValuationChange.ToString("C")) in Trading Stock Valuation Adjustment, so
+            the ledger's trading profit is the @t.Profit.ToString("C") above. Post it again after changing trades or prices for the year.
+            Don't also run the market value revaluation on these holdings, or the change is counted twice.</p>
+        <form method="post" asp-page-handler="Ledger" asp-route-fy="@Model.Year" class="no-print">
+            <button class="btn btn-sm btn-outline-primary" disabled="@Model.Locked"><i class="bi bi-journal-check"></i> Post the @FinancialYear.Label(Model.Year) journal</button>
+        </form>
     </div>
 </div>
 <p class="text-muted small">
