@@ -3,11 +3,13 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using PortfolioManager.Core.CorporateActions;
 using PortfolioManager.Core.Payouts;
 using PortfolioManager.Core.Portfolios;
+using PortfolioManager.Core.Prices;
+using PortfolioManager.Core.Regions;
 using PortfolioManager.Web.Services;
 
 namespace PortfolioManager.Web.Pages.Payouts;
 
-public class AddModel(CurrentPortfolio current, PayoutService payouts, AnnouncedActionsService announcedActions, TimeProvider clock) : PageModel
+public class AddModel(CurrentPortfolio current, PayoutService payouts, AnnouncedActionsService announcedActions, FxRateService fx, TimeProvider clock) : PageModel
 {
     [BindProperty]
     public PayoutInput Input { get; set; } = new();
@@ -29,13 +31,29 @@ public class AddModel(CurrentPortfolio current, PayoutService payouts, Announced
         if (Portfolio is null)
             return Forbid();
 
-        foreach (var error in Input.Validate())
+        var portfolioCurrency = RegionSettings.Current.Currency;
+        foreach (var error in Input.Validate().Concat(Input.ValidateCurrency(portfolioCurrency)))
             ModelState.AddModelError(string.Empty, error);
         if (!ModelState.IsValid)
             return Page();
 
-        await payouts.AddAsync(Portfolio.PortfolioId, Input);
-        TempData["Message"] = $"Added the {Input.StockCode.Trim().ToUpperInvariant()} payout of {Input.Total:C}.";
+        var foreign = Input.IsForeign(portfolioCurrency);
+        if (foreign && Input.ExchangeRate is null)
+        {
+            // That day's rate from the price feed, as trades do
+            if (await fx.GetAsync(Input.Currency!, portfolioCurrency, DateOnly.FromDateTime(Input.Date)) is { } rate)
+                Input.ExchangeRate = rate.Rate;
+            else
+            {
+                ModelState.AddModelError(string.Empty, $"There's no {Input.Currency!.Trim().ToUpperInvariant()} exchange rate on file for {Input.Date:d MMM yyyy}. Enter the rate from your statement.");
+                return Page();
+            }
+        }
+
+        await payouts.AddAsync(Portfolio.PortfolioId, Input, portfolioCurrency);
+        TempData["Message"] = foreign
+            ? $"Added the {Input.StockCode.Trim().ToUpperInvariant()} payout of {Input.Currency!.Trim().ToUpperInvariant()} {Input.Total:N2}, {Input.ToPortfolioCurrency(Input.ExchangeRate!.Value).Total:C} at {Input.ExchangeRate:0.######}."
+            : $"Added the {Input.StockCode.Trim().ToUpperInvariant()} payout of {Input.Total:C}.";
         return RedirectToPage("/Payouts/Index");
     }
 }

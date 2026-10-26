@@ -55,6 +55,15 @@ public sealed class PayoutRecord
     public double? RentalIncome { get; set; }
     public double? RentalExpenses { get; set; }
     public int? ReinvestmentTradeId { get; set; }
+    /// <summary>For a payout received in another currency: that currency, the rate it was converted at and the cash in that currency.</summary>
+    public string? Currency { get; set; }
+    public double? ExchangeRate { get; set; }
+    public double? ForeignTotal { get; set; }
+
+    /// <summary>"Entered as USD 100.00 at 0.65", or null for a payout in the portfolio's currency.</summary>
+    public string? EnteredAs => string.IsNullOrWhiteSpace(Currency) || ForeignTotal is null || ExchangeRate is null
+        ? null
+        : $"Entered as {Currency.Trim()} {ForeignTotal:N2} at {ExchangeRate:0.######} {Currency.Trim()} per {Regions.RegionSettings.Current.Currency}.";
 
     public bool IsRental => (RentalIncome ?? 0) != 0 || (RentalExpenses ?? 0) != 0;
 }
@@ -77,6 +86,57 @@ public sealed class PayoutInput
     public decimal Other { get; set; }
     public string? Comment { get; set; }
     public bool Confirmed { get; set; } = true;
+
+    /// <summary>The currency the amounts are in; blank or the portfolio's own currency for an ordinary payout.</summary>
+    public string? Currency { get; set; }
+
+    /// <summary>Units of <see cref="Currency"/> per one unit of the portfolio's currency (0.65 USD per AUD), as on trades. Blank looks it up.</summary>
+    public decimal? ExchangeRate { get; set; }
+
+    /// <summary>True when the amounts are in another currency and will be converted before saving.</summary>
+    public bool IsForeign(string portfolioCurrency) =>
+        !string.IsNullOrWhiteSpace(Currency) && !Currency.Trim().Equals(portfolioCurrency, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The same payout in the portfolio's currency: each amount divided by the rate, to the cent. Rounding is taken up by the
+    /// largest income amount, so the parts still add up to the cash received.
+    /// </summary>
+    public PayoutInput ToPortfolioCurrency(decimal rate)
+    {
+        static decimal C(decimal v, decimal r) => Math.Round(v / r, 2, MidpointRounding.AwayFromZero);
+        var p = new PayoutInput
+        {
+            StockExchangeCode = StockExchangeCode, StockCode = StockCode, Date = Date, Comment = Comment, Confirmed = Confirmed,
+            Total = C(Total, rate), Net = Net is { } n ? C(n, rate) : null, Franked = C(Franked, rate), Unfranked = C(Unfranked, rate),
+            FrankingCredit = C(FrankingCredit, rate), Interest = C(Interest, rate), TrustIncome = C(TrustIncome, rate),
+            TaxWithheld = C(TaxWithheld, rate), ForeignTax = C(ForeignTax, rate), Other = C(Other, rate),
+        };
+        var gap = p.Total - p.PartsTotal;
+        if (gap != 0)
+        {
+            var largest = new[] { p.Unfranked, p.Franked, p.Interest, p.TrustIncome, p.Other }.Max();
+            if (p.Unfranked == largest) p.Unfranked += gap;
+            else if (p.Franked == largest) p.Franked += gap;
+            else if (p.Interest == largest) p.Interest += gap;
+            else if (p.TrustIncome == largest) p.TrustIncome += gap;
+            else p.Other += gap;
+        }
+        return p;
+    }
+
+    /// <summary>The currency and rate, when the payout is in another currency.</summary>
+    public IReadOnlyList<string> ValidateCurrency(string portfolioCurrency)
+    {
+        var errors = new List<string>();
+        if (string.IsNullOrWhiteSpace(Currency))
+            return errors;
+        var c = Currency.Trim().ToUpperInvariant();
+        if (c.Length != 3 || !c.All(char.IsAsciiLetterUpper))
+            errors.Add("The currency must be a three-letter code such as USD.");
+        else if (IsForeign(portfolioCurrency) && ExchangeRate is <= 0)
+            errors.Add("The exchange rate must be more than zero.");
+        return errors;
+    }
 
     /// <summary>What the parts add up to: income less tax withheld. Should match the cash received.</summary>
     public decimal PartsTotal => Franked + Unfranked + Interest + TrustIncome + Other - TaxWithheld - ForeignTax;
@@ -249,7 +309,8 @@ public sealed class PayoutService(IDbConnectionFactory db)
                    + ISNULL(dblSundryRentalExpense4Amount, 0) + ISNULL(dblSundryRentalExpense5Amount, 0) + ISNULL(dblSundryRentalExpense6Amount, 0)
                    + ISNULL(dblSundryRentalExpense7Amount, 0) + ISNULL(dblSundryRentalExpense8Amount, 0) + ISNULL(dblSundryRentalExpense9Amount, 0)
                    + ISNULL(dblSundryRentalExpense10Amount, 0) AS RentalExpenses,
-                   iReinvestmentTradeID AS ReinvestmentTradeId
+                   iReinvestmentTradeID AS ReinvestmentTradeId,
+                   strCurrency AS Currency, dblExchangeRate AS ExchangeRate, dblForeignTotal AS ForeignTotal
             FROM tblPayouts
             WHERE iPayoutID = @payoutId AND iUserID = @portfolioId
             """,
@@ -261,16 +322,24 @@ public sealed class PayoutService(IDbConnectionFactory db)
             "SELECT iJournalID FROM tblJournal WHERE iUserID = @portfolioId AND strSourceModule = 'Payout' AND iSourceID = @payoutId",
             new { portfolioId, payoutId }, tx)).ToList();
 
-    /// <summary>Adds a payout with uspAddPayout, which also posts the journal for double-entry portfolios.</summary>
-    public async Task AddAsync(int portfolioId, PayoutInput p)
+    /// <summary>
+    /// Adds a payout with uspAddPayout, which also posts the journal for double-entry portfolios. A payout in another
+    /// currency (with its rate already filled in) is converted to the portfolio's currency first, and what was entered is kept.
+    /// </summary>
+    public async Task AddAsync(int portfolioId, PayoutInput p, string? portfolioCurrency = null)
     {
         await using var con = db.Create();
-        await con.ExecuteAsync("uspAddPayout", AddParameters(portfolioId, p), commandType: CommandType.StoredProcedure);
+        await con.ExecuteAsync("uspAddPayout", AddParameters(portfolioId, p, portfolioCurrency), commandType: CommandType.StoredProcedure);
     }
 
-    /// <summary>uspAddPayout's parameters for a payout entered on the form.</summary>
-    internal static object AddParameters(int portfolioId, PayoutInput p) =>
-        new
+    /// <summary>uspAddPayout's parameters for a payout entered on the form, converted when it's in another currency.</summary>
+    public static object AddParameters(int portfolioId, PayoutInput entered, string? portfolioCurrency = null)
+    {
+        var foreign = portfolioCurrency is not null && entered.IsForeign(portfolioCurrency);
+        if (foreign && entered.ExchangeRate is not > 0)
+            throw new ArgumentException("A payout in another currency needs its exchange rate.", nameof(entered));
+        var p = foreign ? entered.ToPortfolioCurrency(entered.ExchangeRate!.Value) : entered;
+        return new
         {
             iUserId = portfolioId,
             strStockExchangeCode = p.StockExchangeCode.Trim().ToUpperInvariant(),
@@ -289,7 +358,11 @@ public sealed class PayoutService(IDbConnectionFactory db)
             strPayoutConfirmed = p.Confirmed ? "Yes" : "No",
             dblFrankingCredit = (double)p.FrankingCredit,
             dblTrustIncome = (double)p.TrustIncome,
+            strCurrency = foreign ? entered.Currency!.Trim().ToUpperInvariant() : null,
+            dblExchangeRate = foreign ? (double?)entered.ExchangeRate : null,
+            dblForeignTotal = foreign ? (double?)entered.Total : null,
         };
+    }
 
     /// <summary>
     /// Updates a payout with uspUpdatePayout, which re-posts its ledger journal to match.

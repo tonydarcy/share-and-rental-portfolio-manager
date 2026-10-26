@@ -12,6 +12,9 @@ public class EditModel(CurrentPortfolio current, PayoutService payouts) : PageMo
 
     public bool AmountsLocked { get; private set; }
 
+    /// <summary>What a payout in another currency was entered as.</summary>
+    public string? EnteredAs { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(int id)
     {
         var (portfolioId, record) = await LoadAsync(id);
@@ -22,6 +25,7 @@ public class EditModel(CurrentPortfolio current, PayoutService payouts) : PageMo
 
         Input = FromRecord(record);
         AmountsLocked = record.ReinvestmentTradeId is not null;
+        EnteredAs = record.EnteredAs;
         return Page();
     }
 

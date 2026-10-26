@@ -15,6 +15,10 @@
     <div class="card-body">
         <form method="post">
             <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+            @if (Model.EnteredAs is { } enteredAs)
+            {
+                <div class="alert alert-info py-2">@enteredAs The amounts below are in @RegionSettings.Current.Currency.</div>
+            }
             <partial name="_PayoutFields" for="Input" />
             <button type="submit" class="btn btn-success">Save changes</button>
         </form>
