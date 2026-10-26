@@ -67,6 +67,7 @@ builder.Services.AddScoped<EssGrantService>();
 builder.Services.AddScoped<TradingStockService>();
 builder.Services.AddScoped<PortfolioManager.Core.Debt.LoanService>();
 builder.Services.AddScoped<PortfolioManager.Core.Debt.FixedIncomeService>();
+builder.Services.AddScoped<PortfolioManager.Core.Debt.InterestAccrualService>();
 builder.Services.AddScoped<CorporateActionsService>();
 builder.Services.AddScoped<ParcelTransferService>();
 builder.Services.AddScoped<AnnouncedActionsService>();

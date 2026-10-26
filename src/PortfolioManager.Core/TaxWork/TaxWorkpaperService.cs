@@ -24,8 +24,11 @@ public sealed record TaxWorkpaper(
     IReadOnlyList<SmsfMemberSummary>? Members = null,
     EssYear? EmployeeShares = null,
     TradingStockReport? Trading = null,
-    RentalSchedule? Rental = null)
+    RentalSchedule? Rental = null,
+    LoanInterestYear? LoanInterest = null)
 {
+    public LoanInterestYear Loans => LoanInterest ?? LoanInterestYear.None;
+
     /// <summary>The year's employee share scheme discounts (individuals only).</summary>
     public EssYear Ess => EmployeeShares ?? EssYear.None;
 
@@ -48,7 +51,8 @@ public sealed class TaxWorkpaperService(
     FundTaxStatementService statements,
     EssStatementService ess,
     TradingStockService tradingStock,
-    RentalService rentals)
+    RentalService rentals,
+    Debt.LoanService loans)
 {
     /// <summary>Null when the portfolio doesn't exist. The caller passes the selected portfolio's id.</summary>
     public async Task<TaxWorkpaper?> BuildAsync(int portfolioId, int year)
@@ -70,14 +74,17 @@ public sealed class TaxWorkpaperService(
         var smsf = client.EntityType == ClientEntityTypes.Smsf ? await members.GetAsync(portfolioId, year) : null;
         var essYear = EssYear.For(await ess.GetAsync(portfolioId), year);
         var trading = await tradingStock.GetYearAsync(portfolioId, year);
-        var w = Assemble(client, year, ledger, data, cgtReport, income, smsf, RegionSettings.Current.IsAustralia, essYear, trading);
+        var (allLoans, entries) = await loans.GetAsync(portfolioId);
+        var loanYear = allLoans.Count == 0 ? null : LoanInterestYear.For(allLoans, entries, await rentals.GetLoanLinksAsync(portfolioId), year);
+        var w = Assemble(client, year, ledger, data, cgtReport, income, smsf, RegionSettings.Current.IsAustralia, essYear, trading, loanYear);
         // Rental properties are kept outside the ledger, so they add return labels but not to the reconciliation
         return client.EntityType == ClientEntityTypes.Individual ? w with { Rental = await rentals.GetYearAsync(portfolioId, year) } : w;
     }
 
     public static TaxWorkpaper Assemble(
         ClientDetails client, int year, LedgerYear ledger, TaxYearData data, CgtReturnReport cgtReport,
-        TaxIncomeFacts income, SmsfYearData? smsf = null, bool australia = true, EssYear? ess = null, TradingStockReport? trading = null)
+        TaxIncomeFacts income, SmsfYearData? smsf = null, bool australia = true, EssYear? ess = null, TradingStockReport? trading = null,
+        LoanInterestYear? loans = null)
     {
         var summary = data.Settings.CapitalLossesBroughtForward is { } losses
             ? CgtDiscount.Summarise(cgtReport.Events, cgtReport.Summary.Rate, losses)
@@ -86,7 +93,7 @@ public sealed class TaxWorkpaperService(
         // Holdings a trader keeps as investments still make capital gains.
         if (trading is not null)
             summary = CgtDiscount.Summarise(cgtReport.Events.Where(trading.StaysCapital).ToList(), cgtReport.Summary.Rate, summary.PriorYearLosses);
-        var rec = TaxReconciliation.Build(client.EntityType, ledger, summary, income, data, smsf?.TaxInputs, trading?.Profit);
+        var rec = TaxReconciliation.Build(client.EntityType, ledger, summary, income, data, smsf?.TaxInputs, trading?.Profit, loans);
         var tax = TaxCalculation.For(client.EntityType, rec, income, data.Settings);
 
         var warnings = new List<string>();
@@ -113,6 +120,6 @@ public sealed class TaxWorkpaperService(
         }
 
         return new TaxWorkpaper(client, year, FinancialYear.StartDate(year), FinancialYear.EndDate(year),
-            data, ledger, cgtReport, income, rec, tax, warnings, smsf, summaries, ess, trading);
+            data, ledger, cgtReport, income, rec, tax, warnings, smsf, summaries, ess, trading, null, loans);
     }
 }

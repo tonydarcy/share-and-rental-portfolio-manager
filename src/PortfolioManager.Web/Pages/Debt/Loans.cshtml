@@ -25,7 +25,10 @@
 
 <p class="text-muted">Record each loan's drawdowns, repayments and the interest and fees charged, from the lender's statements. The page works out
     what's owed, the loan-to-value ratio against the shares' value today, and the year's interest with the part you can claim (the share of
-    the loan used to buy income-producing investments). The interest still needs to be in the accounts as an expense for the tax workpapers.</p>
+    the loan used to buy income-producing investments). In a Hybrid or double-entry portfolio each entry is posted to the ledger: the loan is
+    an account of its own, drawdowns and repayments go through the bank account, and interest and fees to Investment Loan Interest. The tax
+    workpapers claim the deductible part as a dividend deduction (D8), or in the rental schedule for a loan linked to a rental property.
+    Interest owed at the year end but not yet charged can be accrued on <a asp-page="/Debt/FixedIncome">Fixed income</a>.</p>
 
 @if (Model.Today.Loans.Count > 0)
 {

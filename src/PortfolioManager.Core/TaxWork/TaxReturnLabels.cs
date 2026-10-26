@@ -38,8 +38,12 @@ public sealed record TaxReturnSchedule(string ReturnName, string EntityType, str
         return new(name, w.EntityType, w.Client.LegalName, w.Client.Abn, w.Year, labels.Where(l => l.Amount != 0).ToList());
     }
 
+    // Interest on investment loans (account 5300) is a dividend deduction instead, at its deductible part
     private static decimal InterestExpenses(TaxWorkpaper w) =>
-        w.Ledger.Movement(a => LedgerYear.IsOperatingExpense(a) && a.Name.Contains("interest", StringComparison.OrdinalIgnoreCase));
+        w.Ledger.Movement(a => LedgerYear.IsOperatingExpense(a) && a.Number != LoanInterestYear.Account && a.Name.Contains("interest", StringComparison.OrdinalIgnoreCase));
+
+    private static decimal DividendDeductions(TaxWorkpaper w, decimal interestExpense) =>
+        w.Ledger.Expenses - interestExpense - w.Ledger.Movement(a => a.Number == LoanInterestYear.Account) + w.Loans.Deductible;
 
     private static IEnumerable<TaxReturnLabel> Individual(TaxWorkpaper w)
     {
@@ -77,7 +81,8 @@ public sealed record TaxReturnSchedule(string ReturnName, string EntityType, str
             new("Rent", "21F", "Capital works deductions", w.Rental?.CapitalWorks ?? 0, "Tax work > Rental properties: Division 43", true),
             new("Rent", "21U", "Other rental deductions", w.Rental?.OtherDeductions ?? 0, "Tax work > Rental properties: other expenses and Division 40 decline in value", true),
             new("Deductions", "D7", "Interest deductions", interestExpense, "Ledger: expense accounts named interest", true),
-            new("Deductions", "D8", "Dividend deductions", w.Ledger.Expenses - interestExpense, "Ledger: other investment expenses", true),
+            new("Deductions", "D8", "Dividend deductions", DividendDeductions(w, interestExpense),
+                w.Loans.Deductible != 0 ? "Ledger: other investment expenses, and the deductible interest on investment loans (Debt > Loans)" : "Ledger: other investment expenses", true),
         ];
     }
 
