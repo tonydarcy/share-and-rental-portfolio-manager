@@ -39,8 +39,11 @@ public sealed class UnrealisedGainsService(IDbConnectionFactory db, CgtDiscountS
         IReadOnlyList<UnrealisedGainLine> priced;
         await using (var con = db.Create())
         {
+            // Today or later goes as null (the proc's "latest"), so it reads the small latest-price cache:
+            // before the 2026-10-27-02 migration it compared today with GETDATE() and read the whole price history.
+            DateTime? priceDate = asAt >= DateOnly.FromDateTime(DateTime.Today) ? null : asAt.ToDateTime(TimeOnly.MinValue);
             var rows = await con.QueryAsync("GetUnrealizedCapitalGains",
-                new { iUserID = portfolioId, strGroupByStockCode = "Yes", dtmDetailsAsAtDate = asAt.ToDateTime(TimeOnly.MinValue) },
+                new { iUserID = portfolioId, strGroupByStockCode = "Yes", dtmDetailsAsAtDate = priceDate },
                 commandType: CommandType.StoredProcedure);
             priced = Map(rows.Cast<IDictionary<string, object?>>()).Lines;
         }
