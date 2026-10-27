@@ -579,6 +579,9 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-10-27-holdings-cost.sql`: `GetProfitSummaryv2` also returns each holding's cost (buys less sales and returns of
   capital), so the API and MCP `get_holdings` tool show it. Until it runs, the site works the cost out from market value
   and gain, which reads as 0 for a holding with no price.
+- `2026-10-27-02-unrealised-gains-speed.sql`: `GetUnrealizedCapitalGains` (the unrealised gains report's prices) no longer
+  times out on a long price history: it reads the latest-price cache for today, and looks up past prices by stock so
+  the index is used. Same results.
 
 ## API and MCP server
 
