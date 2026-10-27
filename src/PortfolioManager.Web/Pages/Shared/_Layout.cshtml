@@ -64,6 +64,7 @@
                                 <li><a class="dropdown-item" asp-page="/Trades/FxCheck">Foreign currency trades</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-page="/Trades/Add">Add a trade</a></li>
+                                <li><a class="dropdown-item" asp-page="/Trades/CryptoSwap">Record a crypto swap</a></li>
                                 <li><a class="dropdown-item" asp-page="/Cash/Add">Add a cash transaction</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-page="/CorporateActions/Index">Corporate actions</a></li>
@@ -80,6 +81,7 @@
                                 <li><a class="dropdown-item" asp-page="/Payouts/Add">Add a payout</a></li>
                                 <li><a class="dropdown-item" asp-page="/Payouts/AddRental">Add a rental payout</a></li>
                                 <li><a class="dropdown-item" asp-page="/Payouts/AddDrp">Add a DRP</a></li>
+                                <li><a class="dropdown-item" asp-page="/Payouts/AddCryptoReward">Add a crypto reward</a></li>
                                 <li><a class="dropdown-item" asp-page="/Payouts/FundStatements">Fund tax statements (AMMA)</a></li>
                                 <li><a class="dropdown-item" asp-page="/Payouts/EmployeeShares">Employee share schemes</a></li>
                             </ul>
@@ -213,6 +215,7 @@
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Import</a>
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" asp-page="/Import/Trades">Share trades (CSV)</a></li>
+                                <li><a class="dropdown-item" asp-page="/Import/Crypto">Crypto exchange files (CSV)</a></li>
                                 <li><a class="dropdown-item" asp-page="/Import/NavexaSync">Navexa sync (API)</a></li>
                                 <li><a class="dropdown-item" asp-page="/Import/Navexa">Navexa files (CSV)</a></li>
                                 @if (Admin.IsAdmin(User))

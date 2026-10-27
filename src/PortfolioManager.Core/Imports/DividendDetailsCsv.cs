@@ -39,6 +39,8 @@ public static class DividendDetailsCsv
                 var code = f[1].Trim().ToUpperInvariant();
                 if (exchange.Length is 0 or > 50)
                     errors.Add("The exchange is missing or too long.");
+                else if (Crypto.CryptoCodes.IsCrypto(exchange))
+                    errors.Add("Crypto doesn't pay dividends, so it has no franking or DRP price.");
                 if (code.Length is 0 or > 50)
                     errors.Add("The code is missing or too long.");
                 var exDate = Date(f[2]);

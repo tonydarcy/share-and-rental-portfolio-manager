@@ -1,0 +1,153 @@
+@page
+@model PortfolioManager.Web.Pages.Import.CryptoModel
+@{
+    ViewData["Title"] = "Import crypto";
+    var preview = Model.Preview;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Import crypto from an exchange</h1>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <p class="mb-2">
+            Upload a crypto exchange's transaction history (CSV) for <strong>@Model.Portfolio.Name</strong>. Each line becomes:
+        </p>
+        <ul class="small">
+            <li><strong>a buy or sell</strong> when a coin was bought or sold for @RegionSettings.Current.Currency (BTC becomes BTC-@RegionSettings.Current.Currency, the daily price feed's code);</li>
+            <li><strong>a swap</strong> when one coin was traded for another (a sale and a purchase at the @RegionSettings.Current.Currency value in the file);</li>
+            <li><strong>a reward</strong> for staking, interest, airdrop and learning rewards (income at the value in the file, which is also the coins' cost).</li>
+        </ul>
+        <p class="small text-muted">
+            Deposits, withdrawals and transfers between your own wallets aren't sales, so they're left out. Files up to @(CsvImport.MaxFileBytes / (1024 * 1024)) MB.
+            You'll see a preview before anything is saved. These layouts are read by their column names and haven't all been checked against real files yet,
+            so look over the preview.
+        </p>
+        <details class="small mb-3">
+            <summary>Where to get each exchange's file</summary>
+            <ul class="mb-0 mt-1">
+                @foreach (var f in CryptoExchangeCsv.Formats.Skip(1))
+                {
+                    <li><strong>@f.Name:</strong> @f.HowToExport</li>
+                }
+            </ul>
+        </details>
+        <form method="post" asp-page-handler="Preview" enctype="multipart/form-data" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label asp-for="Upload" class="form-label">CSV file</label>
+                <input asp-for="Upload" type="file" accept=".csv,.txt,text/csv" class="form-control" required />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Format" class="form-label">Exchange</label>
+                <select asp-for="Format" class="form-select">
+                    @foreach (var f in CryptoExchangeCsv.Formats)
+                    {
+                        <option value="@f.Id" title="@f.HowToExport">@f.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Preview</button>
+            </div>
+            <div class="col-12">
+                <div class="form-check">
+                    <input asp-for="WithCash" class="form-check-input" />
+                    <label asp-for="WithCash" class="form-check-label">Also record each buy and sell in the bank account (swaps and rewards never move cash)</label>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (preview is not null)
+{
+    if (preview.FileError is not null)
+    {
+        <div class="alert alert-danger">@preview.FileError</div>
+        return;
+    }
+
+    var warnings = preview.Lines.Count(l => l.Warnings.Count > 0);
+    <div class="card shadow-sm">
+        <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+            <div>
+                Read as <strong>@preview.Source</strong>:
+                <strong>@preview.ValidCount</strong> line@(preview.ValidCount == 1 ? "" : "s") ready,
+                <strong class="@(preview.ErrorCount > 0 ? "text-danger" : "")">@preview.ErrorCount</strong> with errors,
+                <strong>@preview.SkippedCount</strong> left out
+                @if (warnings > 0)
+                {
+                    <span>, <strong class="text-warning-emphasis">@warnings</strong> with warnings</span>
+                }
+            </div>
+            @if (preview.ErrorCount == 0 && preview.ValidCount > 0)
+            {
+                <form method="post" asp-page-handler="Import" enctype="multipart/form-data" class="ms-auto"
+                      data-confirm="Import @preview.ValidCount lines into @Model.Portfolio.Name?" onsubmit="return confirm(this.dataset.confirm);">
+                    <input type="hidden" asp-for="Data" />
+                    <input type="hidden" asp-for="WithCash" />
+                    <input type="hidden" asp-for="Format" />
+                    <input type="hidden" asp-for="PreviewPortfolioId" />
+                    <button type="submit" class="btn btn-success">Import @preview.ValidCount line@(preview.ValidCount == 1 ? "" : "s")</button>
+                </form>
+            }
+            else if (preview.ErrorCount > 0)
+            {
+                <span class="ms-auto text-danger small">Fix the lines with errors (or remove them from the file) and upload it again. Nothing is imported until every line is valid.</span>
+            }
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Line</th>
+                        <th>Date</th>
+                        <th>What it records</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in preview.Lines)
+                    {
+                        var css = line.Skipped is not null ? "text-muted" : line.IsValid ? (line.Warnings.Count > 0 ? "table-warning" : "") : "table-danger";
+                        <tr class="@css">
+                            <td class="text-muted">@line.Line</td>
+                            @if (line.Row is { } r)
+                            {
+                                <td class="text-nowrap">@r.Date.ToString("d MMM yyyy")</td>
+                                <td>@r.Description</td>
+                            }
+                            else
+                            {
+                                <td colspan="2" class="font-monospace small text-break">@line.Text</td>
+                            }
+                            <td class="small">
+                                @if (line.Skipped is not null)
+                                {
+                                    <div>Left out: @line.Skipped</div>
+                                }
+                                @foreach (var e in line.Errors)
+                                {
+                                    <div class="text-danger">@e</div>
+                                }
+                                @foreach (var w in line.Warnings)
+                                {
+                                    <div class="text-warning-emphasis">@w</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

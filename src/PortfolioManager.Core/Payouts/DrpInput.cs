@@ -47,6 +47,9 @@ public sealed class DrpInput
         if ((Comment?.Length ?? 0) > 500)
             errors.Add("The comment can be at most 500 characters.");
 
+        if (Crypto.CryptoCodes.CheckNoFranking(StockExchangeCode, Franked, FrankingCredit) is { } crypto)
+            errors.Add(crypto + " Record coins received as income on Income > Add a crypto reward.");
+
         if (new[] { Franked, Unfranked, FrankingCredit, TaxWithheld, Price }.Any(v => v < 0))
         {
             errors.Add("Amounts can't be negative.");

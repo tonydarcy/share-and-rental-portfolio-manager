@@ -184,6 +184,8 @@ public sealed class PayoutInput
             errors.Add("Split the cash received into franked, unfranked, interest, trust income or other amounts.");
         else if (Math.Abs(PartsTotal - Total) > 0.01m)
             errors.Add($"The amounts come to {PartsTotal:C} (income less tax withheld) but the cash received is {Total:C}. Check the figures.");
+        if (Crypto.CryptoCodes.CheckNoFranking(StockExchangeCode, Franked, FrankingCredit) is { } crypto)
+            errors.Add(crypto);
         return errors;
     }
 }

@@ -1,0 +1,74 @@
+@page
+@model PortfolioManager.Web.Pages.Payouts.AddCryptoRewardModel
+@{
+    ViewData["Title"] = "Add a crypto reward";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Add a crypto reward</h1>
+    <a asp-page="/Payouts/Index" class="btn btn-sm btn-outline-secondary">Back to payouts</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+<div class="row">
+    <div class="col-lg-8 col-xl-7">
+        <form method="post" class="card shadow-sm" novalidate>
+            <div class="card-body">
+                <p class="text-muted">
+                    Coins received from staking, an airdrop or mining for <strong>@Model.Portfolio.Name</strong>. Their market value on the day you
+                    received them is income, and the same value is the cost of the new coins when you later sell them. It's saved as a payout of
+                    other income paid as new units, with no cash and no franking.
+                </p>
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Kind" class="form-label">Kind of reward</label>
+                        <select asp-for="Input.Kind" class="form-select">
+                            @foreach (var k in RewardKinds.All)
+                            {
+                                <option value="@k.Kind">@k.Label</option>
+                            }
+                        </select>
+                        <span asp-validation-for="Input.Kind" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Date" class="form-label">Date received</label>
+                        <input asp-for="Input.Date" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" required />
+                        <span asp-validation-for="Input.Date" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Coin" class="form-label">Coin</label>
+                        <input asp-for="Input.Coin" class="form-control text-uppercase" maxlength="50" placeholder="e.g. ETH" required />
+                        <span asp-validation-for="Input.Coin" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Units" class="form-label">Units received</label>
+                        <input asp-for="Input.Units" type="number" step="any" min="0" class="form-control" required />
+                        <span asp-validation-for="Input.Units" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-4">
+                        <label asp-for="Input.Value" class="form-label">Value (@Model.PortfolioCurrency)</label>
+                        <input asp-for="Input.Value" type="number" step="0.01" min="0" class="form-control" required />
+                        <span asp-validation-for="Input.Value" class="text-danger small"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="Input.Comment" class="form-label">Comment <span class="text-muted small">(optional)</span></label>
+                        <input asp-for="Input.Comment" class="form-control" maxlength="400" placeholder="e.g. Coinbase staking, October" />
+                    </div>
+                </div>
+                <p class="small text-muted mt-3 mb-0">
+                    BTC is recorded as BTC-@Model.PortfolioCurrency, the code the daily price feed uses. On the tax return the value shows as other income.
+                </p>
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-success">Save reward</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -38,7 +38,7 @@ public abstract class NavexaRow
 public sealed class NavexaTrade : NavexaRow
 {
     public string RawType { get; set; } = "";
-    /// <summary>"Buy" or "Sell", as the trade procs expect.</summary>
+    /// <summary>"Buy" or "Sell", as the trade procs expect, or "Reward" for coins received as crypto income.</summary>
     public string Type { get; set; } = "";
     public decimal Quantity { get; set; }
     public decimal Price { get; set; }
@@ -135,12 +135,16 @@ public static class NavexaParser
             rows.Add(row);
             var get = cols.Reader(fields);
 
-            ReadCommon(row, get, today);
+            ReadCommon(row, get, today, options.PortfolioCurrency);
 
             row.RawType = get("Type");
             var type = Normalise(row.RawType);
             switch (type)
             {
+                case "stakingreward" or "staking" or "cryptoairdrop" or "airdrop" or "cryptominingreward" or "miningreward" when Crypto.CryptoCodes.IsCrypto(row.Exchange):
+                    row.Type = "Reward";
+                    row.Warnings.Add("Crypto reward: its value is income and the cost base of the coins received.");
+                    break;
                 case "buy" or "purchase" or "b":
                     row.Type = "Buy";
                     break;
@@ -161,6 +165,12 @@ public static class NavexaParser
 
             var qtyError = Number(get("Quantity"), out var qty);
             qty = Math.Abs(qty);
+            // Navexa keeps coins to more places than this site's 8
+            if (qtyError is null && Crypto.CryptoCodes.IsCrypto(row.Exchange) && Math.Round(qty, FormRules.UnitDecimals) is var rounded && rounded != qty && rounded > 0)
+            {
+                row.Warnings.Add($"{qty:0.##########} units rounded to {rounded:0.########} (this site keeps 8 decimal places).");
+                qty = rounded;
+            }
             if (row.Unsupported is not null)
                 row.Quantity = qtyError is null && FormRules.UnitsProblem(qty) is null ? qty : 0;
             else if (qtyError is not null)
@@ -211,6 +221,8 @@ public static class NavexaParser
 
             if (row.Type == "Sell" && row.Brokerage > row.Price * row.Quantity && row.Errors.Count == 0)
                 row.Warnings.Add("Brokerage is more than the sale proceeds.");
+            if (row.Type == "Reward" && row.Errors.Count == 0 && (row.Price <= 0 || row.ExchangeRate <= 0 || row.Price * row.Quantity / row.ExchangeRate < 0.005m))
+                row.Errors.Add("A crypto reward needs the coins' price on the day, to give its value.");
 
             var notes = get("Notes").Trim();
             row.Comment = Truncate(notes.Length > 0 ? $"Imported from Navexa: {notes}" : "Imported from Navexa", 500);
@@ -240,9 +252,12 @@ public static class NavexaParser
             rows.Add(row);
             var get = cols.Reader(fields);
 
-            ReadCommon(row, get, today);
+            ReadCommon(row, get, today, options.PortfolioCurrency);
 
             var type = get("Type").Trim();
+            if (Crypto.CryptoCodes.IsCrypto(row.Exchange))
+                row.Unsupported = "Crypto income needs the coins received, which the income file doesn't give. Use the trades file's staking rows, " +
+                    "the Navexa sync, or Income > Add a crypto reward.";
             if (type.Length > 0 && !new[] { "dividend", "distribution", "interest", "income", "coupon", "payout" }
                     .Any(t => Normalise(type).Contains(t)))
                 row.Unsupported = $"Income type \"{type}\" isn't imported. Add it by hand if it belongs in this portfolio.";
@@ -332,7 +347,7 @@ public static class NavexaParser
         _ => $"Trade type \"{raw}\" isn't imported.",
     };
 
-    private static void ReadCommon(NavexaRow row, Func<string, string> get, DateTime today)
+    private static void ReadCommon(NavexaRow row, Func<string, string> get, DateTime today, string portfolioCurrency)
     {
         var dateText = get("Date");
         if (IsBlank(dateText))
@@ -364,7 +379,10 @@ public static class NavexaParser
 
         var currency = get("Currency").Trim().ToUpperInvariant();
         if (currency.Length == 0)
-            currency = exchange.Currency ?? "";
+            currency = exchange.Currency ?? (Crypto.CryptoCodes.IsCrypto(row.Exchange) ? portfolioCurrency.ToUpperInvariant() : "");
+        // A coin is recorded under the price provider's code: BTC traded in AUD is BTC-AUD
+        if (Crypto.CryptoCodes.IsCrypto(row.Exchange) && row.Code.Length > 0 && currency.Length > 0)
+            row.Code = Crypto.CryptoCodes.SiteCode(row.Code, currency);
         if (currency.Length == 0)
             row.Errors.Add("No currency, and the exchange doesn't say which to use.");
         else if (currency.Length > 3 || !currency.All(char.IsAsciiLetterUpper))

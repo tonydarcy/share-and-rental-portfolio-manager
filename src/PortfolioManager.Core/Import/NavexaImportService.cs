@@ -1,5 +1,6 @@
 using System.Data;
 using Dapper;
+using PortfolioManager.Core.Crypto;
 using PortfolioManager.Core.Data;
 
 namespace PortfolioManager.Core.Import;
@@ -72,7 +73,17 @@ public sealed class NavexaImportService(IDbConnectionFactory db)
 
         foreach (var t in trades)
         {
-            if (withCash)
+            if (t.Type == "Reward")
+            {
+                // Coins received as income: other income paid as units bought at their value, with no cash
+                var reward = new NewReward(DateOnly.FromDateTime(t.Date), t.Code, t.Quantity, Math.Round(t.Price * t.Quantity / t.ExchangeRate, 2),
+                    t.RawType.Contains("airdrop", StringComparison.OrdinalIgnoreCase) ? RewardKinds.Airdrop
+                        : t.RawType.Contains("mining", StringComparison.OrdinalIgnoreCase) ? RewardKinds.Mining : RewardKinds.Staking,
+                    t.Comment);
+                if (await CryptoService.PostRewardAsync(con, tx, portfolioId, reward) is { Ok: false } failed)
+                    throw new InvalidOperationException($"Line {t.Line}: {failed.Error}");
+            }
+            else if (withCash)
             {
                 await con.ExecuteAsync("AddShareTradeWithCashTransaction", new
                 {
