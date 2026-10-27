@@ -271,7 +271,7 @@ public class NavexaSyncTests
     }
 
     [Fact]
-    public void Part_units_are_brought_across_but_crypto_trades_are_not()
+    public void Part_units_are_brought_across_and_a_crypto_trade_with_no_coin_is_skipped()
     {
         var fractional = Tx("""
             {"id":"50","type":"trade","date":"2025-02-03T00:00:00Z","tradeTypeId":1,"currency":"AUD",

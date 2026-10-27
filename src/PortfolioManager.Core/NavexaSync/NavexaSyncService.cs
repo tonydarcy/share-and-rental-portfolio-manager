@@ -2,6 +2,7 @@ using System.Data;
 using System.Data.Common;
 using System.Text.Json;
 using Dapper;
+using PortfolioManager.Core.Crypto;
 using PortfolioManager.Core.Data;
 using PortfolioManager.Core.Import;
 
@@ -374,6 +375,13 @@ public sealed class NavexaSyncService(IDbConnectionFactory db, NavexaApiClient a
                 break;
             case SyncKind.CapitalReturn when item.CapitalReturn is { } r:
                 await RunResultProcAsync(con, tx, "uspAddReturnOfCapital", NavexaSyncParameters.CapitalReturn(portfolioId, r), "Return Of Capital Added");
+                break;
+            case SyncKind.Swap when item.Swap is { } swap:
+                await CryptoService.PostSwapAsync(con, tx, portfolioId, swap);
+                break;
+            case SyncKind.Reward when item.Reward is { } reward:
+                if (await CryptoService.PostRewardAsync(con, tx, portfolioId, reward) is { Ok: false } failed)
+                    throw new SyncPostException(failed.Error!);
                 break;
             default:
                 throw new SyncPostException("Nothing to add for this record.");

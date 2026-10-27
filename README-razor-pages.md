@@ -37,6 +37,8 @@ over a SQL Server database whose stored procedures post the double-entry journal
 - **Dashboard:** total, share and cash value, 90-day value chart and projected income, using the same procs as `Dashboard.aspx`.
 - **Import from Navexa** (`/Import/Navexa`): a one-off import of a Navexa trades CSV and income CSV, with a preview,
   per-row errors and a duplicate check, saved through `uspAddShareTrade` / `AddShareTradeWithCashTransaction` and `uspAddPayout`.
+  Navexa's `Crypto` exchange becomes `CRYPTO` with codes like `BTC-AUD`, and staking, airdrop and mining rows in the trades
+  file come in as crypto rewards (crypto rows in the income file are left out: they carry no units).
 - **Navexa sync** (`/Import/NavexaSync`): connects to Navexa with the user's own API key (Navexa, Settings, API keys;
   stored encrypted with ASP.NET Data Protection), with the Navexa portfolio picked from a list or typed in by its Navexa ID
   (changeable later, keeping the key), and copies trades, dividends, DRPs, splits, returns of capital and cash
@@ -45,6 +47,11 @@ over a SQL Server database whose stored procedures post the double-entry journal
   entered by hand are asked about first. Where the ledger needs something Navexa doesn't give, the page asks: a franking
   credit (suggested at 30%), DRP units and price, a split ratio, the code for an unlisted holding, which bank account a
   Navexa cash account is, and which ledger account interest and fees post to. Everything goes through the usual procs.
+  Crypto comes across too: buys and sells on `CRYPTO` (BTC as `BTC-AUD`), a deposit with a cost as a Buy without cash,
+  swaps (Navexa type 7, or a trade with coins on both sides) as a crypto swap, and staking income (and staking, airdrop and
+  mining trades with no income record) as crypto rewards. Withdrawals, transfers, lost and stolen coins are listed but
+  not added. Coins kept to more than 8 places are rounded, and a dust sale whose fee is more than its proceeds has the fee
+  cut to the proceeds.
   Scheduled syncs run inside the web app every 30 minutes while it's awake; for them to run on time set the app pool's
   Start Mode to AlwaysRunning and Idle Time-out to 0 (otherwise a due sync runs soon after the next visit).
 - **Payouts** (Income menu): list by date range or financial year, add, edit and delete dividends, distributions, interest
@@ -119,6 +126,13 @@ over a SQL Server database whose stored procedures post the double-entry journal
   trades on the markets `FUND`, `UNLISTED`, `PROPERTY` and `OTHER`, priced on Prices > Manual prices (one at a time or
   a CSV of Code, Date, Price) for that portfolio only; the price updater skips them. Crypto is market `CRYPTO` with codes
   such as `BTC-AUD`, priced daily from EODHD's `CC` feed.
+- **Crypto** (`Core/Crypto/`): Transactions > Record a crypto swap posts a Sell of one coin and a Buy of the other at the
+  swap's value through `uspAddShareTrade` in one transaction (both against Trade Clearing, which nets to nil). Income >
+  Add a crypto reward posts a staking, airdrop, mining or other reward through `uspAddDRPTransaction` with the value as
+  the payout's other amount (Other Investment Income 4900; other income on the return labels 24Y, 6S and 11S) and the
+  coins bought at that value. Import > Crypto exchange files reads Coinbase, Swyftx, CoinSpot and Independent Reserve
+  exports (and any CSV with a header row) by column names into buys, sells, swaps and rewards, with a preview. Payouts,
+  DRPs, the dividend details file and both Navexa imports refuse franking on `CRYPTO`.
 - **Contribution** (Reports > Contribution, `Core/Performance/Contribution.cs`): for each holding over a period, the
   value at the start and end, bought less sold, and the gain split into price, income (including reinvested) and, for
   foreign shares, currency (price change in the share's currency at the end rate; currency is the rate's move on the
@@ -582,6 +596,10 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-10-27-02-unrealised-gains-speed.sql`: `GetUnrealizedCapitalGains` (the unrealised gains report's prices) no longer
   times out on a long price history: it reads the latest-price cache for today, and looks up past prices by stock so
   the index is used. Same results.
+- `2026-10-27-03-crypto-rewards.sql`: crypto rewards. Run after `2026-10-26-01-part-units.sql`. `uspAddDRPTransaction`
+  takes an optional `@dblOtherAmount`, kept as the payout's other amount, for coins received as income (staking, airdrops,
+  mining), and refuses franking on market `CRYPTO`. Existing callers work as before. Until it runs, adding a crypto
+  reward (by hand, from an exchange file or from Navexa) fails with a database error; nothing else changes.
 
 ## API and MCP server
 

@@ -1,3 +1,5 @@
+using PortfolioManager.Core.Crypto;
+
 namespace PortfolioManager.Core.NavexaSync;
 
 public enum SyncStatus
@@ -16,7 +18,7 @@ public enum SyncStatus
     Failed,
 }
 
-public enum SyncKind { None, Trade, Payout, Drp, Cash, Split, CapitalReturn }
+public enum SyncKind { None, Trade, Payout, Drp, Cash, Split, CapitalReturn, Swap, Reward }
 
 /// <summary>What the user still has to give before an item can be posted.</summary>
 public enum InputNeed { None, FrankingCredit, Drp, SplitRatio, ConfirmNotDuplicate, Mapping }
@@ -78,6 +80,10 @@ public sealed class PlannedItem
     public SyncCash? Cash { get; set; }
     public SyncSplit? Split { get; set; }
     public SyncCapitalReturn? CapitalReturn { get; set; }
+    /// <summary>A coin swapped for another (a Sell and a Buy at the same value).</summary>
+    public NewSwap? Swap { get; set; }
+    /// <summary>A crypto staking, airdrop or mining reward (other income paid as units).</summary>
+    public NewReward? Reward { get; set; }
 
     public string Key => $"{NavexaType}:{NavexaId}";
 
@@ -87,6 +93,7 @@ public sealed class PlannedItem
         SyncKind.Cash => 0,
         SyncKind.Split => 1,
         SyncKind.Trade when Trade?.Type == "Buy" => 2,
+        SyncKind.Reward => 2,
         SyncKind.Trade => 4,
         _ => 3,
     };

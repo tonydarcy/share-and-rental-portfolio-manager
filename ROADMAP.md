@@ -8,7 +8,7 @@ one tool can cover every entity a client has.
 
 This page lists only what is **not built yet**. Everything already in the site is described in the
 [README](README.md#what-it-does). Items are ordered by value to users and accountants against effort. Anything marked
-**good first issue** is a self-contained job for a new contributor. Last reviewed 26 October 2026.
+**good first issue** is a self-contained job for a new contributor. Last reviewed 27 October 2026.
 
 ## Next: investor features
 
@@ -25,11 +25,9 @@ This page lists only what is **not built yet**. Everything already in the site i
 5. **Registry statement files checked against real ones.** Fund tax statement files and fund holdings files are read
    by their column names; each registry's and issuer's layout (Computershare, MUFG / Link, Boardroom, Automic, Vanguard,
    iShares, BetaShares) needs checking against real files, and PDF statements aren't read. **Good first issue.**
-6. **Crypto, finished off.** Crypto can already be held (market `CRYPTO`, codes like BTC-AUD, part units, daily
-   prices from the price provider), but the Navexa import doesn't bring it across: it should map Navexa's `Crypto`
-   exchange to `CRYPTO` and its codes to the price provider's (BTC to BTC-AUD), and bring staking rewards in as
-   income. Also wanted: a coin-for-coin swap recorded as one step (a sale and a buy at the same value), exchange
-   CSV imports (Coinbase, Swyftx, CoinSpot, Independent Reserve), and a check that crypto never gets franking.
+6. **Crypto exchange files checked against real ones.** Coinbase, Swyftx, CoinSpot and Independent Reserve exports
+   are read by their column names; each needs checking against a real file, and more exchanges (BTC Markets, Kraken,
+   Binance) could be added. **Good first issue** (one exchange each).
 
 ## Next: business books
 

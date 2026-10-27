@@ -1,4 +1,5 @@
 using System.Globalization;
+using PortfolioManager.Core.Crypto;
 using PortfolioManager.Core.Import;
 using PortfolioManager.Core.Payouts;
 
@@ -34,6 +35,7 @@ public static class NavexaSyncPlanner
             .OrderBy(t => t.Date).ThenBy(t => t.Id, StringComparer.Ordinal).ToList();
         var setup = new SetupNeeds();
         var drpTrades = PairDrpTrades(list);
+        var rewardTrades = PairRewardTrades(list);
         var items = new List<PlannedItem>();
 
         foreach (var tx in list)
@@ -77,8 +79,11 @@ public static class NavexaSyncPlanner
                 case "cashTransaction":
                     PlanCash(tx, item, ctx);
                     break;
-                case "cryptoTrade" or "cryptoIncome":
-                    item.Skip("Crypto isn't supported on this site.");
+                case "cryptoTrade":
+                    PlanCryptoTrade(tx, item, ctx, drpTrades, rewardTrades);
+                    break;
+                case "cryptoIncome":
+                    PlanCryptoReward(tx, item, ctx);
                     break;
                 case "merger":
                     item.Skip("Mergers, takeovers and demergers aren't brought across. Record the sale and new shares by hand.");
@@ -101,7 +106,7 @@ public static class NavexaSyncPlanner
 
     // ---------- Trades ----------
 
-    private static void PlanTrade(NavexaApiTransaction tx, PlannedItem item, Context ctx, DrpPairs drp)
+    private static void PlanTrade(NavexaApiTransaction tx, PlannedItem item, Context ctx, DrpPairs drp, bool depositAsBuy = false)
     {
         var leg = HoldingLeg(tx);
         if (leg?.Holding is not { } holding)
@@ -123,6 +128,7 @@ public static class NavexaSyncPlanner
             1 => "Buy",
             2 => "Sell",
             12 => "Buy",
+            100 when depositAsBuy => "Buy",
             _ => null,
         };
         var isCorporateAction = tx.TradeTypeId is 3 or 5 or 11;
@@ -132,7 +138,7 @@ public static class NavexaSyncPlanner
             return;
         }
 
-        if (ResolveHolding(holding, item, ctx) is not { } where)
+        if (ResolveHolding(holding, item, ctx, Upper(leg.Currency ?? tx.Currency)) is not { } where)
             return;
 
         var currency = Upper(leg.Currency ?? tx.Currency) ?? NavexaExchanges.Map(where.Exchange).Currency ?? ctx.Settings.PortfolioCurrency;
@@ -186,6 +192,12 @@ public static class NavexaSyncPlanner
             item.Skip("The trade has no units.");
             return;
         }
+        // Navexa keeps coins to more places than this site's 8
+        if (CryptoCodes.IsCrypto(where.Exchange) && Math.Round(qty, Validation.FormRules.UnitDecimals) is var rounded && rounded != qty && rounded > 0)
+        {
+            item.Warnings.Add($"{qty:0.##########} units rounded to {rounded:0.########} (this site keeps 8 decimal places).");
+            qty = rounded;
+        }
         if (Validation.FormRules.UnitsProblem(qty) is { } problem)
         {
             item.Skip($"{problem} ({qty:0.##########})");
@@ -204,6 +216,9 @@ public static class NavexaSyncPlanner
         }
 
         var brokerage = Math.Abs(leg.Brokerage ?? (tx.Fees ?? []).Sum(f => f.Amount ?? 0));
+        foreach (var coinFee in (tx.Fees ?? []).Where(f => f.Holding is { } h && IsCrypto(h) && f.Quantity is > 0))
+            item.Warnings.Add($"The fee was paid in coins ({coinFee.Quantity:0.########} {coinFee.Holding!.Symbol}). Its value is added to the cost " +
+                "as brokerage, but the coins aren't taken off the holding here: add a Sell of them if it matters.");
         var brokerageCurrency = Upper(leg.BrokerageCurrency);
         if (brokerage != 0 && brokerageCurrency is not null && brokerageCurrency != currency)
         {
@@ -219,12 +234,24 @@ public static class NavexaSyncPlanner
             }
         }
 
+        if (type == "Sell" && brokerage > 0 && brokerage >= qty * price)
+        {
+            var cut = Math.Floor(qty * price * 100) / 100;
+            item.Warnings.Add($"The fee ({brokerage:0.00}) is more than the sale proceeds ({qty * price:0.00####}); it is cut to {cut:0.00} so the sale nets nil.");
+            brokerage = cut;
+        }
+
         // This site stores the rate the other way round: trade currency per 1 unit of portfolio currency
         var siteRate = currency == Upper(ctx.Settings.PortfolioCurrency) ? 1m : Math.Round(1m / portfolioPerForeign, 6);
 
         string? bank;
         var cashLeg = tx.Legs.FirstOrDefault(l => l.Holding is { } h && IsCash(h));
-        if (cashLeg?.Holding is { } cashHolding)
+        if (depositAsBuy)
+        {
+            bank = null;
+            item.Warnings.Add("Navexa crypto deposit with a cost: added as a Buy on this date at this price, with no cash.");
+        }
+        else if (cashLeg?.Holding is { } cashHolding)
         {
             if (!TryCashAccount(cashHolding, item, ctx, out bank))
                 return;
@@ -246,6 +273,142 @@ public static class NavexaSyncPlanner
         100 or 101 or 200 or 201 => "Transfers carry no price, so they aren't brought across. Enter a Buy or Sell if it changes the holding.",
         _ => $"Navexa \"{tx.TradeType ?? tx.TradeTypeId?.ToString(CultureInfo.InvariantCulture)}\" trades aren't brought across.",
     };
+
+    // ---------- Crypto ----------
+
+    /// <summary>Navexa crypto trade types: Buy 1, Sell 2, a swap from an exchange sync 7, staking 15, deposit 100, withdrawal 101,
+    /// transfers 200 and 201, a fee in coins 202, airdrop 203, mining 204, lost 205 and stolen 206.</summary>
+    private static void PlanCryptoTrade(NavexaApiTransaction tx, PlannedItem item, Context ctx, DrpPairs drp, HashSet<string> pairedRewards)
+    {
+        var coins = tx.Legs.Where(l => l.Holding is { } h && IsCrypto(h)).ToList();
+        var isSwap = tx.TradeTypeId == 7
+            || (tx.TradeTypeId is 1 or 2 && (tx.Incoming ?? []).Any(l => l.Holding is { } h && IsCrypto(h)) && (tx.Outgoing ?? []).Any(l => l.Holding is { } h && IsCrypto(h)));
+        if (isSwap)
+        {
+            PlanSwap(tx, item, ctx);
+            return;
+        }
+        switch (tx.TradeTypeId)
+        {
+            case 1 or 2:
+                PlanTrade(tx, item, ctx, drp);
+                break;
+            case 100:
+                PlanTrade(tx, item, ctx, drp, depositAsBuy: true);
+                break;
+            case 15 or 203 or 204 when pairedRewards.Contains(tx.Id):
+                item.Skip("Added with its Navexa staking income record.");
+                break;
+            case 15 or 203 or 204:
+                PlanCryptoReward(tx, item, ctx);
+                break;
+            case 101:
+                item.Skip("A crypto withdrawal may be a move to your own wallet, which isn't a sale. If the coins were sold or spent, add a Sell by hand.");
+                break;
+            case 202:
+                item.Skip("A fee paid in coins. Its value is added to its trade's brokerage; add a Sell of the coins by hand if it matters.");
+                break;
+            case 205 or 206:
+                item.Skip($"Coins {(tx.TradeTypeId == 205 ? "lost" : "stolen")}: a capital loss only if you can show they can't be got back. Record it by hand as a Sell at nil if so.");
+                break;
+            default:
+                item.Skip(coins.Count == 0 ? "This crypto trade has no coin." : UnsupportedTradeMessage(tx));
+                break;
+        }
+    }
+
+    /// <summary>One coin for another: a Sell and a Buy at the same value in the portfolio currency, with no cash.</summary>
+    private static void PlanSwap(NavexaApiTransaction tx, PlannedItem item, Context ctx)
+    {
+        var outLeg = (tx.Outgoing ?? []).FirstOrDefault(l => l.Holding is { } h && IsCrypto(h));
+        var inLeg = (tx.Incoming ?? []).FirstOrDefault(l => l.Holding is { } h && IsCrypto(h));
+        if (outLeg?.Holding is not { } given || inLeg?.Holding is not { } got)
+        {
+            item.Skip("This swap doesn't name the coin on both sides. Record it on Transactions > Record a crypto swap.");
+            return;
+        }
+        var currency = ctx.Settings.PortfolioCurrency;
+        if (ResolveHolding(given, item, ctx, currency) is not { } from || ResolveHolding(got, item, ctx, currency) is not { } to)
+            return;
+
+        var fromUnits = Math.Round(Math.Abs(outLeg.Quantity ?? 0), Validation.FormRules.UnitDecimals);
+        var toUnits = Math.Round(Math.Abs(inLeg.Quantity ?? 0), Validation.FormRules.UnitDecimals);
+        if (Validation.FormRules.UnitsProblem(fromUnits) is not null || Validation.FormRules.UnitsProblem(toUnits) is not null)
+        {
+            item.Skip("The swap is missing the units on one side.");
+            return;
+        }
+        // The value in the portfolio currency: Navexa's base amounts, or its amounts when they are in that currency
+        var value = new[] { inLeg.BaseAmount, outLeg.BaseAmount, tx.BaseValue }.FirstOrDefault(v => v is > 0)
+            ?? (Same(tx.Currency ?? inLeg.Currency ?? "", currency) ? new[] { inLeg.Amount, outLeg.Amount, tx.Value }.FirstOrDefault(v => v is > 0) : null);
+        var total = Math.Round(Math.Abs(value ?? 0), 2);
+        if (total < 0.01m)
+        {
+            item.Skip($"Navexa gives no {currency} value for this swap. Record it on Transactions > Record a crypto swap with its value on the day.");
+            return;
+        }
+        item.Kind = SyncKind.Swap;
+        var comment = Comment($"Swap {fromUnits:0.########} {given.Symbol} for {toUnits:0.########} {got.Symbol}" + (string.IsNullOrWhiteSpace(tx.Notes) ? "" : $": {tx.Notes.Trim()}"));
+        item.Swap = new NewSwap(DateOnly.FromDateTime(item.Date), from.Code, fromUnits, to.Code, toUnits, total, currency.ToUpperInvariant(), comment);
+    }
+
+    /// <summary>
+    /// A staking reward (Navexa's crypto income, or its staking, airdrop or mining trade): income at the coins' market value when
+    /// received, which is also their cost base. Recorded as other income paid as units, like a DRP with no franking.
+    /// </summary>
+    private static void PlanCryptoReward(NavexaApiTransaction tx, PlannedItem item, Context ctx)
+    {
+        var leg = (tx.Incoming ?? []).FirstOrDefault(l => l.Holding is { } h && IsCrypto(h)) ?? HoldingLeg(tx);
+        if (leg?.Holding is not { } coin)
+        {
+            item.Skip("This crypto income has no coin.");
+            return;
+        }
+        var currency = ctx.Settings.PortfolioCurrency;
+        if (ResolveHolding(coin, item, ctx, currency) is not { } where)
+            return;
+        var units = Math.Round(Math.Abs(leg.Quantity ?? 0), Validation.FormRules.UnitDecimals);
+        if (Validation.FormRules.UnitsProblem(units) is not null)
+        {
+            item.Skip("The reward has no units.");
+            return;
+        }
+        var legCurrency = Upper(leg.Currency ?? tx.Currency) ?? currency;
+        var rate = PortfolioPerForeign(tx, legCurrency, currency);
+        var value = leg.BaseAmount is > 0 ? leg.BaseAmount
+            : tx.BaseValue is > 0 ? tx.BaseValue
+            : rate > 0 ? (leg.Amount ?? tx.Value ?? (leg.Price ?? 0) * units) * rate
+            : null;
+        var total = Math.Round(Math.Abs(value ?? 0), 2);
+        if (total < 0.01m)
+        {
+            item.Skip($"Navexa gives no {currency} value for this reward. Add it on Income > Add a crypto reward with its value on the day.");
+            return;
+        }
+        var kind = tx.TradeTypeId switch { 203 => RewardKinds.Airdrop, 204 => RewardKinds.Mining, _ => RewardKinds.Staking };
+        item.Kind = SyncKind.Reward;
+        item.Reward = new NewReward(DateOnly.FromDateTime(item.Date), where.Code, units, total, kind,
+            CryptoEntry.RewardComment(kind, string.IsNullOrWhiteSpace(tx.Notes) ? "from Navexa" : $"from Navexa: {tx.Notes.Trim()}"));
+    }
+
+    /// <summary>
+    /// Navexa makes a staking reward trade (type 15) from each staking income record. The income record is brought across,
+    /// so its trade (same coin, same day, same units) is left out.
+    /// </summary>
+    private static HashSet<string> PairRewardTrades(IReadOnlyList<NavexaApiTransaction> list)
+    {
+        var paired = new HashSet<string>();
+        var trades = list.Where(t => t.Type == "cryptoTrade" && t.TradeTypeId == 15).ToList();
+        foreach (var income in list.Where(t => t.Type == "cryptoIncome"))
+        {
+            var leg = HoldingLeg(income);
+            var match = trades.FirstOrDefault(t => !paired.Contains(t.Id) && HoldingLeg(t) is { } l && l.Holding?.Id == leg?.Holding?.Id
+                && t.Date.Date == income.Date.Date && Math.Abs(Math.Abs(l.Quantity ?? 0) - Math.Abs(leg?.Quantity ?? 0)) <= 0.00000001m);
+            if (match is not null)
+                paired.Add(match.Id);
+        }
+        return paired;
+    }
 
     // ---------- Dividends ----------
 
@@ -289,6 +452,11 @@ public static class NavexaSyncPlanner
         net = Aud(net);
         var credit = Aud(d.FrankingCredits ?? 0);
 
+        if (CryptoCodes.IsCrypto(where.Exchange))
+        {
+            item.Skip("Crypto doesn't pay dividends. Navexa records crypto income as staking rewards, which come across with the coins received.");
+            return;
+        }
         if (franked < 0 || unfranked < 0 || net < 0 || credit < 0)
         {
             item.Skip("Negative amounts (reversals) aren't brought across. Adjust the payout by hand.");
@@ -477,7 +645,8 @@ public static class NavexaSyncPlanner
 
     // ---------- Holdings ----------
 
-    private static HoldingMapping? ResolveHolding(NavexaApiHolding h, PlannedItem item, Context ctx)
+    /// <param name="currency">What the record is priced in, for a coin's code (BTC in AUD is BTC-AUD).</param>
+    private static HoldingMapping? ResolveHolding(NavexaApiHolding h, PlannedItem item, Context ctx, string? currency = null)
     {
         if (ctx.Settings.Holdings.TryGetValue(h.Id, out var mapped))
         {
@@ -486,9 +655,13 @@ public static class NavexaSyncPlanner
             return mapped;
         }
         var kind = h.HoldingType?.ToUpperInvariant();
-        if (kind == "CRYPTO")
+        if (IsCrypto(h))
         {
-            item.Skip("Crypto isn't supported on this site.");
+            var coinCode = CryptoCodes.SiteCode(h.Symbol, currency ?? ctx.Settings.PortfolioCurrency);
+            if (coinCode.Length is > 0 and <= 20)
+                return new HoldingMapping(CryptoCodes.Market, coinCode);
+            AddNeed(ctx.Setup.Holdings, new MappingNeed(h.Id, h.Symbol, CryptoCodes.Market, SuggestCode(coinCode)));
+            item.Ask(InputNeed.Mapping, $"Choose the code to record \"{h.Symbol}\" under on this site (above).");
             return null;
         }
 
@@ -577,6 +750,10 @@ public static class NavexaSyncPlanner
     private static NavexaApiLeg? HoldingLeg(NavexaApiTransaction tx) =>
         tx.Legs.FirstOrDefault(l => l.Holding is { } h && !IsCash(h));
 
+    private static bool IsCrypto(NavexaApiHolding h) =>
+        string.Equals(h.HoldingType, "CRYPTO", StringComparison.OrdinalIgnoreCase)
+        || (h.HoldingType is null && CryptoCodes.IsCrypto(h.Exchange));
+
     private static bool IsCash(NavexaApiHolding h) =>
         string.Equals(h.HoldingType, "CASH", StringComparison.OrdinalIgnoreCase)
         || (h.HoldingType is null && string.Equals(h.Exchange, "Cash", StringComparison.OrdinalIgnoreCase));
@@ -601,6 +778,8 @@ public static class NavexaSyncPlanner
         var what = tx.Type switch
         {
             "trade" => tx.TradeType ?? "trade",
+            "cryptoTrade" => $"crypto {tx.TradeType ?? "trade"}",
+            "cryptoIncome" => "crypto staking reward",
             "dividend" => tx.Dividend?.IsReinvested == true ? "dividend (reinvested)" : "dividend",
             "cashTransaction" => CashTypeLabel(CashType(tx)).ToLowerInvariant(),
             _ => tx.Type,

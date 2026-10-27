@@ -30,7 +30,10 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
   uploads (Import > Dividend details), so a DRP can be added with its units worked out.
 - Foreign shares in their own currency. Trades and payouts take that day's exchange rate when none is entered, the
   ledger is kept in the portfolio's currency, and a check page flags rates that look wrong.
-- Managed funds, unlisted shares, property and other assets with prices you enter or upload; crypto priced daily.
+- Managed funds, unlisted shares, property and other assets with prices you enter or upload.
+- Crypto, priced daily (BTC is held as BTC-AUD, the price feed's code). A coin swapped for another is recorded in one
+  step as a sale and a purchase at the swap's value, and staking, airdrop and mining rewards as income paid in coins
+  (their value is income and the coins' cost base, and shows as other income on the return). Crypto never gets franking.
 - Margin and investment loans (loan-to-value ratio, interest and its deductible part), and term deposits and bonds
   (interest earned and accrued at the year end), posted to the ledger with year-end interest accruals.
 - Custom groups, to classify holdings your own way (for example by risk or strategy).
@@ -54,7 +57,9 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
   header row. An example file is in `samples/`.
 - Bank statements (QIF, OFX or CSV) with allocation rules, then bank reconciliation. Bank allocation and journals
   have phone layouts.
-- A one-off Navexa import (from its CSV files) and an ongoing Navexa sync (with your Navexa API key).
+- A one-off Navexa import (from its CSV files) and an ongoing Navexa sync (with your Navexa API key), crypto included.
+- Crypto exchange exports: Coinbase, Swyftx, CoinSpot, Independent Reserve, and any CSV with a header row. Buys, sells,
+  coin-for-coin swaps and rewards come in; deposits, withdrawals and wallet transfers are left out.
 - End-of-day prices, exchange rates, dividends and splits from [EODHD](https://eodhd.com), downloaded each day by the
   price updater, for the ASX and US, UK, Canadian, NZ, Hong Kong, Singapore and Indian exchanges. Prices can also be
   uploaded as a CSV.
@@ -221,7 +226,10 @@ then publish and copy the site again as in [SETUP.md](SETUP.md#updating-to-a-new
   the law requires pooled or average cost (the UK and Canada, for example). London prices from the daily feed come in
   pence, so they show 100 times too high. What is missing for the UK, the US, Canada and India is listed in
   [ROADMAP.md](ROADMAP.md#using-it-outside-australia).
-- **Part units** go to 8 decimal places.
+- **Part units** go to 8 decimal places (coins kept to more places, as Navexa does, are rounded).
+- **Crypto** exchange files are read by their column names and haven't been checked against real exports yet. A fee
+  paid in coins is added to the cost, but those coins aren't taken off the holding. Personal use assets (the CGT
+  exemption for crypto under $10,000 bought to spend) aren't worked out, and lost or stolen coins are recorded by hand.
 - **Announced dividends** have no franking or DRP price in the daily feed. Until the site admin uploads a dividend
   details file for them, the franking is taken from the last payout, so check each one against the statement.
 - **Statement and holdings files** from fund registries and issuers are read by their column names, and haven't yet

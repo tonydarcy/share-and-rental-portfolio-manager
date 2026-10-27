@@ -26,10 +26,15 @@ public static class NavexaExchanges
         Known.SelectMany(k => k.Names.Select(n => (n, k.Code, k.Currency)))
              .ToDictionary(x => x.n, x => (x.Code, x.Currency), StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Navexa's "Crypto" exchange. Coins have no usual currency: each is priced in the currency of its trades.</summary>
+    private static readonly HashSet<string> CryptoNames = new(["CRYPTO", "CRYPTOCURRENCY", "CC"], StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Unknown names come back upper-cased with Recognised = false so the preview can flag them.</summary>
     public static ExchangeMatch Map(string exchange)
     {
         var key = exchange.Trim();
+        if (CryptoNames.Contains(key))
+            return new ExchangeMatch(Crypto.CryptoCodes.Market, null, true);
         if (ByName.TryGetValue(key, out var hit))
             return new ExchangeMatch(hit.Code, hit.Currency, true);
         return new ExchangeMatch(key.ToUpperInvariant(), null, false);

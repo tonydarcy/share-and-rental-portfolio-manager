@@ -1,0 +1,95 @@
+@page
+@model PortfolioManager.Web.Pages.Trades.CryptoSwapModel
+@{
+    ViewData["Title"] = "Record a crypto swap";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Record a crypto swap</h1>
+    <a asp-page="/Trades/Index" class="btn btn-sm btn-outline-secondary">Back to trades</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+
+@if (!string.IsNullOrEmpty(Model.Success))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="status">
+        <i class="bi bi-check-circle"></i> @Model.Success
+        <a asp-page="/Holdings" class="alert-link ms-2">View holdings</a>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-lg-8 col-xl-7">
+        <form method="post" class="card shadow-sm" novalidate>
+            <div class="card-body">
+                <p class="text-muted">
+                    Swapping one coin for another (say bitcoin for ether) is a sale of the first coin and a purchase of the second, both at the
+                    swap's market value on the day. This records both in one step for <strong>@Model.Portfolio.Name</strong>, with no cash moving,
+                    so the sale's capital gain or loss and the new coin's cost base are worked out as usual.
+                </p>
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Date" class="form-label">Date of the swap</label>
+                        <input asp-for="Input.Date" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" required />
+                        <span asp-validation-for="Input.Date" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="Input.Value" class="form-label">Market value (@Model.PortfolioCurrency)</label>
+                        <input asp-for="Input.Value" type="number" step="0.01" min="0" class="form-control" required />
+                        <div class="form-text">What the coins were worth on the day, from the exchange or a price site.</div>
+                        <span asp-validation-for="Input.Value" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label asp-for="Input.FromCoin" class="form-label">Coin given up</label>
+                        <input asp-for="Input.FromCoin" class="form-control text-uppercase" maxlength="50" placeholder="e.g. BTC" list="coins" required />
+                        <span asp-validation-for="Input.FromCoin" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="Input.FromUnits" class="form-label">Units given up</label>
+                        <input asp-for="Input.FromUnits" type="number" step="any" min="0" class="form-control" required />
+                        <span asp-validation-for="Input.FromUnits" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label asp-for="Input.ToCoin" class="form-label">Coin received</label>
+                        <input asp-for="Input.ToCoin" class="form-control text-uppercase" maxlength="50" placeholder="e.g. ETH" list="coins" required />
+                        <span asp-validation-for="Input.ToCoin" class="text-danger small"></span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label asp-for="Input.ToUnits" class="form-label">Units received</label>
+                        <input asp-for="Input.ToUnits" type="number" step="any" min="0" class="form-control" required />
+                        <div class="form-text">After any fee the exchange took in coins.</div>
+                        <span asp-validation-for="Input.ToUnits" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label asp-for="Input.Comment" class="form-label">Comment <span class="text-muted small">(optional)</span></label>
+                        <input asp-for="Input.Comment" class="form-control" maxlength="400" />
+                    </div>
+                </div>
+                <datalist id="coins">
+                    @foreach (var c in Model.Coins)
+                    {
+                        <option value="@c.Code">@c.Units.ToString("#,##0.########") held</option>
+                    }
+                </datalist>
+                <p class="small text-muted mt-3 mb-0">
+                    A coin is recorded under its code and the currency it's priced in, so BTC becomes BTC-@Model.PortfolioCurrency, which is what the daily
+                    price feed uses.
+                </p>
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-success">Record the swap</button>
+            </div>
+        </form>
+    </div>
+</div>
