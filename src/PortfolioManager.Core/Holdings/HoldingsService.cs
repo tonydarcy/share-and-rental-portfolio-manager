@@ -13,9 +13,11 @@ public sealed record Holding(
     decimal CapitalGain,
     decimal Payouts,
     decimal TotalProfit,
-    string Trend);
+    string Trend,
+    decimal Cost = 0);
 
-public sealed record HoldingsTotal(decimal MarketValue, decimal CapitalGain, decimal Payouts, decimal TotalProfit);
+/// <summary>Cost is buys less sales and returns of capital, in portfolio currency.</summary>
+public sealed record HoldingsTotal(decimal MarketValue, decimal CapitalGain, decimal Payouts, decimal TotalProfit, decimal Cost = 0);
 
 public sealed record HoldingsSummary(IReadOnlyList<Holding> Holdings, HoldingsTotal Total);
 
@@ -65,7 +67,8 @@ public sealed class HoldingsService(IDbConnectionFactory db)
                     Dec(r, "Market Value (Portfolio Currency)"),
                     Dec(r, "Total Capital Gain / Loss (Portfolio Currency)"),
                     Dec(r, "Total Payouts"),
-                    Dec(r, "Total Profit / Loss (Portfolio Currency)"));
+                    Dec(r, "Total Profit / Loss (Portfolio Currency)"),
+                    Cost(r));
                 continue;
             }
 
@@ -78,15 +81,25 @@ public sealed class HoldingsService(IDbConnectionFactory db)
                 Dec(r, "Total Capital Gain / Loss (Portfolio Currency)"),
                 Dec(r, "Total Payouts"),
                 Dec(r, "Total Profit / Loss (Portfolio Currency)"),
-                Convert.ToString(r["Trend Direction"]) ?? "-"));
+                Convert.ToString(r["Trend Direction"]) ?? "-",
+                Cost(r)));
         }
 
         holdings.Sort((a, b) => b.MarketValue.CompareTo(a.MarketValue));
         total ??= new HoldingsTotal(
             holdings.Sum(h => h.MarketValue), holdings.Sum(h => h.CapitalGain),
-            holdings.Sum(h => h.Payouts), holdings.Sum(h => h.TotalProfit));
+            holdings.Sum(h => h.Payouts), holdings.Sum(h => h.TotalProfit), holdings.Sum(h => h.Cost));
         return new HoldingsSummary(holdings, total);
     }
+
+    /// <summary>
+    /// The cost column comes from the 2026-10-27 migration. Before it runs, the proc's capital
+    /// gain is market value less cost, so work it back from those.
+    /// </summary>
+    private static decimal Cost(IDictionary<string, object?> row) =>
+        row.ContainsKey("Total Cost (Portfolio Currency)")
+            ? Dec(row, "Total Cost (Portfolio Currency)")
+            : Dec(row, "Market Value (Portfolio Currency)") - Dec(row, "Total Capital Gain / Loss (Portfolio Currency)");
 
     private static decimal Dec(IDictionary<string, object?> row, string column) =>
         row[column] is null or DBNull ? 0m : Convert.ToDecimal(row[column]);

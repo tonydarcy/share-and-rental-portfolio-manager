@@ -576,6 +576,9 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-10-21-08-alerts.sql`: Email alerts. Run after `2026-10-21-02-announced-actions.sql`. Adds `tblAlertSettings`,
   `tblPriceAlerts`, `uspSaveAlertSettings`, `uspSavePriceAlert`, `uspDeletePriceAlert`, `uspMarkPriceAlertSent` and
   `uspMarkAlertsChecked`. It only adds things.
+- `2026-10-27-holdings-cost.sql`: `GetProfitSummaryv2` also returns each holding's cost (buys less sales and returns of
+  capital), so the API and MCP `get_holdings` tool show it. Until it runs, the site works the cost out from market value
+  and gain, which reads as 0 for a holding with no price.
 
 ## API and MCP server
 
