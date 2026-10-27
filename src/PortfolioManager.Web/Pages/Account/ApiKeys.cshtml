@@ -127,7 +127,11 @@
         <div class="card shadow-sm">
             <div class="card-body small">
                 <h2 class="h6">Connecting an AI assistant</h2>
-                <p>The MCP server address is <code>@Model.BaseUrl/mcp</code>. Send the key as a header:
+                <p>The MCP server address is <code>@Model.BaseUrl/mcp</code>.</p>
+                <p><strong>Claude</strong> (claude.ai, the desktop and phone apps): Settings, Connectors, Add custom connector, and paste
+                    that address. Claude sends you here to log in and allow it, and no key is needed; it then shows in the list on
+                    the left, and revoking it there disconnects it.</p>
+                <p>Other apps that can't sign in this way send a key you make here as a header:
                     <code>Authorization: Bearer pm_...</code></p>
                 <p class="mb-1">Claude Code:</p>
                 <pre class="bg-light p-2 text-wrap"><code>claude mcp add --transport http portfolio @Model.BaseUrl/mcp --header "Authorization: Bearer YOUR_KEY"</code></pre>

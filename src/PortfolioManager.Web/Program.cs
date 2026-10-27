@@ -152,6 +152,8 @@ builder.Services.AddScoped<AgentToolRunner>();
 builder.Services.AddScoped<PortfolioManager.Core.Assistant.AssistantService>();
 builder.Services.AddScoped<AssistantChat>();
 builder.Services.AddScoped<McpServer>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<OAuthServer>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentPortfolio>();
 // Only these logins may upload market prices, which every portfolio shares (as on the legacy site)
@@ -256,6 +258,8 @@ app.Use(async (context, next) =>
 });
 
 app.MapAgentApi();
+// OAuth sign-in for Claude and other MCP apps: discovery, app registration and the token swap (Account/Connect is the consent page)
+app.MapOAuth();
 // Styles, scripts and icons are public: the login page and the home-screen app need them before sign-in
 app.MapStaticAssets().AllowAnonymous();
 // Lets phones add the site to the home screen as an app (wwwroot/sw.js), under the site's own name

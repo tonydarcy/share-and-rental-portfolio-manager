@@ -401,6 +401,8 @@ Once the site is running and you have registered:
    **Read only** if the assistant should only look. Copy the key straight away (it is shown once), then give your
    assistant the MCP server address `https://your-site/mcp` with the header `Authorization: Bearer <key>`; for Claude
    Code that is `claude mcp add --transport http portfolio https://your-site/mcp --header "Authorization: Bearer <key>"`.
+   In Claude itself (claude.ai, the desktop or phone app) no key is needed: Settings, Connectors, **Add custom
+   connector**, paste `https://your-site/mcp`, and log in to your site and click **Allow** when it asks.
    The key can do what your login can, in the portfolios your login can open. Everything it changes is listed on the
    same page, and **Revoke** stops it at once. Other apps can use the same key with the JSON API at
    `https://your-site/api/v1/` (see README-razor-pages.md, "API and MCP server").

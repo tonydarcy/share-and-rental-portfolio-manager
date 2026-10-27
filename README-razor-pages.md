@@ -585,7 +585,8 @@ as Claude, a script or a mobile app can work with a portfolio. Both run the same
 journals, FIFO CGT, locked periods and validation are exactly as on the site.
 
 **Signing in.** Only an API key works (never the login cookie, so another site can't use a signed-in browser). Make
-one on the API keys page and send it as `Authorization: Bearer pm_...` (or `X-Api-Key: pm_...`). A key acts as the
+one on the API keys page and send it as `Authorization: Bearer pm_...` (or `X-Api-Key: pm_...`), or let the app get
+one by OAuth (below). A key acts as the
 login that made it: it reaches the same portfolios (`uspGetAccessiblePortfolios`) with the same role, so on a Read only
 portfolio it can only look. A key marked read only can never change anything, and the MCP server doesn't even list
 the tools that change things. Revoking a key stops it at once. Each address may make 120 API or MCP requests a minute.
@@ -623,7 +624,18 @@ reply comes back as JSON (`initialize`, `ping`, `tools/list`, `tools/call`). To 
 claude mcp add --transport http portfolio https://app.shareportfoliomanager.com/mcp --header "Authorization: Bearer pm_..."
 ```
 
-Other MCP clients take the same URL and header. Sign-in by OAuth isn't there yet (see ROADMAP.md).
+Other MCP clients take the same URL and header.
+
+**Sign-in by OAuth** (`src/PortfolioManager.Web/Api/OAuthServer.cs`), for Claude's custom connectors (claude.ai, desktop
+and phone apps) and other MCP apps that can't take a header: add `https://your-site/mcp` as the connector address and
+nothing else. A request without a key gets a 401 naming `/.well-known/oauth-protected-resource/mcp`, which points at
+`/.well-known/oauth-authorization-server`. The app registers itself at `/oauth/register` (dynamic client registration,
+no secret), sends the person to `/Account/Connect` to log in and allow it (with a Read only tick box), and swaps the
+one-time code at `/oauth/token`, checked with PKCE (S256 only). What it gets back is an ordinary API key named after the
+app, such as "Claude (connected 2026-10-27)", so it is listed, logged and revoked on the API keys page like any other;
+it doesn't expire, and there are no refresh tokens. Nothing new is stored: the client id and the code are signed with
+the Data Protection keys (keep `DataProtection:KeysPath` set, or apps must connect again after a restart), and a used
+code is remembered in memory, which assumes the site runs on one server.
 
 ## Deploying to IIS
 
