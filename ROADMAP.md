@@ -25,12 +25,17 @@ This page lists only what is **not built yet**. Everything already in the site i
 5. **Registry statement files checked against real ones.** Fund tax statement files and fund holdings files are read
    by their column names; each registry's and issuer's layout (Computershare, MUFG / Link, Boardroom, Automic, Vanguard,
    iShares, BetaShares) needs checking against real files, and PDF statements aren't read. **Good first issue.**
+6. **Crypto, finished off.** Crypto can already be held (market `CRYPTO`, codes like BTC-AUD, part units, daily
+   prices from the price provider), but the Navexa import doesn't bring it across: it should map Navexa's `Crypto`
+   exchange to `CRYPTO` and its codes to the price provider's (BTC to BTC-AUD), and bring staking rewards in as
+   income. Also wanted: a coin-for-coin swap recorded as one step (a sale and a buy at the same value), exchange
+   CSV imports (Coinbase, Swyftx, CoinSpot, Independent Reserve), and a check that crypto never gets franking.
 
 ## Next: business books
 
-6. **Pay an invoice online.** A card or bank payment link on invoices (Stripe or similar), with the payment matched
+7. **Pay an invoice online.** A card or bank payment link on invoices (Stripe or similar), with the payment matched
     to the invoice when it lands.
-7. **Assistant extras.** Replies that appear as they are written, reading an attached receipt or statement in the
+8. **Assistant extras.** Replies that appear as they are written, reading an attached receipt or statement in the
     chat, and a monthly spending limit when the host shares their own Anthropic key with every user.
 
 ## Using it outside Australia
