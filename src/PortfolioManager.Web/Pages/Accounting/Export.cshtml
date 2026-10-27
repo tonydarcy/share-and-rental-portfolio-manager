@@ -56,6 +56,67 @@
     </div>
 </div>
 
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h2 class="h5">Send straight to @Model.System</h2>
+        @if (!Model.CanConnect)
+        {
+            <p class="text-muted small mb-0">This copy of the site hasn't been registered with @Model.System, so use the download above. Whoever hosts the site can
+                register it (see SETUP.md, "Sending to Xero and MYOB") and then every portfolio can connect to its own @(isXero ? "organisation" : "company file").</p>
+        }
+        else if (Model.Connection is not { } c)
+        {
+            <p class="text-muted small">Connect this portfolio to its @(isXero ? "Xero organisation" : "MYOB business") once, then send the same journals as the
+                download without saving and importing a file. You sign in at @Model.System and choose the @(isXero ? "organisation" : "business"); this site keeps
+                only an encrypted sign-in it can renew, and can disconnect at any time.</p>
+            <form method="post" asp-page-handler="Connect">
+                <input type="hidden" asp-for="System" />
+                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plug"></i> Connect to @Model.System</button>
+            </form>
+        }
+        else
+        {
+            <p class="small mb-2">Connected to <strong>@(c.OrganisationName ?? c.OrganisationId)</strong> on @c.Connected.ToString("d")@(c.ConnectedBy is { } by ? $" by {by}" : "").
+                @(isXero ? "Journals arrive as drafts to check and post." : "Journals are recorded in MYOB straight away.")</p>
+            <form method="post" asp-page-handler="Send" class="row g-2 align-items-end">
+                <input type="hidden" asp-for="System" />
+                <div class="col-md-5">
+                    <label class="form-label small mb-1" for="sendShape">What to send</label>
+                    <select id="sendShape" name="Shape" class="form-select form-select-sm">
+                        @foreach (var s in new[] { ExportShapes.Journals, ExportShapes.Monthly, ExportShapes.Balances }) { <option value="@s" selected="@(s == Model.Shape)">@ExportShapes.Label(s)</option> }
+                    </select>
+                </div>
+                <div class="col-auto"><label class="form-label small mb-1" for="sendFrom">From</label><input id="sendFrom" name="From" type="date" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" /></div>
+                <div class="col-auto"><label class="form-label small mb-1" for="sendTo">To</label><input id="sendTo" name="To" type="date" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" /></div>
+                <div class="col-auto form-check ms-2 mb-1"><input class="form-check-input" type="checkbox" name="again" value="true" id="again" /><label class="form-check-label small" for="again">Send again anyway</label></div>
+                <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Send to @Model.System</button></div>
+            </form>
+            <form method="post" asp-page-handler="Disconnect" class="mt-2" data-confirm="Disconnect this portfolio from @Model.System?" onsubmit="return confirm(this.dataset.confirm);">
+                <input type="hidden" asp-for="System" />
+                <button type="submit" class="btn btn-sm btn-link text-danger p-0">Disconnect</button>
+            </form>
+            @if (Model.Sends.Count > 0)
+            {
+                <table class="table table-sm small mt-3 mb-0">
+                    <thead><tr><th>Sent</th><th>What</th><th>Dates</th><th class="text-end">Journals</th><th>Result</th></tr></thead>
+                    <tbody>
+                        @foreach (var x in Model.Sends)
+                        {
+                            <tr>
+                                <td class="text-nowrap">@x.SentAt.ToString("g")@(x.SentBy is { } who ? $" ({who})" : "")</td>
+                                <td>@ExportShapes.Label(x.Shape)</td>
+                                <td class="text-nowrap">@(x.From is { } f ? f.ToString("d") + " to " : "to ")@x.To.ToString("d")</td>
+                                <td class="text-end">@x.Sent of @x.Journals</td>
+                                <td>@(x.Result ?? "Sent")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </div>
+</div>
+
 <form method="post" asp-page-handler="Map">
     <input type="hidden" asp-for="System" />
     <input type="hidden" asp-for="Shape" />

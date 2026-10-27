@@ -37,9 +37,14 @@ public sealed record SmsfMemberAccount(
     decimal RolloverIn,
     decimal PensionPaid,
     decimal LumpSum,
-    decimal Insurance)
+    decimal Insurance,
+    DateOnly? PensionStart = null,
+    decimal? StartBalance = null)
 {
     public bool IsPension => Phase == SmsfPhases.Retirement;
+
+    /// <summary>The pension started during the year (on a day after 1 July), so its first minimum is pro-rated.</summary>
+    public bool StartedInYear(DateOnly yearStart) => IsPension && PensionStart is { } s && s > yearStart;
     public decimal Inflows => Concessional + NonConcessional + RolloverIn;
     public decimal Outflows => PensionPaid + LumpSum + Insurance;
 
@@ -66,6 +71,10 @@ public sealed class SmsfAccountInput
     public decimal PensionPaid { get; set; }
     public decimal LumpSum { get; set; }
     public decimal Insurance { get; set; }
+
+    /// <summary>A pension that started during the year: the day it started and the balance then. Blank: it ran all year.</summary>
+    public DateTime? PensionStart { get; set; }
+    public decimal? StartBalance { get; set; }
 }
 
 public sealed record SmsfYearData(IReadOnlyList<SmsfMember> Members, IReadOnlyList<SmsfMemberAccount> Accounts)
@@ -130,6 +139,33 @@ public static class MinimumPension
     /// <summary>Opening balance times the factor, rounded to the nearest $10.</summary>
     public static decimal For(decimal openingBalance, int age) =>
         Math.Round(openingBalance * Factor(age) / 100m / 10m, MidpointRounding.AwayFromZero) * 10m;
+
+    /// <summary>
+    /// The first year's minimum for a pension started during the year: the balance on the start day times the factor
+    /// for the member's age that day, times the days from the start day to 30 June (both counted) over the days in the
+    /// year, rounded to the nearest $10. A pension started on or after 1 June has no minimum that year.
+    /// </summary>
+    public static decimal ProRata(decimal startBalance, int ageAtStart, DateOnly start, DateOnly yearStart, DateOnly yearEnd)
+    {
+        if (start <= yearStart)
+            return For(startBalance, ageAtStart);
+        if (start > yearEnd || (start.Month == yearEnd.Month && start.Year == yearEnd.Year))
+            return 0;
+        var days = yearEnd.DayNumber - start.DayNumber + 1;
+        var daysInYear = yearEnd.DayNumber - yearStart.DayNumber + 1;
+        return Math.Round(startBalance * Factor(ageAtStart) / 100m * days / daysInYear / 10m, MidpointRounding.AwayFromZero) * 10m;
+    }
+
+    /// <summary>The minimum for one retirement phase account in the year, or null when the member's age isn't known.</summary>
+    public static decimal? ForAccount(SmsfMemberAccount account, SmsfMember member, DateOnly yearStart)
+    {
+        var yearEnd = yearStart.AddYears(1).AddDays(-1);
+        if (account.StartedInYear(yearStart) && account.PensionStart is { } start)
+            return member.AgeAt(start) is { } startAge
+                ? ProRata(account.StartBalance ?? account.Opening + account.RolloverIn, startAge, start, yearStart, yearEnd)
+                : null;
+        return member.AgeAt(yearStart) is { } age ? For(account.Opening, age) : null;
+    }
 }
 
 /// <summary>One account after earnings and tax.</summary>
@@ -186,7 +222,8 @@ public static class SmsfAllocation
             var age = m.AgeAt(yearStart);
             var tsb = results.Sum(r => r.Account.Opening);
             var pension = results.Where(r => r.Account.IsPension).ToList();
-            decimal? minimum = pension.Count > 0 && age is { } a ? pension.Sum(r => MinimumPension.For(r.Account.Opening, a)) : null;
+            var minimums = pension.Select(r => MinimumPension.ForAccount(r.Account, m, yearStart)).ToList();
+            decimal? minimum = pension.Count > 0 && minimums.All(x => x is not null) ? minimums.Sum(x => x!.Value) : null;
             return new SmsfMemberSummary(m, results, age, caps, caps.NonConcessionalLimit(tsb, age), minimum);
         }).ToList();
     }
@@ -234,7 +271,9 @@ public sealed class SmsfMemberService(IDbConnectionFactory db)
                 Db.Dec(r, "dblRolloverIn") ?? 0,
                 Db.Dec(r, "dblPensionPaid") ?? 0,
                 Db.Dec(r, "dblLumpSum") ?? 0,
-                Db.Dec(r, "dblInsurance") ?? 0))
+                Db.Dec(r, "dblInsurance") ?? 0,
+                r.ContainsKey("dtPensionStart") ? Db.Date(r, "dtPensionStart") : null,
+                r.ContainsKey("dblStartBalance") ? Db.Dec(r, "dblStartBalance") : null))
             .Where(a => a.MemberAccountId > 0).ToList());
 
     public async Task<ProcResult> SaveMemberAsync(int portfolioId, SmsfMemberInput input)
@@ -276,6 +315,8 @@ public sealed class SmsfMemberService(IDbConnectionFactory db)
             dblPensionPaid = input.PensionPaid,
             dblLumpSum = input.LumpSum,
             dblInsurance = input.Insurance,
+            dtPensionStart = input.Phase == SmsfPhases.Retirement ? input.PensionStart?.Date : null,
+            dblStartBalance = input.Phase == SmsfPhases.Retirement && input.PensionStart is not null ? input.StartBalance : null,
         }, commandType: CommandType.StoredProcedure);
         return ProcResult.From(row.Result, "Success", row.MemberAccountId);
     }
@@ -288,5 +329,47 @@ public sealed class SmsfMemberService(IDbConnectionFactory db)
             iUserId = portfolioId, iYear = year, dtYearEnd = yearEnd.ToDateTime(TimeOnly.MinValue), iMemberAccountID = memberAccountId,
         }, commandType: CommandType.StoredProcedure);
         return ProcResult.From(result, "Success");
+    }
+}
+
+/// <summary>
+/// The member data an actuary asks for to work out the exempt current pension income percentage: each member account's
+/// balances and the year's flows, with pension start dates. Flows are the year's totals; the actuary asks for the
+/// dates of large ones separately.
+/// </summary>
+public static class SmsfActuaryFile
+{
+    public static byte[] Build(string fundName, string? abn, string yearLabel, DateOnly yearStart, IReadOnlyList<SmsfMemberSummary> members)
+    {
+        static string C(string v) => LabelSummaryCsv.Csv(v);
+        static string N(decimal v) => v.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Fund,{C(fundName)}");
+        sb.AppendLine($"ABN,{C(abn ?? "")}");
+        sb.AppendLine($"Financial year,{C(yearLabel)}");
+        sb.AppendLine();
+        sb.AppendLine("Member,Date of birth,Age at 1 July,Phase,Pension start,Balance at pension start,Opening balance,Concessional contributions," +
+                      "Non-concessional contributions,Rollovers in,Pensions paid,Lump sums paid,Insurance premiums,Earnings allocated," +
+                      "Contributions tax,Income tax,Closing balance,Minimum pension");
+        foreach (var m in members)
+            foreach (var r in m.Accounts)
+            {
+                var a = r.Account;
+                var started = a.StartedInYear(yearStart);
+                sb.AppendJoin(',', [
+                    C(m.Member.Name), m.Member.BirthDate?.ToString("yyyy-MM-dd") ?? "", m.Age?.ToString() ?? "", a.IsPension ? "Retirement" : "Accumulation",
+                    started ? a.PensionStart!.Value.ToString("yyyy-MM-dd") : "", started ? N(a.StartBalance ?? a.Opening + a.RolloverIn) : "",
+                    N(a.Opening), N(a.Concessional), N(a.NonConcessional), N(a.RolloverIn), N(a.PensionPaid), N(a.LumpSum), N(a.Insurance),
+                    N(r.Earnings), N(r.ContributionsTax), N(r.IncomeTax), N(r.Closing),
+                    a.IsPension && MinimumPension.ForAccount(a, m.Member, yearStart) is { } min ? N(min) : "",
+                ]);
+                sb.AppendLine();
+            }
+        var all = members.SelectMany(m => m.Accounts).ToList();
+        var weighted = all.Sum(r => r.Account.Weighted);
+        var pension = all.Where(r => r.Account.IsPension).Sum(r => r.Account.Weighted);
+        sb.AppendLine();
+        sb.AppendLine($"Average balances in retirement phase (estimate only; the actuary's figure is the one to use),{(weighted == 0 ? "" : (pension / weighted * 100m).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "%")}");
+        return [.. System.Text.Encoding.UTF8.GetPreamble(), .. System.Text.Encoding.UTF8.GetBytes(sb.ToString())];
     }
 }

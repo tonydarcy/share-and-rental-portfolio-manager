@@ -292,6 +292,30 @@ Both settings can be left out. `Model` is the default for people who haven't pic
 5.5). What people ask, and the figures the assistant looks up to answer, are sent to Anthropic's API, so mention it in
 your privacy terms if others use your site. Run `2026-10-23-03-assistant.sql` first.
 
+### Sending journals to Xero and MYOB (optional)
+
+Accounting > Export always gives an import file. To let people connect a portfolio to Xero or MYOB and send the
+journals straight there, register your site as an app with each one and add its details:
+
+- **Xero**: create a "Web app" at [developer.xero.com](https://developer.xero.com/app/manage).
+- **MYOB**: create an app at [developer.myob.com](https://developer.myob.com) (it gives an API key and a secret).
+
+For both, the redirect address is your site's address followed by `/Accounting/Connected`, for example
+`https://portfolio.example.com/Accounting/Connected`. Set `Site:BaseUrl` to that same address so the site gives the
+right one.
+
+```json
+"AccountingLink": {
+  "Xero": { "ClientId": "...", "ClientSecret": "..." },
+  "Myob": { "ClientId": "...", "ClientSecret": "..." }
+}
+```
+
+Leave out either system you don't want. `Scopes` can be set for each one if the defaults change (Xero:
+`offline_access accounting.manualjournals accounting.settings.read`; MYOB: `sme-general-ledger`), and `Myob:ApiBase`
+if MYOB gives you a different API address (the default is `https://api.myob.com/accountright/`). The sign-in tokens
+are stored encrypted with the data protection keys above. Run `2026-10-26-09-accounting-connections.sql` first.
+
 ### Sample portfolio
 
 `Database/SampleData/demo-portfolio.sql` adds a made-up portfolio covering the last twelve months: a deposit, buys

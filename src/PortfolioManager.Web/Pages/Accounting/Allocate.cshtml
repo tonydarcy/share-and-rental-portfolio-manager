@@ -157,7 +157,7 @@
             <div id="toInvoice" class="accordion-collapse collapse @Show("invoice")" data-bs-parent="#allocate">
                 <div class="accordion-body">
                     <p class="small text-muted">Records the deposit as a payment of the invoice: the bank goes up and the amount the customer owes comes down.
-                        Exact amounts first. A deposit paying several invoices: record the payments on each invoice instead.</p>
+                        Exact amounts first. A deposit paying several invoices: use <em>Split over several invoices</em> below.</p>
                     <table class="table table-sm align-middle mb-0 table-stack">
                         <thead><tr><th>Invoice</th><th>Customer</th><th>Due</th><th class="text-end">Owing</th><th></th></tr></thead>
                         <tbody>
@@ -177,6 +177,47 @@
                             }
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (line.IsDeposit && Model.OpenInvoices.Count > 1)
+    {
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button @Collapsed("split")" type="button" data-bs-toggle="collapse" data-bs-target="#toSplit">
+                    Split over several invoices
+                </button>
+            </h2>
+            <div id="toSplit" class="accordion-collapse collapse @Show("split")" data-bs-parent="#allocate">
+                <div class="accordion-body">
+                    <p class="small text-muted">One deposit paying several invoices, such as a customer paying a month's invoices at once. The oldest are
+                        filled in first; change the amounts to what the customer's remittance says. They must add up to @line.Amount.ToString("C").
+                        Deleting any of these payments later puts the whole deposit back here.</p>
+                    <form method="post" asp-page-handler="Split" asp-route-id="@line.LineId">
+                        <table class="table table-sm align-middle mb-2 table-stack">
+                            <thead><tr><th>Invoice</th><th>Customer</th><th>Due</th><th class="text-end">Owing</th><th class="text-end">Pay</th></tr></thead>
+                            <tbody>
+                                @foreach (var o in Model.OpenInvoices)
+                                {
+                                    <tr>
+                                        <td><a asp-page="/Invoices/View" asp-route-id="@o.InvoiceId">@o.Number</a></td>
+                                        <td>@o.CustomerName</td>
+                                        <td>@o.DueDate.ToString("d")</td>
+                                        <td class="text-end">@o.Balance.ToString("C")</td>
+                                        <td class="text-end" style="max-width: 9rem">
+                                            <input type="hidden" name="invoiceIds" value="@o.InvoiceId" />
+                                            <input type="number" name="amounts" step="0.01" min="0" max="@o.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                   value="@(Model.Suggested.TryGetValue(o.InvoiceId, out var v) ? v.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                                   class="form-control form-control-sm text-end" aria-label="Pay @o.Number" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        <button type="submit" class="btn btn-sm btn-primary">Record the payments</button>
+                    </form>
                 </div>
             </div>
         </div>

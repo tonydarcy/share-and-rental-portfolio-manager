@@ -18,35 +18,56 @@
 
 <form method="get" class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <select name="fy" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
-        @foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.Year)">@FinancialYear.Label(y)</option> }
+        @foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.Year)">Years ending in @y</option> }
     </select>
-    <a asp-route-fy="@Model.Year" class="btn btn-sm @(Model.Status is null ? "btn-dark" : "btn-outline-dark")">All (@Model.Counts.Values.Sum())</a>
+    @if (Model.CountryNames.Count > 1)
+    {
+        <select name="country" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            <option value="">Every country</option>
+            @foreach (var c in Model.CountryNames) { <option value="@c" selected="@(c == Model.Country)">@c</option> }
+        </select>
+        @if (Model.Status is not null) { <input type="hidden" name="status" value="@Model.Status" /> }
+    }
+    <a asp-route-fy="@Model.Year" asp-route-country="@Model.Country" class="btn btn-sm @(Model.Status is null ? "btn-dark" : "btn-outline-dark")">All (@Model.Counts.Values.Sum())</a>
     @foreach (var s in YearStatuses.Choices.Append(YearStatuses.Locked))
     {
-        <a asp-route-fy="@Model.Year" asp-route-status="@s" class="btn btn-sm @(Model.Status == s ? "btn-dark" : "btn-outline-dark")">
+        <a asp-route-fy="@Model.Year" asp-route-country="@Model.Country" asp-route-status="@s" class="btn btn-sm @(Model.Status == s ? "btn-dark" : "btn-outline-dark")">
             @YearStatuses.Label(s) (@Model.Counts.GetValueOrDefault(s))
         </a>
     }
 </form>
 
 <p class="text-muted small">The status is set on each client's <em>Workpapers and checklist</em> page; a locked year shows as locked. Opening a client switches
-    the site to that portfolio.</p>
+    the site to that portfolio. Each client's year ends on its own country's date (set on its Portfolio settings page), so clients are grouped by
+    country and listed in year-end order.</p>
 
 <div class="card shadow-sm">
     <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
-            <thead class="table-light"><tr><th>Client</th><th>Status</th><th>Checklist</th><th>Workpapers reviewed</th><th>Outstanding</th><th></th></tr></thead>
+            <thead class="table-light"><tr><th>Client</th><th>Year ends</th><th>Status</th><th>Checklist</th><th>Workpapers reviewed</th><th>Outstanding</th><th></th></tr></thead>
             <tbody>
                 @if (Model.Rows.Count == 0)
                 {
-                    <tr><td colspan="6" class="text-center text-muted p-4">No clients here.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted p-4">No clients here.</td></tr>
                 }
-                @foreach (var r in Model.Rows)
+                @foreach (var g in Model.Groups)
                 {
+                    @if (Model.Groups.Count > 1)
+                    {
+                        <tr class="table-secondary"><th colspan="7">@g.Key (@g.Count())</th></tr>
+                    }
+                    @foreach (var r in g)
+                    {
+                    var days = r.DaysToYearEnd(Model.Today);
                     <tr>
                         <td>
                             <div class="fw-bold">@r.Client.LegalName</div>
                             <div class="small text-muted">@PortfolioManager.Core.Clients.ClientEntityTypes.Describe(r.Client.EntityType)</div>
+                        </td>
+                        <td class="text-nowrap">
+                            <div>@r.YearEnd.ToString("d MMM yyyy")</div>
+                            <div class="small text-muted">@r.YearLabel ·
+                                @(days > 0 ? $"in {days} day{(days == 1 ? "" : "s")}" : days == 0 ? "today" : "ended")</div>
                         </td>
                         <td>
                             <span class="badge @YearStatuses.Badge(r.Status)">@YearStatuses.Label(r.Status)</span>
@@ -74,6 +95,7 @@
                             }
                         </td>
                     </tr>
+                    }
                 }
             </tbody>
         </table>

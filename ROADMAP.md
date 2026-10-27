@@ -26,31 +26,11 @@ This page lists only what is **not built yet**. Everything already in the site i
    by their column names; each registry's and issuer's layout (Computershare, MUFG / Link, Boardroom, Automic, Vanguard,
    iShares, BetaShares) needs checking against real files, and PDF statements aren't read. **Good first issue.**
 
-## Next: accountant features
-
-6. **Year ends by country** on the practice dashboard, for clients in other countries.
-7. **Attachments printed into the packs.** The SMSF audit pack and report pack list attachments; the files themselves
-    should be printed into the pack instead of downloaded one by one.
-8. **Invoicing extras.** Refunding a credit note, and one deposit paying several invoices.
-9. **Sending straight to Xero and MYOB.** Today the exports are import files; sending them through Xero's and MYOB's
-    APIs would save a step.
-10. **SMSF extras.** The actuary data as a file, and pro-rata minimum pensions for pensions started during the year.
-11. **Tax planning for other entities.** Companies, trusts and SMSFs (individuals are done), and the Medicare levy
-    low-income reduction.
-12. **More of the BAS.** Cash-basis reporting of invoiced sales (they are reported by invoice date today), PAYG
-    instalments and the other BAS labels.
-
-## Next: rental properties
-
-13. **Rental property extras.** Low-value pool disposals taken off the pool balance (they are worked out per asset
-   today), splitting a maintenance job between capital works and depreciating assets, and rent receipts and reminders
-   emailed to tenants.
-
 ## Next: business books
 
-14. **Pay an invoice online.** A card or bank payment link on invoices (Stripe or similar), with the payment matched
+6. **Pay an invoice online.** A card or bank payment link on invoices (Stripe or similar), with the payment matched
     to the invoice when it lands.
-15. **Assistant extras.** Replies that appear as they are written, reading an attached receipt or statement in the
+7. **Assistant extras.** Replies that appear as they are written, reading an attached receipt or statement in the
     chat, and a monthly spending limit when the host shares their own Anthropic key with every user.
 
 ## Using it outside Australia

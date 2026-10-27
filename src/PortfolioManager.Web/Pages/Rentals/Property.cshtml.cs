@@ -15,8 +15,56 @@ namespace PortfolioManager.Web.Pages.Rentals;
 /// One rental property: its details and owners, tenancies and the rent ledger, bills to the tenant, the maintenance log,
 /// inspections, compliance reminders, documents, loans and the sale.
 /// </summary>
-public class PropertyModel(CurrentPortfolio current, RentalService rentals, PropertyService book, AttachmentService attachments, LoanService loans) : PageModel
+public class PropertyModel(CurrentPortfolio current, RentalService rentals, PropertyService book, AttachmentService attachments, LoanService loans,
+    Core.Email.IEmailSender email, ILogger<PropertyModel> logger) : PageModel
 {
+    public bool CanEmail => email.IsConfigured;
+
+    /// <summary>Emails a receipt for one rent payment to the tenant.</summary>
+    public async Task<IActionResult> OnPostEmailReceiptAsync(int itemId)
+    {
+        if (await LoadAsync() is { } other)
+            return other;
+        if (Book.Payments.FirstOrDefault(x => x.Id == itemId) is not { } pay || Book.Tenancies.FirstOrDefault(t => t.Id == pay.TenancyId) is not { } t)
+            return Back("tenancies", ProcResult.Failed("That payment was not found."), "");
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return await SendAsync(t, () => TenantEmail.Receipt(t, pay, RentLedger.Position(t, Book.Payments, today), Property!.Address, Portfolio!.Name, User.Identity?.Name),
+            $"Receipt emailed to {t.Email}.");
+    }
+
+    /// <summary>Emails the tenant a reminder of the rent owing today.</summary>
+    public async Task<IActionResult> OnPostEmailReminderAsync(int itemId, string? note)
+    {
+        if (await LoadAsync() is { } other)
+            return other;
+        if (Book.Tenancies.FirstOrDefault(x => x.Id == itemId) is not { } t)
+            return Back("tenancies", ProcResult.Failed("That tenancy was not found."), "");
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var message = TenantEmail.Reminder(t, RentLedger.Position(t, Book.Payments, today), today, Property!.Address, Portfolio!.Name, User.Identity?.Name,
+            note is { Length: > 1000 } ? note[..1000] : note);
+        if (message is null)
+            return Back("tenancies", ProcResult.Failed("Nothing is owing on this tenancy, so no reminder was sent."), "");
+        return await SendAsync(t, () => message, $"Reminder emailed to {t.Email}.");
+    }
+
+    private async Task<IActionResult> SendAsync(Tenancy t, Func<Core.Email.EmailMessage> build, string done)
+    {
+        if (!email.IsConfigured)
+            return Back("tenancies", ProcResult.Failed("The site has no email settings, so nothing can be emailed."), "");
+        if (string.IsNullOrWhiteSpace(t.Email) || !MimeKit.MailboxAddress.TryParse(t.Email, out _))
+            return Back("tenancies", ProcResult.Failed("Add the tenant's email address to the tenancy first."), "");
+        try
+        {
+            await email.SendAsync(build());
+            return Back("tenancies", ProcResult.Success(), done);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Couldn't email tenancy {TenancyId}", t.Id);
+            return Back("tenancies", ProcResult.Failed("The email couldn't be sent. Check the address, or try again in a few minutes."), "");
+        }
+    }
+
     public sealed class DetailsInput
     {
         public string? PayoutCode { get; set; }
@@ -173,6 +221,27 @@ public class PropertyModel(CurrentPortfolio current, RentalService rentals, Prop
         var r = await rentals.SaveAssetAsync(Portfolio!.PortfolioId, new RentalAsset(0, job.PropertyId, RentalAssetKinds.Building, job.Description, job.Done,
             job.Cost, null, null, 2.5m, null));
         return Back("maintenance", r, "Added as capital works at 2.5% a year. Change it on Yearly figures and assets if a depreciating asset part should be split out.");
+    }
+
+    /// <summary>Splits a capital job: the parts named become depreciating assets, the rest capital works at 2.5%.</summary>
+    public async Task<IActionResult> OnPostJobSplitAsync(int itemId, string?[] partDesc, decimal?[] partAmount, string?[] partMethod, decimal?[] partLife)
+    {
+        if (await LoadAsync() is { } other)
+            return other;
+        if (Book.Jobs.FirstOrDefault(j => j.Id == itemId) is not { IsCapital: true } job)
+            return Back("maintenance", ProcResult.Failed("Only an initial repair or improvement is split into assets."), "");
+        var parts = partDesc.Select((d, i) => new JobPart(d ?? "", i < partAmount.Length ? partAmount[i] ?? 0 : 0,
+            i < partMethod.Length ? partMethod[i] ?? RentalAssetKinds.DiminishingValue : RentalAssetKinds.DiminishingValue, i < partLife.Length ? partLife[i] : null));
+        var (assets, error) = JobSplit.Build(job, parts);
+        if (error is not null)
+            return Back("maintenance", ProcResult.Failed(error), "");
+        foreach (var a in assets)
+        {
+            var r = await rentals.SaveAssetAsync(Portfolio!.PortfolioId, a);
+            if (!r.Ok)
+                return Back("maintenance", r, "");
+        }
+        return Back("maintenance", ProcResult.Success(), $"Split into {assets.Count} asset{(assets.Count == 1 ? "" : "s")}. See them on Yearly figures and assets.");
     }
 
     public async Task<IActionResult> OnPostInspectionAsync()

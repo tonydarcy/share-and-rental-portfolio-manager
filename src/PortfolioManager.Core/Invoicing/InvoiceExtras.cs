@@ -19,6 +19,47 @@ public sealed record InvoiceKind(string Kind, int? CreditedInvoiceId)
     public bool IsCreditNote => Kind == InvoiceKinds.CreditNote;
 }
 
+/// <summary>Part of one deposit going to one invoice.</summary>
+public sealed record DepositShare(int InvoiceId, decimal Amount);
+
+/// <summary>Splitting one bank deposit over several invoices.</summary>
+public static class DepositSplit
+{
+    /// <summary>Fills the oldest invoices first (by due date) until the deposit runs out: what most customers mean.</summary>
+    public static IReadOnlyList<DepositShare> Suggest(decimal deposit, IEnumerable<InvoiceSummary> open)
+    {
+        var left = deposit;
+        var list = new List<DepositShare>();
+        foreach (var i in open.Where(i => i.Balance > 0).OrderBy(i => i.DueDate).ThenBy(i => i.InvoiceId))
+        {
+            if (left <= 0)
+                break;
+            var amount = Math.Min(left, i.Balance);
+            list.Add(new DepositShare(i.InvoiceId, amount));
+            left -= amount;
+        }
+        return list;
+    }
+
+    /// <summary>What is wrong with a split, or null when it can be saved. The proc checks again.</summary>
+    public static string? Validate(decimal deposit, IReadOnlyList<DepositShare> shares, IReadOnlyDictionary<int, decimal> owing)
+    {
+        var used = shares.Where(s => s.Amount != 0).ToList();
+        if (used.Count == 0)
+            return "Enter an amount against at least one invoice.";
+        if (used.Any(s => s.Amount < 0))
+            return "Amounts can't be negative.";
+        if (used.Any(s => !owing.TryGetValue(s.InvoiceId, out var o) || s.Amount > o))
+            return "One of the amounts is more than is owing on its invoice.";
+        var total = used.Sum(s => s.Amount);
+        return total == deposit ? null : $"The amounts add up to {total:N2}; they must add up to the whole deposit of {deposit:N2}.";
+    }
+
+    public static string Xml(IEnumerable<DepositShare> shares) =>
+        new XElement("p", shares.Where(s => s.Amount != 0).Select(s => new XElement("a",
+            new XAttribute("i", s.InvoiceId), new XAttribute("v", s.Amount.ToString(CultureInfo.InvariantCulture))))).ToString(SaveOptions.DisableFormatting);
+}
+
 /// <summary>An open invoice a deposit can pay: its balance is at least the deposit.</summary>
 public sealed record DepositMatch(int InvoiceId, string Number, string Customer, DateOnly DueDate, decimal Balance, bool Exact);
 
@@ -85,7 +126,12 @@ public static class Receivables
             var credit = kinds.GetValueOrDefault(d.InvoiceId)?.IsCreditNote == true;
             list.Add(new(d.IssueDate, (credit ? "Credit note " : "Invoice ") + d.Number, d.Reference ?? "", credit ? -d.Total : d.Total));
             if (credit)
+            {
+                // Money paid back to the customer undoes the credit
+                foreach (var p in d.Payments.Where(p => p.Reference?.StartsWith("Refund", StringComparison.Ordinal) ?? false))
+                    list.Add(new(p.Date, "Refund", $"Of credit note {d.Number}", p.Amount));
                 continue;
+            }
             foreach (var p in d.Payments.Where(p => !(p.Reference?.StartsWith("Credit note ", StringComparison.Ordinal) ?? false)))
                 list.Add(new(p.Date, "Payment", $"For {d.Number}" + (p.Reference is { Length: > 0 } r ? $" ({r})" : ""), -p.Amount));
         }
@@ -217,6 +263,37 @@ public sealed class InvoiceExtrasService(IDbConnectionFactory db, InvoiceService
             commandType: CommandType.StoredProcedure), "Success");
     }
 
+    /// <summary>Pays back what is left on a credit note from a bank account.</summary>
+    public async Task<ProcResult> RefundCreditNoteAsync(int portfolioId, int creditNoteId, DateOnly date, decimal amount, int accountId, string? reference)
+    {
+        await using var con = db.Create();
+        var row = await con.QuerySingleAsync<(string Result, int? Id)>("uspRefundCreditNote", new
+        {
+            iUserId = portfolioId, iCreditNoteID = creditNoteId, dtDate = date.ToDateTime(TimeOnly.MinValue), dblAmount = amount, iAccountID = accountId,
+            strReference = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim()[..Math.Min(reference.Trim().Length, 180)],
+        }, commandType: CommandType.StoredProcedure);
+        return ProcResult.From(row.Result, "Success", row.Id);
+    }
+
+    /// <summary>Every approved invoice still owing in the portfolio's currency, oldest due first: what one deposit can be split over.</summary>
+    public async Task<IReadOnlyList<InvoiceSummary>> GetOpenInvoicesAsync(int portfolioId)
+    {
+        var kinds = await GetKindsAsync(portfolioId);
+        return (await invoices.GetInvoicesAsync(portfolioId))
+            .Where(i => i.Balance > 0 && i.Currency is null && !kinds.ContainsKey(i.InvoiceId))
+            .OrderBy(i => i.DueDate).ThenBy(i => i.InvoiceId)
+            .ToList();
+    }
+
+    /// <summary>One imported deposit paying several invoices (uspMatchInvoiceDepositSplit).</summary>
+    public async Task<ProcResult> MatchDepositSplitAsync(int portfolioId, int lineId, IReadOnlyList<DepositShare> shares)
+    {
+        await using var con = db.Create();
+        var row = await con.QuerySingleAsync<(string Result, int? Id)>("uspMatchInvoiceDepositSplit",
+            new { iUserId = portfolioId, iSuspenseLineID = lineId, xmlPayments = DepositSplit.Xml(shares) }, commandType: CommandType.StoredProcedure);
+        return ProcResult.From(row.Result, "Success", row.Id);
+    }
+
     /// <summary>Approved invoices owing at least <paramref name="amount"/>, the ones owing exactly that first.</summary>
     public async Task<IReadOnlyList<DepositMatch>> GetDepositMatchesAsync(int portfolioId, decimal amount)
     {
@@ -224,7 +301,7 @@ public sealed class InvoiceExtrasService(IDbConnectionFactory db, InvoiceService
             return [];
         var kinds = await GetKindsAsync(portfolioId);
         return (await invoices.GetInvoicesAsync(portfolioId))
-            .Where(i => i.Balance >= amount && !kinds.ContainsKey(i.InvoiceId))
+            .Where(i => i.Balance >= amount && i.Currency is null && !kinds.ContainsKey(i.InvoiceId))
             .Select(i => new DepositMatch(i.InvoiceId, i.Number, i.CustomerName, i.DueDate, i.Balance, i.Balance == amount))
             .OrderByDescending(m => m.Exact).ThenBy(m => m.DueDate)
             .ToList();

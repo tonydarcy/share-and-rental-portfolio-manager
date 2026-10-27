@@ -53,6 +53,25 @@ public class IndexModel(CurrentPortfolio current, AttachmentService attachments,
         return File(file.Data, file.ContentType, file.FileName);
     }
 
+    /// <summary>A picture shown inside a printed pack. Only JPEG and PNG, served as themselves, never as a page.</summary>
+    public async Task<IActionResult> OnGetViewAsync(int id)
+    {
+        if (await current.GetSelectedAsync() is not { } p || await attachments.GetFileAsync(p.PortfolioId, id) is not { } file
+            || file.ContentType is not ("image/jpeg" or "image/png"))
+            return NotFound();
+        Response.Headers.XContentTypeOptions = "nosniff";
+        return File(file.Data, file.ContentType);
+    }
+
+    /// <summary>The year's files printed into one PDF, to go behind the report pack or SMSF audit pack.</summary>
+    public async Task<IActionResult> OnGetPackAsync()
+    {
+        if (await current.GetSelectedAsync() is not { } p || Fy is not { } year)
+            return NotFound();
+        var result = AttachmentPack.Build($"{p.Name}: {FinancialYear.Label(year)}", await attachments.GetYearFilesAsync(p.PortfolioId, year));
+        return File(result.Pdf, "application/pdf", $"Supporting documents {FinancialYear.Label(year)}.pdf");
+    }
+
     public async Task<IActionResult> OnPostUploadAsync()
     {
         if (await current.GetSelectedAsync() is not { } p)

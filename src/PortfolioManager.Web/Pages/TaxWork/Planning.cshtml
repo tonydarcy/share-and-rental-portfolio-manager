@@ -20,9 +20,109 @@
     return;
 }
 <partial name="_YearPicker" model="Model" />
+@if (Model.EntityNow is { } en && Model.EntityPlan is { } ep)
+{
+    var smsf = Model.Workpaper.EntityType == PortfolioManager.Core.Clients.ClientEntityTypes.Smsf;
+    <p class="text-muted small">Starts from this year's taxable income as recorded so far (@en.TaxableIncome.ToString("C0")), taxed at @en.RatePercent.ToString("0.#")%.
+        Try extra income, deductions, a sale@(smsf ? " or contributions" : ""). Nothing is saved.
+        @if (smsf) { <text>The exempt current pension income percentage in the tax settings (@((Model.Workpaper.Data.Settings.EcpiPercent ?? 0).ToString("0.##"))%) takes that share of extra investment income, gains and deductions out of tax.</text> }</p>
+    <form method="get" class="no-print card shadow-sm mb-4"><div class="card-body">
+        <input type="hidden" name="fy" value="@Model.Year" />
+        <div class="row g-2">
+            <div class="col-sm-4 col-lg-2"><label asp-for="ExtraIncome" class="form-label small mb-1">Extra income</label><input asp-for="ExtraIncome" type="number" step="1" class="form-control form-control-sm" /></div>
+            <div class="col-sm-4 col-lg-2"><label asp-for="ExtraDeductions" class="form-label small mb-1">Extra deductions</label><input asp-for="ExtraDeductions" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+            <div class="col-sm-4 col-lg-2"><label asp-for="SaleProceeds" class="form-label small mb-1">Sell shares for</label><input asp-for="SaleProceeds" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+            <div class="col-sm-4 col-lg-2"><label asp-for="SaleCost" class="form-label small mb-1">with a cost base of</label><input asp-for="SaleCost" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+            <div class="col-sm-4 col-lg-2 d-flex align-items-end"><div class="form-check"><input asp-for="SaleLong" class="form-check-input" /><label asp-for="SaleLong" class="form-check-label small">Held over 12 months</label></div></div>
+            @if (smsf)
+            {
+                <div class="col-sm-4 col-lg-2"><label asp-for="ExtraContributions" class="form-label small mb-1">Extra concessional contributions</label><input asp-for="ExtraContributions" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+            }
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm mt-3">Work it out</button>
+    </div></form>
+    <div class="card shadow-sm"><div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th></th><th class="text-end">As things stand</th><th class="text-end">With the changes</th><th class="text-end">Difference</th></tr></thead>
+            <tbody>
+                <tr class="fw-bold"><td>Taxable income</td><td class="text-end">@en.TaxableIncome.ToString("C0")</td><td class="text-end">@ep.TaxableIncome.ToString("C0")</td><td class="text-end">@Diff(en.TaxableIncome, ep.TaxableIncome)</td></tr>
+                <tr><td>Tax at @en.RatePercent.ToString("0.#")%</td><td class="text-end">@en.GrossTax.ToString("C")</td><td class="text-end">@ep.GrossTax.ToString("C")</td><td class="text-end">@Diff(en.GrossTax, ep.GrossTax)</td></tr>
+                <tr><td>Foreign income tax offset</td><td class="text-end">@((-en.ForeignOffset).ToString("C"))</td><td class="text-end">@((-ep.ForeignOffset).ToString("C"))</td><td></td></tr>
+                <tr><td>Franking credits@(smsf ? " (refundable)" : "")</td><td class="text-end">@((-en.FrankingOffset).ToString("C"))</td><td class="text-end">@((-ep.FrankingOffset).ToString("C"))</td><td class="text-end">@Diff(-en.FrankingOffset, -ep.FrankingOffset)</td></tr>
+                <tr><td>TFN amounts and PAYG instalments</td><td class="text-end">@((-en.Credits).ToString("C"))</td><td class="text-end">@((-ep.Credits).ToString("C"))</td><td></td></tr>
+                @if (smsf) { <tr><td>Supervisory levy</td><td class="text-end">@en.Levy.ToString("C")</td><td class="text-end">@ep.Levy.ToString("C")</td><td></td></tr> }
+                <tr class="fw-bold table-active"><td>@(ep.Payable >= 0 ? "Tax to pay" : "Refund") at lodgment</td><td class="text-end">@en.Payable.ToString("C")</td><td class="text-end">@ep.Payable.ToString("C")</td><td class="text-end">@Diff(en.Payable, ep.Payable)</td></tr>
+                @if (!smsf)
+                {
+                    <tr><td>Excess franking credits (become a tax loss)</td><td class="text-end">@en.ExcessFranking.ToString("C")</td><td class="text-end">@ep.ExcessFranking.ToString("C")</td><td></td></tr>
+                    <tr><td>Fully franked dividend the year's tax would frank</td><td class="text-end">@en.MaxFrankedDividend.ToString("C")</td><td class="text-end">@ep.MaxFrankedDividend.ToString("C")</td><td class="text-end">@Diff(en.MaxFrankedDividend, ep.MaxFrankedDividend)</td></tr>
+                }
+            </tbody>
+        </table>
+    </div></div>
+    <p class="small text-muted mt-3">@(smsf
+        ? "An estimate for a complying fund: capital gains on assets held over 12 months get the one-third discount; non-arm's length income, the transfer balance cap and Division 296 aren't counted."
+        : "An estimate: the rate is the one in the tax settings (25% for a base rate entity, else 30%). Companies get no capital gains discount. The franked dividend line assumes the franking account starts the year at nil.")</p>
+    return;
+}
+@if (Model.Trust is { } tp)
+{
+    <p class="text-muted small">Try a split of the trust's net income so far (@Math.Max(0, Model.Workpaper.Reconciliation.TaxableIncome).ToString("C0"), of which
+        @Math.Max(0, Model.Workpaper.Cgt.NetCapitalGain).ToString("C0") is net capital gain) between beneficiaries. Enter each one's income from elsewhere;
+        the extra tax column is what their share costs them. Nothing is saved; the trustee's resolution is on the Distribution page.</p>
+    <form method="get" class="no-print card shadow-sm mb-4"><div class="card-body">
+        <input type="hidden" name="fy" value="@Model.Year" />
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-2">
+                <thead><tr><th>Beneficiary</th><th>Type</th><th style="width:8rem">Share %</th><th style="width:11rem">Other taxable income</th></tr></thead>
+                <tbody>
+                    @for (var i = 0; i < Model.B.Count && i < PlanningModel.BeneficiaryRows; i++)
+                    {
+                        <tr>
+                            <td><input name="B[@i].Name" value="@Model.B[i].Name" maxlength="100" class="form-control form-control-sm" aria-label="Name" /></td>
+                            <td><select name="B[@i].Type" class="form-select form-select-sm" aria-label="Type">
+                                <option value="Individual" selected="@(Model.B[i].Type != "Company")">Individual</option>
+                                <option value="Company" selected="@(Model.B[i].Type == "Company")">Company</option></select></td>
+                            <td><input name="B[@i].Percent" value="@Model.B[i].Percent.ToString(System.Globalization.CultureInfo.InvariantCulture)" type="number" step="0.01" min="0" max="100" class="form-control form-control-sm" aria-label="Share" /></td>
+                            <td><input name="B[@i].OtherIncome" value="@Model.B[i].OtherIncome.ToString(System.Globalization.CultureInfo.InvariantCulture)" type="number" step="1" class="form-control form-control-sm" aria-label="Other income" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <label class="form-label small mb-1" for="BucketRate">Company beneficiaries' rate</label>
+        <select id="BucketRate" name="BucketRate" class="form-select form-select-sm w-auto d-inline-block ms-2">
+            <option value="25" selected="@(Model.BucketRate != 30)">25% (base rate entity)</option>
+            <option value="30" selected="@(Model.BucketRate == 30)">30%</option>
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm ms-2">Work it out</button>
+    </div></form>
+    <div class="card shadow-sm"><div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Beneficiary</th><th class="text-end">Share</th><th class="text-end">Income</th><th class="text-end">Net capital gain</th><th class="text-end">Franking credits</th><th class="text-end">Tax without</th><th class="text-end">Tax with</th><th class="text-end">Extra tax</th></tr></thead>
+            <tbody>
+                @foreach (var x in tp.Beneficiaries)
+                {
+                    <tr><td>@x.Beneficiary.Name <span class="small text-muted">@x.Beneficiary.Type</span></td><td class="text-end">@x.Beneficiary.Percent.ToString("0.##")%</td>
+                        <td class="text-end">@x.Income.ToString("C")</td><td class="text-end">@x.NetGain.ToString("C")</td><td class="text-end">@x.Franking.ToString("C")</td>
+                        <td class="text-end">@x.TaxWithout.ToString("C")</td><td class="text-end">@x.TaxWith.ToString("C")</td><td class="text-end fw-bold">@x.ExtraTax.ToString("C")</td></tr>
+                }
+                @if (tp.Unallocated > 0)
+                {
+                    <tr class="text-danger"><td colspan="2">Not distributed: taxed to the trustee at @PortfolioManager.Core.TaxWork.TrustPlanner.TrusteeRatePercent% plus Medicare</td><td class="text-end">@tp.Unallocated.ToString("C")</td><td colspan="4"></td><td class="text-end fw-bold">@tp.TrusteeTax.ToString("C")</td></tr>
+                }
+                <tr class="fw-bold table-active"><td colspan="7">Tax on the trust's income across the family</td><td class="text-end">@tp.TotalTax.ToString("C")</td></tr>
+            </tbody>
+        </table>
+    </div></div>
+    <p class="small text-muted mt-3">An estimate. Individuals are taxed as residents with Medicare and the low income offset, and other income is taken as salary with no
+        tax withheld. A company beneficiary's tax ignores the unpaid present entitlement and Division 7A rules, and a minor beneficiary's penalty rates
+        (Division 6AA) aren't applied: check those before resolving.</p>
+    return;
+}
 @if (!Model.IsIndividual || a is null || b is null)
 {
-    <div class="alert alert-info">Tax planning is for individuals. Companies, trusts and super funds have their own tax pages under Tax work.</div>
+    <div class="alert alert-info">Tax planning is for individuals, companies, trusts and super funds. Set the entity type under Clients > Client details.</div>
     return;
 }
 
@@ -40,6 +140,7 @@
                     <div class="col-sm-4"><label asp-for="OtherIncome" class="form-label small mb-1">Salary and other income</label><input asp-for="OtherIncome" type="number" step="1" class="form-control form-control-sm" /></div>
                     <div class="col-sm-4"><label asp-for="Payg" class="form-label small mb-1">PAYG withheld</label><input asp-for="Payg" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
                     <div class="col-sm-4"><label asp-for="OtherDeductions" class="form-label small mb-1">Other deductions</label><input asp-for="OtherDeductions" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
+                    <div class="col-12"><div class="form-check"><input asp-for="Senior" class="form-check-input" /><label asp-for="Senior" class="form-check-label small">Entitled to the seniors and pensioners tax offset (for the Medicare levy threshold)</label></div></div>
                     @if (Model.Workpaper!.Ess.UpfrontEligible > 0)
                     {
                         <div class="col-sm-6"><label asp-for="FringeBenefits" class="form-label small mb-1">Reportable fringe benefits</label><input asp-for="FringeBenefits" type="number" step="1" min="0" class="form-control form-control-sm" /></div>
@@ -106,5 +207,6 @@
 {
     <div class="alert alert-warning mt-3">The contribution is over the @Model.Caps.Concessional.ToString("C0") concessional cap, before counting the employer's super.</div>
 }
-<p class="small text-muted mt-3">An estimate for a resident individual. It leaves out the Medicare levy low-income reduction and surcharge, the senior and pensioner offset,
+<p class="small text-muted mt-3">An estimate for a resident individual. The Medicare levy is reduced for low incomes (single threshold @Model.MedicareThresholds.Single.ToString("C0"),
+    seniors @Model.MedicareThresholds.Senior.ToString("C0")@(Model.MedicareThresholds.Known ? "" : ", the latest known year's")); family thresholds aren't applied. It leaves out the Medicare levy surcharge, the senior and pensioner offset itself,
     HELP repayments and the foreign tax offset limit above $1,000. To claim a personal contribution the fund must acknowledge a notice of intent before the return is lodged.</p>

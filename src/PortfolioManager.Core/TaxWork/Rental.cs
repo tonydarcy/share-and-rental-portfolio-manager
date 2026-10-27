@@ -174,9 +174,58 @@ public static class RentalDepreciation
     /// </summary>
     public static decimal BalancingAdjustment(RentalAsset a, int endYear, YearStart? start = null)
     {
-        if (!a.IsPlant || a.Disposed is not { } d || FinancialYear.EndYearFor(d, start) != endYear)
+        // A pooled asset has no balancing adjustment of its own: its termination value comes off the pool (RentalLowValuePool)
+        if (!a.IsPlant || a.IsPooled || a.Disposed is not { } d || FinancialYear.EndYearFor(d, start) != endYear)
             return 0;
         return Math.Round((a.TerminationValue ?? 0) - For(a, endYear, start).Closing, 2);
+    }
+}
+
+/// <summary>One year of a property's low-value pool.</summary>
+public sealed record PoolYear(int Year, decimal Opening, decimal Additions, decimal Deduction, decimal TerminationValues, decimal Closing, decimal ExcessIncome)
+{
+    public static readonly PoolYear Empty = new(0, 0, 0, 0, 0, 0, 0);
+}
+
+/// <summary>
+/// The low-value pool (ss 40-425 to 40-445), worked out for the pool as a whole: each year the deduction is 37.5% of the
+/// opening balance plus 18.75% of the cost of assets added, whatever the days held. When a pooled asset is sold or
+/// scrapped, its termination value comes off the closing balance; if that takes the balance below nil, the excess is
+/// assessable income and the pool closes at nil. Pooled assets get no balancing adjustment of their own.
+/// </summary>
+public static class RentalLowValuePool
+{
+    public static PoolYear For(IEnumerable<RentalAsset> assets, int endYear, YearStart? start = null)
+    {
+        var pooled = assets.Where(a => a.IsPooled).ToList();
+        if (pooled.Count == 0)
+            return PoolYear.Empty with { Year = endYear };
+        var first = pooled.Min(a => FinancialYear.EndYearFor(a.Start, start));
+        if (endYear < first)
+            return PoolYear.Empty with { Year = endYear };
+        var opening = 0m;
+        PoolYear year = PoolYear.Empty;
+        for (var y = first; y <= endYear; y++)
+        {
+            var additions = pooled.Where(a => FinancialYear.EndYearFor(a.Start, start) == y).Sum(a => a.Cost);
+            var deduction = Math.Round(opening * RentalDepreciation.PoolRate + additions * RentalDepreciation.PoolFirstYearRate, 2);
+            var tv = pooled.Where(a => a.Disposed is { } d && FinancialYear.EndYearFor(d, start) == y).Sum(a => a.TerminationValue ?? 0);
+            var closing = opening + additions - deduction - tv;
+            var excess = closing < 0 ? -closing : 0;
+            year = new PoolYear(y, opening, additions, deduction, tv, Math.Max(0, closing), excess);
+            opening = year.Closing;
+        }
+        return year;
+    }
+
+    /// <summary>The pool as one line of a property's assets for the year, or null when it has nothing in it.</summary>
+    public static AssetYear? Line(PoolYear pool, int propertyId, DateOnly yearStart)
+    {
+        if (pool.Opening + pool.Additions <= 0 && pool.Deduction == 0)
+            return null;
+        var description = "Low-value pool" + (pool.TerminationValues > 0 ? $" (less {pool.TerminationValues:N2} for assets sold or scrapped)" : "");
+        var asset = new RentalAsset(0, propertyId, RentalAssetKinds.Plant, description, yearStart, pool.Additions, null, RentalAssetKinds.LowValuePool, null, null);
+        return new AssetYear(asset, pool.Opening + pool.Additions, 0, pool.Deduction);
     }
 }
 
@@ -353,10 +402,16 @@ public sealed class RentalService(IDbConnectionFactory db)
         var list = properties.Select(p =>
             {
                 var mine = assets.GetValueOrDefault(p.Id) ?? [];
+                var pool = RentalLowValuePool.For(mine, year);
+                var rows = mine.Where(a => !a.IsPooled).Select(a => RentalDepreciation.For(a, year)).Where(a => a.Opening > 0 || a.Deduction > 0).ToList();
+                // Pooled assets are listed (so a sale can be recorded) with nothing of their own; the pool line carries the deduction
+                rows.AddRange(mine.Where(a => a.IsPooled && a.Start <= FinancialYear.EndDate(year) && (a.Disposed is not { } d || d >= FinancialYear.StartDate(year)))
+                    .Select(a => new AssetYear(a, 0, 0, 0)));
+                if (RentalLowValuePool.Line(pool, p.Id, FinancialYear.StartDate(year)) is { } poolLine)
+                    rows.Add(poolLine);
                 return new RentalPropertyYear(p, year, amounts.GetValueOrDefault(p.Id) ?? new Dictionary<string, decimal>(),
-                    mine.Select(a => RentalDepreciation.For(a, year)).Where(a => a.Opening > 0 || a.Deduction > 0).ToList(),
-                    linked.GetValueOrDefault(p.Id), loans.TryGetValue(p.Id, out var interest) ? interest : null,
-                    mine.Sum(a => RentalDepreciation.BalancingAdjustment(a, year)));
+                    rows, linked.GetValueOrDefault(p.Id), loans.TryGetValue(p.Id, out var interest) ? interest : null,
+                    mine.Sum(a => RentalDepreciation.BalancingAdjustment(a, year)) + pool.ExcessIncome);
             })
             .Where(p => allProperties || p.Property.Active || p.Amounts.Count > 0 || p.Linked is { Count: > 0 } || p.Assets.Any(a => a.Deduction > 0))
             .ToList();

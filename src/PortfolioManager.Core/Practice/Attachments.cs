@@ -134,6 +134,16 @@ public sealed class AttachmentService(IDbConnectionFactory db)
         return row is { } r ? new AttachmentFile(r.FileName, r.ContentType, r.Data) : null;
     }
 
+    /// <summary>The year's files with their contents, for printing into a pack (<see cref="AttachmentPack"/>).</summary>
+    public async Task<IReadOnlyList<(Attachment Info, AttachmentFile File)>> GetYearFilesAsync(int portfolioId, int year)
+    {
+        var list = new List<(Attachment, AttachmentFile)>();
+        foreach (var a in await ListAsync(portfolioId, year: year))
+            if (await GetFileAsync(portfolioId, a.Id) is { } file)
+                list.Add((a, file));
+        return list;
+    }
+
     public async Task<ProcResult> AddAsync(int portfolioId, int loginUserId, string kind, int? targetId, int? year, string fileName, byte[] data, string? note)
     {
         if (!AttachmentKinds.All.Contains(kind))

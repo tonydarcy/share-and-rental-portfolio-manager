@@ -54,6 +54,10 @@ public class AllocateModel(CurrentPortfolio current, BankImportService imports, 
     public IReadOnlyList<MatchCandidate> Trades { get; private set; } = [];
     public IReadOnlyList<DepositMatch> InvoiceMatches { get; private set; } = [];
 
+    /// <summary>Every invoice still owing, with the part of the deposit suggested for each (oldest first).</summary>
+    public IReadOnlyList<InvoiceSummary> OpenInvoices { get; private set; } = [];
+    public IReadOnlyDictionary<int, decimal> Suggested { get; private set; } = new Dictionary<int, decimal>();
+
     /// <summary>Which section to open: account, payout, trade or new.</summary>
     public string Open { get; private set; } = "account";
 
@@ -114,6 +118,24 @@ public class AllocateModel(CurrentPortfolio current, BankImportService imports, 
         var r = await invoiceExtras.MatchDepositAsync(Portfolio!.PortfolioId, id, invoiceId);
         var number = InvoiceMatches.FirstOrDefault(m => m.InvoiceId == invoiceId)?.Number;
         return Done(r.Ok ? AllocationResult.Success : new AllocationResult(r.Error), "invoice", $"Recorded as a payment of invoice {number}.");
+    }
+
+    /// <summary>One deposit paying several invoices: <paramref name="invoiceIds"/> and <paramref name="amounts"/> are in step.</summary>
+    public async Task<IActionResult> OnPostSplitAsync(int id, int[] invoiceIds, decimal?[] amounts)
+    {
+        if (await LoadAsync(id) is { } refusal)
+            return refusal;
+        var shares = invoiceIds.Zip(amounts, (i, a) => new DepositShare(i, a ?? 0)).Where(s => s.Amount != 0).ToList();
+        Suggested = shares.GroupBy(s => s.InvoiceId).ToDictionary(g => g.Key, g => g.Sum(s => s.Amount));
+        if (DepositSplit.Validate(Line!.Amount, shares, OpenInvoices.ToDictionary(i => i.InvoiceId, i => i.Balance)) is { } invalid)
+        {
+            ModelState.AddModelError(string.Empty, invalid);
+            Open = "split";
+            return Page();
+        }
+        var r = await invoiceExtras.MatchDepositSplitAsync(Portfolio!.PortfolioId, id, shares);
+        var numbers = string.Join(", ", OpenInvoices.Where(i => Suggested.ContainsKey(i.InvoiceId)).Select(i => i.Number));
+        return Done(r.Ok ? AllocationResult.Success : new AllocationResult(r.Error), "split", $"Recorded as payments of invoices {numbers}.");
     }
 
     public async Task<IActionResult> OnPostNewPayoutAsync(int id)
@@ -179,7 +201,11 @@ public class AllocateModel(CurrentPortfolio current, BankImportService imports, 
         Payouts = await imports.GetPayoutMatchesAsync(Portfolio.PortfolioId, id);
         Trades = await imports.GetTradeMatchesAsync(Portfolio.PortfolioId, id);
         if (Line.IsDeposit)
+        {
             InvoiceMatches = await invoiceExtras.GetDepositMatchesAsync(Portfolio.PortfolioId, Line.Amount);
+            OpenInvoices = await invoiceExtras.GetOpenInvoicesAsync(Portfolio.PortfolioId);
+            Suggested = DepositSplit.Suggest(Line.Amount, OpenInvoices).ToDictionary(s => s.InvoiceId, s => s.Amount);
+        }
         return null;
     }
 }

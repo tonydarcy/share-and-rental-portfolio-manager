@@ -9,6 +9,7 @@
 <div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
     <h1 class="h2 mb-0">SMSF member accounts</h1>
     <div class="d-flex gap-2 no-print">
+        <a asp-page-handler="Actuary" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i> Actuary data</a>
         <a asp-page="/TaxWork/SmsfAudit" asp-route-fy="@Model.Year" class="btn btn-sm btn-primary"><i class="bi bi-folder-check"></i> Audit pack</a>
         <a asp-page="/TaxWork/Reconciliation" asp-route-fy="@Model.Year" class="btn btn-sm btn-outline-secondary">Tax reconciliation</a>
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
@@ -104,6 +105,10 @@
                             <div class="col-sm-3"><label asp-for="Account.PensionPaid" class="form-label small mb-1">Pensions paid</label><input asp-for="Account.PensionPaid" class="form-control form-control-sm" /></div>
                             <div class="col-sm-3"><label asp-for="Account.LumpSum" class="form-label small mb-1">Lump sums paid</label><input asp-for="Account.LumpSum" class="form-control form-control-sm" /></div>
                             <div class="col-sm-3"><label asp-for="Account.Insurance" class="form-label small mb-1">Insurance premiums</label><input asp-for="Account.Insurance" class="form-control form-control-sm" /></div>
+                            <div class="col-sm-6"><label asp-for="Account.PensionStart" class="form-label small mb-1">Pension started during the year on</label><input asp-for="Account.PensionStart" type="date" class="form-control form-control-sm" /></div>
+                            <div class="col-sm-6"><label asp-for="Account.StartBalance" class="form-label small mb-1">Balance on the start day</label><input asp-for="Account.StartBalance" class="form-control form-control-sm" /></div>
+                            <div class="col-12 form-text mt-0">Retirement phase only. Leave the start date blank for a pension that ran all year. A pension started during the year
+                                has its minimum worked out on the start-day balance for the days left to 30 June; one started in June has no minimum that year.</div>
                         </div>
                         <button type="submit" class="btn btn-sm btn-primary" disabled="@Model.Locked">Save account</button>
                         @if (Model.Account.MemberAccountId is not null)

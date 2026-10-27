@@ -308,6 +308,37 @@ over a SQL Server database whose stored procedures post the double-entry journal
     accruals and their reversal (`uspPostInterestAccruals`, source `InterestAccrual`). The tax reconciliation takes out
     what's in 5300 and puts in the deductible part of the investment loans, takes accrued interest back out, and D8
     shows the deductible loan interest.
+- **Accountant, BAS and rental extras** (migrations 2026-10-26-08 to -11):
+  - *Year ends by country* (Clients > Practice dashboard): each client's year end comes from its own country and year
+    start (`PracticeClientYear.YearEnd`), clients are grouped by country with Australia first (`ByCountry`), and the
+    year filter reads "years ending in".
+  - *Attachments printed into the packs*: a year's attachments are put into one PDF (`AttachmentPack.Build`, PdfPig):
+    a contents page, then PDFs merged, JPEG and PNG photos a page each, and text and CSV files as text pages. Word,
+    Excel, email and other files are listed with why. The SMSF audit pack and report pack print photos in place, and
+    "Supporting documents as one PDF" downloads the lot (Attachments > `?handler=Pack`).
+  - *Credit note refunds* (Invoices > a credit note > Refund to the customer): `uspRefundCreditNote` posts Dr Accounts
+    Receivable, Cr the bank, and the customer statement shows it as a Refund.
+  - *Split deposits* (Accounting > Allocate, a deposit > Split over several invoices): oldest due first is suggested
+    (`DepositSplit.Suggest`); `uspMatchInvoiceDepositSplit` posts one journal for all of them, and deleting any one of the
+    payments deletes them all and puts the deposit back in Unallocated.
+  - *Send to Xero and MYOB* (Accounting > Export > Send straight to ...): OAuth sign-in (`AccountingApiClient`, callback
+    `/Accounting/Connected` with a signed, 20-minute state naming the portfolio), tokens encrypted with Data Protection
+    (`AccountingTokenProtector`) in `tblAccountingConnections`, refreshed when they expire. Xero gets manual journals as
+    drafts, 50 a request, with tax types matched by name or code from its TaxRates; MYOB gets one general journal per
+    journal, with accounts and tax codes matched by their display ids. Each send is logged (`tblAccountingSends`) and a
+    second send overlapping earlier dates needs "Send again anyway". Turned on by `AccountingLink` settings (SETUP.md).
+  - *SMSF extras* (Tax work > SMSF): a retirement phase account can have a pension start date and balance;
+    `MinimumPension.ProRata` pro-rates the first year's minimum by days (none for a June start). "Actuary data" downloads
+    each member account's balances and flows as a CSV (`SmsfActuaryFile`) with an estimated retirement share.
+  - *Tax planning* (Tax work > Tax planning): the Medicare levy low-income reduction (`MedicareLowIncome`, singles and
+    seniors), and plans for a company or SMSF (`EntityPlanner`) and for a trust's beneficiaries (`TrustPlanner`).
+  - *Activity statement* (Sales tax, Australia): cash or accruals basis (`uspGetSalesTaxCashLines` scales each paid
+    invoice's or bill's taxed lines by the part paid), PAYG instalments (amount, or T1 x T2 with T1 suggested from the
+    profit and loss revenue less gains and franking), and the other labels kept per period (`tblBasLabels`, locked
+    periods can't change). `ActivityStatementBuilder.Build` works out W5, 5A, 8A, 8B and 9 in whole dollars.
+  - *Rental extras*: the low-value pool is worked out for the pool as a whole (`RentalLowValuePool`), with termination
+    values off the balance and any excess as income; a capital job can be split into depreciating assets and capital
+    works (`JobSplit`); and receipts and arrears reminders can be emailed to the tenant (`TenantEmail`).
 - **Create an account** from the login page (`AddNewUser`, password stored as a PBKDF2 hash).
 - An optional link on the login page to an older site (`Site:OldSiteUrl`), for people moving across.
 
@@ -532,6 +563,16 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   - `2026-10-26-07-loans-in-ledger.sql`: loans and fixed income in the ledger. Adds `tblLoans.iAccountID`,
     `uspPostLoanEntryJournal` and `uspPostInterestAccruals` (accounts 2300, 1450, 2390 and 5300 are made when first
     used), and posts the loan entries already recorded.
+  - `2026-10-26-08-credit-refunds-split-deposits.sql`: invoicing extras. Adds `uspRefundCreditNote` and
+    `uspMatchInvoiceDepositSplit`, and changes `uspDeleteInvoicePayment` so deleting one payment of a split deposit
+    deletes the others that share its journal.
+  - `2026-10-26-09-accounting-connections.sql`: sending to Xero and MYOB. Adds `tblAccountingConnections` (tokens are
+    encrypted by the site before they're saved), `tblAccountingSends`, `uspSaveAccountingConnection`,
+    `uspDeleteAccountingConnection` and `uspAddAccountingSend`. It only adds things.
+  - `2026-10-26-10-pension-start.sql`: pro-rata minimum pensions. Adds `dtPensionStart` and `dblStartBalance` to
+    `tblSmsfMemberAccount` and changes `uspGetSmsfMembers` and `uspSaveSmsfMemberAccount` to read and save them.
+  - `2026-10-26-11-bas-extras.sql`: the activity statement. Adds `tblBasSettings`, `tblBasLabels`, `uspSaveBasSettings`,
+    `uspSaveBasLabel` and `uspGetSalesTaxCashLines`. It only adds things.
 - `2026-10-21-08-alerts.sql`: Email alerts. Run after `2026-10-21-02-announced-actions.sql`. Adds `tblAlertSettings`,
   `tblPriceAlerts`, `uspSaveAlertSettings`, `uspSavePriceAlert`, `uspDeletePriceAlert`, `uspMarkPriceAlertSent` and
   `uspMarkAlertsChecked`. It only adds things.
