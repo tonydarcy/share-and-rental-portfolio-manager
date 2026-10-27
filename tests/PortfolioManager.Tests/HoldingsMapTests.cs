@@ -42,4 +42,27 @@ public class HoldingsMapTests
         row["Market Price (Portfolio Currency)"] = DBNull.Value;
         Assert.Equal(0m, HoldingsService.Map([row]).Holdings[0].Price);
     }
+
+    [Fact]
+    public void Reads_the_cost_column_and_adds_it_to_the_total()
+    {
+        var cba = Row("CBA", 500m, 50m);
+        cba["Total Cost (Portfolio Currency)"] = 450m;
+        var bhp = Row("BHP", 1200m, -20m);
+        bhp["Total Cost (Portfolio Currency)"] = 1220m;
+
+        var summary = HoldingsService.Map([cba, bhp]);
+
+        Assert.Equal(1220m, summary.Holdings[0].Cost);
+        Assert.Equal(450m, summary.Holdings[1].Cost);
+        Assert.Equal(1670m, summary.Total.Cost);
+    }
+
+    [Fact]
+    public void Works_out_the_cost_before_the_migration_adds_its_column()
+    {
+        var summary = HoldingsService.Map([Row("CBA", 500m, 50m), Row(null, 1700m, 30m)]);
+        Assert.Equal(450m, summary.Holdings[0].Cost);
+        Assert.Equal(1670m, summary.Total.Cost);
+    }
 }

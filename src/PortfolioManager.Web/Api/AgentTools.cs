@@ -40,7 +40,7 @@ public sealed class AgentTools
             false, new ToolSchema().Build(), ListPortfolios, NeedsPortfolio: false),
 
         new("get_holdings", "Holdings",
-            "Each holding in the portfolio with units, cost, market value, capital gain, payouts and total profit, plus totals.",
+            "Each holding in the portfolio with units, cost (buys less sales and returns of capital), market value, capital gain, payouts and total profit, plus totals.",
             false, new ToolSchema().Portfolio().Bool("openOnly", "Only holdings with units left (default true).").Build(),
             async c => await c.Service<HoldingsService>().GetHoldingsAsync(c.PortfolioId, null, c.Bool("openOnly", true))),
 
