@@ -37,9 +37,11 @@ public sealed class ApiKeyAuthenticationHandler(
     protected override async Task HandleChallengeAsync(AuthenticationProperties properties)
     {
         Response.StatusCode = StatusCodes.Status401Unauthorized;
-        Response.Headers.WWWAuthenticate = "Bearer";
+        // Points OAuth apps such as Claude at the sign-in metadata (OAuthServer), so they can connect without a pasted key
+        Response.Headers.WWWAuthenticate = OAuthServer.Challenge(OAuthServer.BaseUrl(Request));
         await Response.WriteAsJsonAsync(new ApiError(
-            "Send an API key as \"Authorization: Bearer pm_...\". Make one on the API keys page (your name, top right, then API keys)."));
+            "Send an API key as \"Authorization: Bearer pm_...\". Make one on the API keys page (your name, top right, then API keys), "
+            + "or connect by OAuth (Claude finds the sign-in itself)."));
     }
 
     protected override async Task HandleForbiddenAsync(AuthenticationProperties properties)

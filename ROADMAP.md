@@ -15,7 +15,7 @@ This page lists only what is **not built yet**. Everything already in the site i
 1. **Broker imports checked against real files.** Each broker CSV layout (CommSec, CMC, SelfWealth, Stake, Pearler,
    Superhero, Interactive Brokers) needs checking against real export files, and PDF contract notes aren't read yet.
    **Good first issue** (one broker each).
-2. **API and MCP server extras.** Sign-in by OAuth, so an assistant can connect without pasting a key; more tools
+2. **API and MCP server extras.** More tools
    (payouts, journals, creating and sending invoices, editing and deleting); and an OpenAPI description for app
    builders. **Good first issue:** a new tool is one entry in `src/PortfolioManager.Web/Api/AgentTools.cs`.
 3. **Alerts by text message or phone notification**, as well as email.
