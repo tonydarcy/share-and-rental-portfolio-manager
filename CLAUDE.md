@@ -31,6 +31,7 @@ Live at https://app.shareportfoliomanager.com. Owner: Tony (tax agent). Open sou
 | `tests/PortfolioManager.Tests/` | xUnit, one file per feature (e.g. `PayoutTests.cs`). Tests cover parameter mapping and pure logic; no DB. |
 | `Database/CreateDatabase.sql` | Builds a new empty database (baseline through 2026-10-16). Never edit it; changes go in migrations. |
 | `Database/Migrations/` | Dated SQL scripts, idempotent, run by hand in SSMS before deploying. |
+| `deploy/` | One-click update for a Windows/IIS server (`Deploy.cmd`, `Rollback.cmd`, `deploy.ps1`). |
 | `SETUP.md` | Install guide for people running their own copy. Update it when setup steps change. |
 
 To add a feature, copy the shape of a neighbouring one: a Core service + its mapping class, a page under the same area,
@@ -71,11 +72,11 @@ the tests yourself before pushing rather than shipping untested code.
 
 ## Deploy (Tony does this on the VPS)
 
-1. Run any new `Database/Migrations/*.sql` in SSMS first.
-2. GitHub Desktop on the VPS: Fetch origin, Pull.
-3. `dotnet publish src\PortfolioManager.Web -c Release -o Desktop\pm-publish`, copy the contents into the app's wwwroot
-   (keep `appsettings.Production.json`), recycle only this app's pool.
-4. Never copy `src/`, `tests/`, `publish/` or `.git` into any wwwroot.
+Tony double-clicks `deploy\Deploy.cmd` in the code clone on the VPS. It pulls main, lists new
+`Database/Migrations/*.sql` and waits while he runs them in SSMS, publishes, backs up wwwroot to `_deploy`, copies the
+build in behind `app_offline.htm` (never `appsettings.Production.json`, never `src/`, `tests/` or `.git`) and checks the
+home page. `deploy\Rollback.cmd` restores the newest backup. Plain-English steps: `deploy/README.md`. Keep the script
+Windows PowerShell 5.1 compatible and ASCII only.
 
 ## Style
 

@@ -696,7 +696,8 @@ code is remembered in memory, which assumes the site runs on one server.
    ```json
    { "ConnectionStrings": { "Default": "Server=...;Database=PortfolioManager;User Id=...;Password=...;TrustServerCertificate=true" } }
    ```
-4. Each release: on your PC run
+4. Each release: double-click `deploy\Deploy.cmd` in a clone of the code on the server (see `deploy/README.md`).
+   It does the steps below and backs up the old version first. By hand: on your PC run
    `dotnet publish src/PortfolioManager.Web -c Release -o publish`
    and copy the contents of `publish/` to the new site's folder (keep your `appsettings.Production.json`).
    IIS picks up the new files; if a file is locked, drop an `app_offline.htm` into the folder first and delete it afterwards.

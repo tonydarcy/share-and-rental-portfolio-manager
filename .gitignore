@@ -15,3 +15,6 @@ appsettings.Production.json
 src/**/appsettings.*.local.json
 publish/
 publish-prices/
+
+# Saved answers from the deploy script (server paths)
+deploy/deploy-settings.json

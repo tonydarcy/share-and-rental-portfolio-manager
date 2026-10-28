@@ -3,3 +3,7 @@
 
 # Shell scripts run inside Linux containers, so they must keep LF line endings on Windows checkouts too
 *.sh text eol=lf
+
+# Windows deploy scripts are double-clicked on the server
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
