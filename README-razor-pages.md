@@ -609,6 +609,12 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   takes an optional `@dblOtherAmount`, kept as the payout's other amount, for coins received as income (staking, airdrops,
   mining), and refuses franking on market `CRYPTO`. Existing callers work as before. Until it runs, adding a crypto
   reward (by hand, from an exchange file or from Navexa) fails with a database error; nothing else changes.
+- `2026-10-28-01-speed-indexes.sql`: indexes only, so pages stop reading whole tables: journal lines by journal (every
+  ledger report, and the cash movement report, which read every line once per bank line), journals by what posted
+  them, bank statement lines by portfolio and date and by trade, a portfolio's own prices, and CGT parcel matches by
+  trade. Nothing else changes. Takes a minute or so on a big database.
+- `2026-10-28-02-price-trend-speed.sql`: the daily price job's trend update (`uspUpdateMissingSharePriceTrendsByDateAndExchange`)
+  finds the traded stocks' new prices through the index instead of reading every price on each pass. Same results.
 
 ## API and MCP server
 
