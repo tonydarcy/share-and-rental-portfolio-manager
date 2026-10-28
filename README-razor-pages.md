@@ -656,6 +656,8 @@ portfolio, the tool, what was sent and the result. It shows on the API keys page
 | `list_portfolios` | `GET /api/v1/portfolios` | |
 | `get_holdings` | `GET /holdings?openOnly=true` | |
 | `list_trades`, `add_trade` | `GET /trades?stockCode=&limit=`, `POST /trades` | add |
+| `edit_trade`, `delete_trade` | `PATCH /trades/{tradeId}`, `DELETE /trades/{tradeId}` | yes |
+| `list_payouts`, `add_payout`, `delete_payout` | `GET /payouts?from=&to=&stockCode=&limit=`, `POST /payouts`, `DELETE /payouts/{payoutId}` | add, delete |
 | `list_cash_transactions`, `add_cash_transaction` | `GET /cash?account=&limit=`, `POST /cash` | add |
 | `list_bank_accounts`, `list_ledger_accounts`, `list_tax_codes` | `GET /bank-accounts`, `/ledger-accounts`, `/tax-codes` | |
 | `import_bank_transactions` | `POST /bank-imports` | yes |
@@ -669,7 +671,14 @@ portfolio, the tool, what was sent and the result. It shows on the API keys page
 `GET /api/v1/tools` lists every tool with its JSON Schema, and `POST /api/v1/tools/{name}` runs any tool with its
 arguments as the JSON body. Bodies use the same field names as the forms (for a trade: `date`, `type`, `market`,
 `code`, `quantity`, `price`, `brokerage`, `currency`, `exchangeRate`, `recordCash`, `bankAccount`...). Dates are
-`yyyy-mm-dd`. Errors come back as `{"error": "...", "fields": {...}}` with status 400 (invalid), 403 (not allowed),
+`yyyy-mm-dd`.
+
+`edit_trade` takes only the fields that change. The database has no proc to edit a trade, so
+`TradesService.ReplaceTradeAsync` deletes it with `uspDeleteShareTrade` and records the new version with the Add trade
+proc in one transaction (journals, cash settlement and bank balances follow, and custom group links are put back); the
+trade gets a new id, which the tool returns. A cash settlement is kept in the same account, its date moving with the
+trade date. Trades a DRP, split, demerger/takeover or saved parcel choice points at are refused with what to do
+instead, and a locked period refuses the whole change. Errors come back as `{"error": "...", "fields": {...}}` with status 400 (invalid), 403 (not allowed),
 404 (not found), 409 (locked period) or 500.
 
 **MCP.** The server speaks Streamable HTTP without sessions: each POST to `/mcp` carries one JSON-RPC message and the

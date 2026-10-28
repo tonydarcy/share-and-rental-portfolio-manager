@@ -25,6 +25,11 @@ public static class ApiEndpoints
         Get(api, "/portfolios/{portfolioId:int}/holdings", "get_holdings");
         Get(api, "/portfolios/{portfolioId:int}/trades", "list_trades");
         Post(api, "/portfolios/{portfolioId:int}/trades", "add_trade");
+        Patch(api, "/portfolios/{portfolioId:int}/trades/{tradeId:int}", "edit_trade");
+        Delete(api, "/portfolios/{portfolioId:int}/trades/{tradeId:int}", "delete_trade");
+        Get(api, "/portfolios/{portfolioId:int}/payouts", "list_payouts");
+        Post(api, "/portfolios/{portfolioId:int}/payouts", "add_payout");
+        Delete(api, "/portfolios/{portfolioId:int}/payouts/{payoutId:int}", "delete_payout");
         Get(api, "/portfolios/{portfolioId:int}/cash", "list_cash_transactions");
         Post(api, "/portfolios/{portfolioId:int}/cash", "add_cash_transaction");
         Get(api, "/portfolios/{portfolioId:int}/bank-accounts", "list_bank_accounts");
@@ -63,6 +68,12 @@ public static class ApiEndpoints
 
     private static void Post(RouteGroupBuilder api, string pattern, string tool) =>
         api.MapPost(pattern, async Task<IResult> (HttpContext http) => await RunAsync(http, tool, await ReadBodyAsync(http)));
+
+    private static void Patch(RouteGroupBuilder api, string pattern, string tool) =>
+        api.MapPatch(pattern, async Task<IResult> (HttpContext http) => await RunAsync(http, tool, await ReadBodyAsync(http)));
+
+    private static void Delete(RouteGroupBuilder api, string pattern, string tool) =>
+        api.MapDelete(pattern, async Task<IResult> (HttpContext http) => await RunAsync(http, tool, null));
 
     private static async Task<IResult> RunAsync(HttpContext http, string toolName, JsonObject? body, bool fromUrl = true)
     {

@@ -15,9 +15,10 @@ This page lists only what is **not built yet**. Everything already in the site i
 1. **Broker imports checked against real files.** Each broker CSV layout (CommSec, CMC, SelfWealth, Stake, Pearler,
    Superhero, Interactive Brokers) needs checking against real export files, and PDF contract notes aren't read yet.
    **Good first issue** (one broker each).
-2. **API and MCP server extras.** More tools
-   (payouts, journals, creating and sending invoices, editing and deleting); and an OpenAPI description for app
-   builders. **Good first issue:** a new tool is one entry in `src/PortfolioManager.Web/Api/AgentTools.cs`.
+2. **API and MCP server extras.** More tools: editing payouts, DRPs and rental entries; editing and deleting
+   cash transactions (needs a new proc); splits and returns of capital; listing and adding journals; creating and
+   sending invoices and bills; manual prices; and an OpenAPI description for app builders. The site's Trades page
+   could also get an Edit button using the same edit as the `edit_trade` tool. **Good first issue:** a new tool is one entry in `src/PortfolioManager.Web/Api/AgentTools.cs`.
 3. **Alerts by text message or phone notification**, as well as email.
 4. **Franking and DRP prices fetched automatically.** Announced dividends get their franking and DRP price from a file
    the site admin uploads (Import > Dividend details). An ASX announcements feed would fill them in by itself, but the
