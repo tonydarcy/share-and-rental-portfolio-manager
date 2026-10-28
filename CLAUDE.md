@@ -73,7 +73,7 @@ the tests yourself before pushing rather than shipping untested code.
 ## Deploy (Tony does this on the VPS)
 
 Tony double-clicks `deploy\Deploy.cmd` in the code clone on the VPS. It pulls main, lists new
-`Database/Migrations/*.sql` and waits while he runs them in SSMS, publishes, backs up wwwroot to `_deploy`, copies the
+`Database/Migrations/*.sql` and waits while Tony runs them in SSMS, publishes, backs up wwwroot to `_deploy`, copies the
 build in behind `app_offline.htm` (never `appsettings.Production.json`, never `src/`, `tests/` or `.git`) and checks the
 home page. `deploy\Rollback.cmd` restores the newest backup. Plain-English steps: `deploy/README.md`. Keep the script
 Windows PowerShell 5.1 compatible and ASCII only.
