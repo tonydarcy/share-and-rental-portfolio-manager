@@ -8,7 +8,7 @@ one tool can cover every entity a client has.
 
 This page lists only what is **not built yet**. Everything already in the site is described in the
 [README](README.md#what-it-does). Items are ordered by value to users and accountants against effort. Anything marked
-**good first issue** is a self-contained job for a new contributor. Last reviewed 27 October 2026.
+**good first issue** is a self-contained job for a new contributor. Last reviewed 28 October 2026.
 
 ## Next: investor features
 
@@ -35,6 +35,28 @@ This page lists only what is **not built yet**. Everything already in the site i
     to the invoice when it lands.
 8. **Assistant extras.** Replies that appear as they are written, reading an attached receipt or statement in the
     chat, and a monthly spending limit when the host shares their own Anthropic key with every user.
+
+## Next: security
+
+9. **Keep each portfolio's data unreadable to anyone without access.** Today a portfolio is kept private by the
+    access check on each page and API call. Three layers would mean a bug, a leaked backup or a stolen disk can't expose
+    one user's data to another:
+    - *Row-level security in SQL Server,* using the same access check that shared portfolios already use, so the
+      database itself refuses rows from portfolios the signed-in user can't see. Every proc needs testing to make sure
+      it hides nothing it should show.
+    - *Encrypting private text and files per portfolio:* attachments, notes, bank account numbers, ABNs and tenant
+      details. Each portfolio gets its own random key. A copy is stored for each person with access, locked with a
+      key worked out from their password. The server unlocks it at sign-in and keeps it for the session, and the
+      stored procs decrypt with it. A row fetched for the wrong user comes back unreadable. API keys (REST, MCP,
+      Assistant) each need their own locked copy. A forgotten password needs a recovery code, or another person on
+      the portfolio to share it again.
+    - *Disk and backup encryption* (SQL Server TDE or BitLocker on the server), a setting rather than code.
+
+    **Speed matters here.** Amounts, dates and quantities stay unencrypted. If they were encrypted, every report would
+    have to decrypt every row on every run and couldn't use indexes, and CGT, the ledger and the dashboard are already
+    slow in places. Before turning this on, time the slowest pages on a large test database with and without
+    row-level security, and fix any page that gets noticeably slower first. This is not true end-to-end encryption
+    (the server holds the keys while a request runs), so it doesn't protect against someone who takes over the server.
 
 ## Using it outside Australia
 
