@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using PortfolioManager.Core.Security;
 using PortfolioManager.Web.Api;
 using PortfolioManager.Web.Services;
 
@@ -10,7 +11,7 @@ namespace PortfolioManager.Web.Pages.Account;
 /// allow it (or not). Allowing sends the app back with a one-time code, which it swaps for an API key at /oauth/token.
 /// </summary>
 [AllowViewOnly]
-public class ConnectModel(OAuthServer oauth) : PageModel
+public class ConnectModel(OAuthServer oauth, AccountSecurity security) : PageModel
 {
     /// <summary>The fields of the app's request, carried through the form so the answer can be checked again.</summary>
     public static readonly string[] Fields =
@@ -25,10 +26,11 @@ public class ConnectModel(OAuthServer oauth) : PageModel
 
     public IActionResult OnGet() => Check(Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString())) ?? Page();
 
-    public IActionResult OnPostAllow()
+    public async Task<IActionResult> OnPostAllowAsync()
     {
         if (Check(Form()) is { } stop)
             return stop;
+        await security.AddAsync(HttpContext, CurrentPortfolio.UserId(User), User.Identity?.Name, SecurityEvents.AppConnected);
         var code = oauth.IssueCode(Asked!, CurrentPortfolio.UserId(User), ReadOnly);
         return Redirect(OAuthServer.RedirectWith(Asked!.RedirectUri, ("code", code), ("state", Asked.State)));
     }

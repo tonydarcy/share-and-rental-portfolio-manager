@@ -42,9 +42,12 @@ public sealed class AccountService(IDbConnectionFactory db)
         // for every portfolio row that shares this email, as the legacy site does.
         if (needsUpgrade)
         {
+            var upgraded = PasswordHasher.HashPassword(password);
             await con.ExecuteAsync("uspUpdateLoginPassword",
-                new { strLoginEmail = email, strOldPassword = details!.strLoginPassword, strNewPassword = PasswordHasher.HashPassword(password) },
+                new { strLoginEmail = email, strOldPassword = details!.strLoginPassword, strNewPassword = upgraded },
                 commandType: CommandType.StoredProcedure);
+            // The password stamp follows the stored hash, so the sign-in cookie must carry the new one
+            details.strLoginPassword = upgraded;
         }
 
         return details!.ToUser() with { Email = email };
