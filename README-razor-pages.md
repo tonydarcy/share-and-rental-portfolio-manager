@@ -631,6 +631,10 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-10-28-06-price-cache-clustered.sql`: gives `tblSharePriceCache` (each stock's latest price) a clustered index.
   Without one, the table's daily delete-and-reload left gigabytes of empty pages that SQL Server read whenever it
   refreshed the table's statistics, so holdings and the dashboard could time out. Can take a minute on a big database.
+- `2026-10-28-07-delete-cash-transaction.sql`: adds `uspDeleteCashTransaction`, which deletes a cash transaction entered by
+  hand with its journal and recalculates the account's running balances (a trade's settlement, or an entry ticked off on
+  a bank reconciliation, is refused). Needed by the API and MCP tools `edit_cash_transaction` and
+  `delete_cash_transaction`; nothing else uses it, so the site works without it until then.
 
 ## API and MCP server
 
@@ -668,6 +672,18 @@ portfolio, the tool, what was sent and the result. It shows on the API keys page
 | `report_unrealised_gains`, `report_trial_balance`, `report_balance_sheet` | `GET /reports/unrealised-gains`, `/trial-balance`, `/balance-sheet` (`asAt=`) | |
 | `report_rental_schedule` | `GET /reports/rental-schedule` (`financialYear=`) | |
 
+These tools have no REST path of their own; call them with `POST /api/v1/tools/{name}`:
+
+| Tool | Changes? |
+| --- | --- |
+| `edit_payout`, `add_drp`, `add_rental_entry`, `edit_rental_entry` | yes |
+| `edit_cash_transaction`, `delete_cash_transaction` | yes |
+| `list_corporate_actions`; `add_split`, `delete_split`, `add_return_of_capital`, `delete_return_of_capital` | the last four (`preview: true` saves nothing) |
+| `list_journals`, `get_journal`; `save_journal`, `delete_journal` (manual journals only) | the last two |
+| `list_customers`, `list_suppliers`, `list_bills`, `get_bill` | |
+| `save_customer`, `save_supplier`, `save_invoice`, `save_bill` (`approve: true` posts), `send_invoice`, `add_invoice_payment`, `add_bill_payment` | yes |
+| `list_manual_prices`; `set_manual_price`, `delete_manual_price` | the last two |
+
 `GET /api/v1/tools` lists every tool with its JSON Schema, and `POST /api/v1/tools/{name}` runs any tool with its
 arguments as the JSON body. Bodies use the same field names as the forms (for a trade: `date`, `type`, `market`,
 `code`, `quantity`, `price`, `brokerage`, `currency`, `exchangeRate`, `recordCash`, `bankAccount`...). Dates are
@@ -678,7 +694,10 @@ arguments as the JSON body. Bodies use the same field names as the forms (for a 
 proc in one transaction (journals, cash settlement and bank balances follow, and custom group links are put back); the
 trade gets a new id, which the tool returns. A cash settlement is kept in the same account, its date moving with the
 trade date. Trades a DRP, split, demerger/takeover or saved parcel choice points at are refused with what to do
-instead, and a locked period refuses the whole change. Errors come back as `{"error": "...", "fields": {...}}` with status 400 (invalid), 403 (not allowed),
+instead, and a locked period refuses the whole change. Every other edit tool works the same way: send the id and only the fields that
+change (`AgentCall.BindOver` lays them over the stored record, which then goes through the page's own checks).
+`edit_cash_transaction` is a delete and re-add too (new id); payouts, rental entries, journals, invoices and bills keep
+their ids. `send_invoice` emails the customer (or `to`) with replies going to the key's login. Errors come back as `{"error": "...", "fields": {...}}` with status 400 (invalid), 403 (not allowed),
 404 (not found), 409 (locked period) or 500.
 
 **MCP.** The server speaks Streamable HTTP without sessions: each POST to `/mcp` carries one JSON-RPC message and the

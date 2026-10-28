@@ -158,7 +158,7 @@ something. It looks things up by itself, but every change is shown to you to app
 their own Anthropic API key, kept encrypted, or the host can provide one.
 
 A JSON API (`/api/v1`) and an MCP server (`/mcp`), so Claude or another AI assistant (or your own app) can read the
-portfolio, add, edit and delete trades, list, add and delete dividends and other payouts, add cash, import, match and allocate bank transactions, read invoices and run the CGT, income,
+portfolio, add, edit and delete trades, payouts, DRPs, rental entries and cash, record splits and returns of capital, post manual journals, create, approve, email and record payments on invoices and bills, set manual prices, import, match and allocate bank transactions, read invoices and run the CGT, income,
 trial balance, profit and loss, balance sheet and rental schedule reports. Claude connects as a custom connector by logging in to the site (OAuth); other apps use API keys. Each login makes its own API keys (account menu > API keys),
 which can be read only; a key reaches the same portfolios with the same role as its login, and every change made with
 one is logged. Details are in [README-razor-pages.md](README-razor-pages.md#api-and-mcp-server).

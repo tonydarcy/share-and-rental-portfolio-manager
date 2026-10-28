@@ -47,6 +47,30 @@ public sealed class AgentCall(ApiCaller caller, PortfolioSummary? portfolio, Jso
         }
     }
 
+    /// <summary>
+    /// For an edit: the stored values with the arguments that match one of their names (any case) laid over them.
+    /// Arguments left out, or sent as null, keep the stored value.
+    /// </summary>
+    public T BindOver<T>(T stored) where T : new()
+    {
+        var merged = JsonSerializer.SerializeToNode(stored, AgentJson.Options)!.AsObject();
+        if (Args.ValueKind == JsonValueKind.Object)
+            foreach (var p in Args.EnumerateObject())
+            {
+                var name = merged.Select(m => m.Key).FirstOrDefault(k => string.Equals(k, p.Name, StringComparison.OrdinalIgnoreCase));
+                if (name is not null && p.Value.ValueKind != JsonValueKind.Null)
+                    merged[name] = JsonNode.Parse(p.Value.GetRawText());
+            }
+        try
+        {
+            return merged.Deserialize<T>(AgentJson.Options) ?? new T();
+        }
+        catch (JsonException ex)
+        {
+            throw new AgentToolException(400, $"An argument isn't in the right format{(ex.Path is { Length: > 2 } path ? $" ({path[2..]})" : "")}. Dates are yyyy-mm-dd and amounts are plain numbers.");
+        }
+    }
+
     /// <summary>The argument with this name (any case), or null when it's missing or null.</summary>
     public JsonElement? Arg(string name)
     {
@@ -158,6 +182,13 @@ public sealed class ToolSchema
 
     public ToolSchema Array(string name, string description, ToolSchema items, bool required = false) =>
         Add(name, new JsonObject { ["type"] = "array", ["description"] = description, ["items"] = items.Build() }, required);
+
+    public ToolSchema Object(string name, string description, ToolSchema properties, bool required = false)
+    {
+        var p = properties.Build();
+        p["description"] = description;
+        return Add(name, p, required);
+    }
 
     public JsonObject Build()
     {

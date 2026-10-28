@@ -17,7 +17,7 @@ namespace PortfolioManager.Web.Api;
 /// Everything an agent can do through the API and the MCP server. Each tool calls the same Core
 /// services (and so the same stored procs) as the web pages, so journals and CGT stay right.
 /// </summary>
-public sealed class AgentTools
+public sealed partial class AgentTools
 {
     /// <summary>Lists return at most this many rows unless the caller asks for more (up to MaxLimit).</summary>
     public const int DefaultLimit = 200;
@@ -28,7 +28,7 @@ public sealed class AgentTools
 
     public AgentTools()
     {
-        All = Build();
+        All = [.. Build(), .. BuildBooks()];
         _byName = All.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
     }
 

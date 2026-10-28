@@ -19,9 +19,8 @@ public sealed class McpServer(AgentTools tools, AgentToolRunner runner, SiteBran
     public const string Instructions =
         "Share Portfolio Manager: share portfolios with double-entry accounts, CGT and tax reports. "
         + "Call list_portfolios first: every other tool needs a portfolioId from it. "
-        + "Changes (add_trade, edit_trade, delete_trade, add_payout, delete_payout, add_cash_transaction, import_bank_transactions, "
-        + "allocate_bank_transaction, match_bank_transaction) "
-        + "go through the same rules as the web site and are logged. Dates are yyyy-mm-dd. "
+        + "Tools that change things (add_, edit_, delete_, save_, set_, send_, import_, allocate_ and match_ tools) "
+        + "go through the same rules as the web site and are logged; an edit takes only the fields that change. Dates are yyyy-mm-dd. "
         + "To code bank transactions: import_bank_transactions, then list_unallocated, then find_bank_transaction_matches "
         + "and match_bank_transaction, or list_ledger_accounts and allocate_bank_transaction.";
 

@@ -82,6 +82,44 @@ public sealed class RentalPayoutInput
         return errors;
     }
 
+    /// <summary>
+    /// The short name the API uses for a field: the column without "dbl" and "Amount"/"ExpenseAmount", in camelCase
+    /// (rentalIncome, councilRates, interestOnLoans, sundryExpense1...).
+    /// </summary>
+    public static string Key(RentalField f)
+    {
+        var name = f.Column["dbl".Length..].Replace("Corportate", "Corporate");
+        foreach (var end in new[] { "ExpenseAmount", "Amount" })
+            if (name.EndsWith(end, StringComparison.Ordinal))
+            {
+                name = name[..^end.Length];
+                break;
+            }
+        name = name.Replace("SundryRentalExpense", "SundryExpense");
+        return char.ToLowerInvariant(name[0]) + name[1..];
+    }
+
+    /// <summary>Sets the amounts named by <see cref="Key"/> (any case), leaving the rest as they are. Returns the names it didn't know.</summary>
+    public IReadOnlyList<string> SetAmounts(IReadOnlyDictionary<string, decimal> amounts)
+    {
+        if (Amounts.Length < Fields.Count)
+            Amounts = [.. Amounts, .. new decimal[Fields.Count - Amounts.Length]];
+        var unknown = new List<string>();
+        foreach (var (name, amount) in amounts)
+        {
+            var i = Fields.Select(Key).ToList().FindIndex(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase));
+            if (i < 0)
+                unknown.Add(name);
+            else
+                Amounts[i] = amount;
+        }
+        return unknown;
+    }
+
+    /// <summary>The amounts by <see cref="Key"/>, leaving out zeros.</summary>
+    public IReadOnlyDictionary<string, decimal> NamedAmounts() =>
+        Fields.Select((f, i) => (Key(f), Amount(i))).Where(a => a.Item2 != 0).ToDictionary(a => a.Item1, a => a.Item2);
+
     /// <summary>Parameters for uspAddRentalPayout (every one is required).</summary>
     public Dictionary<string, object?> AddParameters(int portfolioId)
     {
