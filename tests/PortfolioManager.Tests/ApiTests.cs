@@ -127,7 +127,7 @@ public class ApiTests
             Assert.Contains("portfolioId", required);
         }
         Assert.Contains(Tools.All, t => t.Name == "list_portfolios" && !t.NeedsPortfolio);
-        Assert.All(new[] { "add_trade", "add_cash_transaction", "import_bank_transactions", "allocate_bank_transaction", "match_bank_transaction" },
+        Assert.All(new[] { "add_trade", "edit_trade", "delete_trade", "add_payout", "delete_payout", "add_cash_transaction", "import_bank_transactions", "allocate_bank_transaction", "match_bank_transaction" },
             name => Assert.True(Tools.Find(name)!.Writes));
         Assert.All(Tools.All.Where(t => t.Name.StartsWith("list_") || t.Name.StartsWith("report_") || t.Name.StartsWith("get_")),
             t => Assert.False(t.Writes));
@@ -150,6 +150,18 @@ public class ApiTests
         var holdings = ApiEndpoints.Arguments(Tools.Find("get_holdings"), new Dictionary<string, string> { ["openOnly"] = "false" },
             new Dictionary<string, string?>(), null);
         Assert.False(holdings["openOnly"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public void An_edit_takes_the_trade_from_the_url_not_the_body()
+    {
+        var body = new JsonObject { ["tradeId"] = 1, ["price"] = 45.5 };
+        var args = ApiEndpoints.Arguments(Tools.Find("edit_trade"), new Dictionary<string, string>(),
+            new Dictionary<string, string?> { ["portfolioId"] = "42", ["tradeId"] = "7" }, body);
+
+        Assert.Equal(7, args["tradeId"]!.GetValue<long>());
+        Assert.Equal(45.5, args["price"]!.GetValue<double>());
+        Assert.Equal(["portfolioId", "tradeId"], Tools.Find("edit_trade")!.InputSchema["required"]!.AsArray().Select(n => n!.GetValue<string>()));
     }
 
     [Fact]

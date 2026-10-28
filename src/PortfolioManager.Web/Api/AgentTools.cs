@@ -2,7 +2,10 @@ using PortfolioManager.Core.Accounting;
 using PortfolioManager.Core.Cash;
 using PortfolioManager.Core.Holdings;
 using PortfolioManager.Core.Invoicing;
+using PortfolioManager.Core.Payouts;
 using PortfolioManager.Core.Portfolios;
+using PortfolioManager.Core.Prices;
+using PortfolioManager.Core.Regions;
 using PortfolioManager.Core.SalesTax;
 using PortfolioManager.Core.Tax;
 using PortfolioManager.Core.Trades;
@@ -72,6 +75,36 @@ public sealed class AgentTools
                 .String("cashComment", "Note for the bank entry").Build(),
             AddTrade),
 
+        new("edit_trade", "Edit a trade",
+            "Changes a share trade. Send only what changes; everything else keeps its stored value. The trade is deleted and "
+            + "recorded again in one step through the same stored procedures as the site, so its journals, cash settlement "
+            + "and capital gains follow, and it gets a new id (returned). A trade from a dividend reinvestment, or one a split, "
+            + "corporate action or saved parcel choice uses, can't be edited this way: the error says what to do instead.",
+            true, new ToolSchema().Portfolio()
+                .Int("tradeId", "The trade, from list_trades", required: true)
+                .Date("date", "Trade date")
+                .String("type", "Buy or Sell", choices: ["Buy", "Sell"])
+                .String("market", "Stock exchange, e.g. ASX")
+                .String("code", "Stock code, e.g. BHP")
+                .String("name", "Stock name")
+                .Number("quantity", "Number of units")
+                .Number("price", "Price per unit in the trade currency")
+                .Number("brokerage", "Brokerage in the trade currency")
+                .String("currency", "Trade currency, e.g. AUD")
+                .Number("exchangeRate", "Units of trade currency per unit of portfolio currency")
+                .String("comment", "Note to keep with the trade")
+                .Bool("recordCash", "Keep (true) or drop (false) the cash settlement. Default: keep it if the trade has one")
+                .String("bankAccount", "Bank account for the settlement (default: the one it used)")
+                .Date("settlementDate", "Settlement date (default: moves with the trade date)")
+                .String("cashComment", "Note for the bank entry").Build(),
+            EditTrade),
+
+        new("delete_trade", "Delete a trade",
+            "Deletes a share trade with its journals and the cash settlement recorded with it, as the Delete button on the "
+            + "Trades page does. A trade from a dividend reinvestment is refused (delete the payout instead).",
+            true, new ToolSchema().Portfolio().Int("tradeId", "The trade, from list_trades", required: true).Build(),
+            DeleteTrade),
+
         new("list_cash_transactions", "List cash transactions",
             "Bank account entries (deposits and withdrawals) with running balances, newest first.",
             false, new ToolSchema().Portfolio()
@@ -90,6 +123,44 @@ public sealed class AgentTools
                 .String("currency", "Currency, e.g. AUD (default: the account's or the portfolio's)")
                 .String("comment", "Description").Build(),
             AddCash),
+
+        new("list_payouts", "List payouts",
+            "Dividends, distributions and interest received (and rental entries), newest first, with their franking and tax parts and totals.",
+            false, new ToolSchema().Portfolio()
+                .Date("from", "Only payouts on or after this date")
+                .Date("to", "Only payouts on or before this date")
+                .String("stockCode", "Only this stock code, e.g. BHP.")
+                .Int("limit", $"Most rows to return (default {DefaultLimit}).").Build(),
+            ListPayouts),
+
+        new("add_payout", "Add a payout",
+            "Records a dividend, distribution or interest payment through the same stored procedure as the Add payout page, "
+            + "posting its journal. The cash received (total) must equal franked + unfranked + interest + trust income + other "
+            + "less tax withheld and foreign tax. A payout in another currency is converted at exchangeRate, or that day's rate on file.",
+            true, new ToolSchema().Portfolio()
+                .Date("date", "Payment date", required: true)
+                .String("stockExchangeCode", "Stock exchange, e.g. ASX", required: true)
+                .String("stockCode", "Stock code, e.g. BHP (or the bank account name for interest)", required: true)
+                .Number("total", "Cash received", required: true)
+                .Number("franked", "Franked amount")
+                .Number("unfranked", "Unfranked amount")
+                .Number("frankingCredit", "Franking credit (not part of the cash)")
+                .Number("interest", "Interest")
+                .Number("trustIncome", "Trust income")
+                .Number("other", "Other income")
+                .Number("taxWithheld", "TFN amounts withheld")
+                .Number("foreignTax", "Foreign tax paid")
+                .String("currency", "Currency of the amounts, if not the portfolio's")
+                .Number("exchangeRate", "Units of that currency per unit of portfolio currency")
+                .String("comment", "Note to keep with the payout")
+                .Bool("confirmed", "Whether the amounts are confirmed from a statement (default true)").Build(),
+            AddPayout),
+
+        new("delete_payout", "Delete a payout",
+            "Deletes a payout with its journal, as the Delete button on the Payouts page does. Deleting a dividend "
+            + "reinvestment (DRP) payout also deletes the units it bought.",
+            true, new ToolSchema().Portfolio().Int("payoutId", "The payout, from list_payouts", required: true).Build(),
+            DeletePayout),
 
         new("list_bank_accounts", "List bank accounts",
             "Ledger bank accounts that statements can be imported into, with their ids (for import_bank_transactions).",
@@ -254,6 +325,107 @@ public sealed class AgentTools
             Message = $"Recorded the {trade.TypeText.ToLowerInvariant()} of {trade.Quantity:N0} {trade.Code} at {trade.Price} {trade.Currency}"
                 + (trade.Cash is null ? "." : ", with its cash settlement."),
             Trade = trade,
+        };
+    }
+
+    private static async Task<object?> EditTrade(AgentCall c)
+    {
+        var tradeId = c.RequiredInt("tradeId");
+        var trades = c.Service<TradesService>();
+        if (await trades.GetTradeAsync(c.PortfolioId, tradeId) is not { } stored)
+            throw new AgentToolException(404, "There is no trade with that id in this portfolio. list_trades gives the ids.");
+
+        var form = TradeEdit.Merge(stored, await trades.GetTradeCashAsync(c.PortfolioId, tradeId), c.Bind<TradeChanges>());
+        var result = TradeEntry.Validate(form, FormRules.LatestToday(DateTime.UtcNow));
+        if (result.Value is not { } trade)
+            throw AgentToolException.Invalid(result.Errors);
+
+        var cash = c.Service<CashService>();
+        if (trade.Cash is not null)
+        {
+            var currency = await cash.GetPortfolioCurrencyAsync(c.PortfolioId);
+            if (TradeEntry.CheckSettlementAccount(trade, currency, await cash.GetBankAccountsAsync(c.PortfolioId)) is { } error)
+                throw AgentToolException.Invalid([error]);
+        }
+
+        var saved = await trades.ReplaceTradeAsync(c.PortfolioId, tradeId, trade);
+        return saved.Outcome switch
+        {
+            TradeEditOutcome.NotFound => throw new AgentToolException(404, "There is no trade with that id in this portfolio."),
+            TradeEditOutcome.Blocked => throw new AgentToolException(409, $"The trade wasn't changed. {saved.Reason}"),
+            _ => new
+            {
+                Message = $"Changed trade {tradeId}: now the {trade.TypeText.ToLowerInvariant()} of {trade.Quantity:0.########} {trade.Code} "
+                    + $"at {trade.Price} {trade.Currency} on {trade.Date:yyyy-MM-dd}"
+                    + (trade.Cash is null ? "" : ", with its cash settlement")
+                    + $". Its journals were posted again and its new id is {saved.NewTradeId}.",
+                OldTradeId = tradeId,
+                saved.NewTradeId,
+                Trade = trade,
+            },
+        };
+    }
+
+    private static async Task<object?> DeleteTrade(AgentCall c)
+    {
+        var tradeId = c.RequiredInt("tradeId");
+        var result = await c.Service<TradesService>().DeleteTradeAsync(c.PortfolioId, tradeId);
+        return result.Outcome switch
+        {
+            TradeDeleteOutcome.NotFound => throw new AgentToolException(404, "There is no trade with that id in this portfolio. list_trades gives the ids."),
+            TradeDeleteOutcome.Blocked => throw new AgentToolException(409, $"The trade wasn't deleted. {result.Reason}"),
+            _ => new { Message = $"Deleted trade {tradeId}, along with any cash transaction and journal entries recorded with it." },
+        };
+    }
+
+    private static async Task<object?> ListPayouts(AgentCall c)
+    {
+        var from = c.Date("from") is { } f ? f.ToDateTime(TimeOnly.MinValue) : (DateTime?)null;
+        var to = c.Date("to") is { } t ? t.ToDateTime(TimeOnly.MinValue) : (DateTime?)null;
+        var summary = await c.Service<PayoutService>().GetPayoutsAsync(c.PortfolioId, from, to);
+        var code = c.String("stockCode")?.Trim();
+        var rows = code is null
+            ? summary.Payouts
+            : summary.Payouts.Where(p => string.Equals(p.StockCode?.Trim(), code, StringComparison.OrdinalIgnoreCase)).ToList();
+        var limited = Limited(rows, c);
+        return code is null ? new { Totals = summary.Total, Payouts = limited } : new { Payouts = limited };
+    }
+
+    private static async Task<object?> AddPayout(AgentCall c)
+    {
+        var input = c.Bind<PayoutInput>();
+        if (c.Arg("date") is null)
+            throw new AgentToolException(400, "date is required.");
+        var portfolioCurrency = RegionSettings.Current.Currency;
+        var errors = input.Validate().Concat(input.ValidateCurrency(portfolioCurrency)).ToList();
+        if (errors.Count > 0)
+            throw new AgentToolException(400, string.Join(" ", errors));
+
+        var foreign = input.IsForeign(portfolioCurrency);
+        if (foreign && input.ExchangeRate is null)
+        {
+            // That day's rate from the price feed, as the Add payout page does
+            input.ExchangeRate = (await c.Service<FxRateService>().GetAsync(input.Currency!, portfolioCurrency, DateOnly.FromDateTime(input.Date)))?.Rate
+                ?? throw new AgentToolException(400, $"There's no {input.Currency!.Trim().ToUpperInvariant()} exchange rate on file for {input.Date:yyyy-MM-dd}. Send exchangeRate from the statement.");
+        }
+
+        await c.Service<PayoutService>().AddAsync(c.PortfolioId, input, portfolioCurrency);
+        return new
+        {
+            Message = $"Recorded the {input.StockCode.Trim().ToUpperInvariant()} payout of "
+                + (foreign ? $"{input.Currency!.Trim().ToUpperInvariant()} {input.Total:N2} at {input.ExchangeRate:0.######}." : $"{input.Total:N2}."),
+            Payout = input,
+        };
+    }
+
+    private static async Task<object?> DeletePayout(AgentCall c)
+    {
+        var payoutId = c.RequiredInt("payoutId");
+        return await c.Service<PayoutService>().DeleteAsync(c.PortfolioId, payoutId) switch
+        {
+            null => throw new AgentToolException(404, "There is no payout with that id in this portfolio. list_payouts gives the ids."),
+            { Ok: false, Error: var error } => throw new AgentToolException(409, $"The payout wasn't deleted: {error}"),
+            _ => new { Message = $"Deleted payout {payoutId} and its journal, with any units it reinvested (DRP)." },
         };
     }
 
