@@ -112,7 +112,7 @@ public sealed class WhatIfService(IDbConnectionFactory db, CgtDiscountService cg
               AND (iUserID IS NULL OR iUserID = 0 OR iUserID = @portfolioId)
               AND (@asAt IS NULL OR dtmDetailsAsAtDate < DATEADD(DAY, 1, @asAt))
             ORDER BY dtmDetailsAsAtDate DESC
-            """, new { portfolioId, exchangeCode, stockCode, asAt = asAt?.ToDateTime(TimeOnly.MinValue) });
+            """, new { portfolioId, exchangeCode = AnsiText.Of(exchangeCode), stockCode = AnsiText.Of(stockCode), asAt = asAt?.ToDateTime(TimeOnly.MinValue) });
         if (row.Close is not > 0)
             return null;
         var date = DateOnly.FromDateTime(row.Date);

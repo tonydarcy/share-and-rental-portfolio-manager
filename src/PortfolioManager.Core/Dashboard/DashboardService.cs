@@ -27,16 +27,18 @@ public sealed class DashboardService(IDbConnectionFactory db)
     /// <summary>The latest price date on file for each of the holdings, keyed by <see cref="DashboardFigures.PriceKey"/>.</summary>
     public async Task<IReadOnlyDictionary<string, DateTime>> GetLastPriceDatesAsync(IEnumerable<(string Exchange, string Code)> holdings)
     {
-        var codes = holdings.Select(h => h.Code.Trim()).Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var list = holdings.Where(h => h.Code.Trim().Length > 0).ToList();
+        var codes = list.Select(h => h.Code.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var exchanges = list.Select(h => h.Exchange.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (codes.Length == 0)
             return new Dictionary<string, DateTime>();
         await using var con = db.Create();
         var rows = await con.QueryAsync<(string Exchange, string Code, DateTime Date)>("""
             SELECT strStockExchangeCode, strStockCode, MAX(dtmDetailsAsAtDate)
             FROM tblSharePrice
-            WHERE strStockCode IN @codes AND dblClosePrice > 0
+            WHERE strStockExchangeCode IN @exchanges AND strStockCode IN @codes AND dblClosePrice > 0
             GROUP BY strStockExchangeCode, strStockCode
-            """, new { codes });
+            """, new { exchanges = AnsiText.Of(exchanges), codes = AnsiText.Of(codes) });
         var dates = new Dictionary<string, DateTime>();
         foreach (var r in rows)
         {

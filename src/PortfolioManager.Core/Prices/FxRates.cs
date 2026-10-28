@@ -34,8 +34,8 @@ public sealed class FxRateService(IDbConnectionFactory db)
             ORDER BY dtmDetailsAsAtDate DESC
             """, new
         {
-            direct = $"{foreign}/{portfolioCurrency}",
-            inverse = $"{portfolioCurrency}/{foreign}",
+            direct = AnsiText.Of($"{foreign}/{portfolioCurrency}"),
+            inverse = AnsiText.Of($"{portfolioCurrency}/{foreign}"),
             to = date.ToDateTime(TimeOnly.MinValue),
             from = date.AddDays(-DaysBack).ToDateTime(TimeOnly.MinValue),
         });

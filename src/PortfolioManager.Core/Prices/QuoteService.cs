@@ -95,7 +95,7 @@ public sealed class QuoteService(IDbConnectionFactory db)
     /// </summary>
     public async Task<Quote> GetQuoteAsync(int portfolioId, string exchange, string code)
     {
-        var p = new { portfolioId, exchange, code };
+        var p = new { portfolioId, exchange = AnsiText.Of(exchange), code = AnsiText.Of(code) };
         await using var con = db.Create();
         using var grid = await con.QueryMultipleAsync("""
             SELECT TOP 1000 CAST(dtmDetailsAsAtDate AS date) AS Date, dblOpenPrice AS [Open], dblHighPrice AS High, dblLowPrice AS Low,

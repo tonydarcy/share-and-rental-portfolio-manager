@@ -74,7 +74,7 @@ public sealed class PerformanceService(IDbConnectionFactory db)
         var etfCodes = Benchmark.SuggestedEtfs.Select(e => Benchmark.Parse(e.Key)!.Value.Code).ToArray();
         var withPrices = (await con.QueryAsync<string>(
             "SELECT DISTINCT strStockCode FROM tblSharePrice WHERE strStockExchangeCode = 'ASX' AND strStockCode IN @etfCodes",
-            new { etfCodes })).Select(c => c.Trim().ToUpperInvariant()).ToHashSet();
+            new { etfCodes = AnsiText.Of(etfCodes) })).Select(c => c.Trim().ToUpperInvariant()).ToHashSet();
 
         return indexes.Select(i => new BenchmarkChoice($"{Benchmark.IndexPrefix}:{i.Trim().ToUpperInvariant()}", $"{i.Trim()} index"))
             .Concat(Benchmark.SuggestedEtfs.Where(e => withPrices.Contains(Benchmark.Parse(e.Key)!.Value.Code)))
@@ -89,7 +89,7 @@ public sealed class PerformanceService(IDbConnectionFactory db)
         var normalKey = $"{parsed.Exchange}:{parsed.Code}";
         var choice = choices.FirstOrDefault(c => c.Key == normalKey) ?? new BenchmarkChoice(normalKey, normalKey);
 
-        var p = new { code = parsed.Code, exchange = parsed.Exchange, from = from.ToDateTime(TimeOnly.MinValue), to = to.ToDateTime(TimeOnly.MinValue) };
+        var p = new { code = AnsiText.Of(parsed.Code), exchange = AnsiText.Of(parsed.Exchange), from = from.ToDateTime(TimeOnly.MinValue), to = to.ToDateTime(TimeOnly.MinValue) };
         await using var con = db.Create();
         // Values inside the period plus the last one before it, to rebase on
         var rows = parsed.Exchange == Benchmark.IndexPrefix
@@ -122,9 +122,8 @@ public sealed class PerformanceService(IDbConnectionFactory db)
         SELECT T.dtmDateOfTransaction AS Date, T.strStockExchangeCode AS Exchange, T.strStockCode AS Code, T.strType AS Type,
                ISNULL(T.iQuantity, 0) AS Quantity, CAST(ISNULL(T.dblOrderTotal, 0) AS decimal(19,4)) AS OrderTotal,
                ISNULL(T.dblPricePerUnit, 0) AS PricePerUnit, T.strCurrency AS Currency,
-               CAST(CASE WHEN EXISTS (SELECT 1 FROM tblBankStatement B
-                                      WHERE B.iUserId = T.iUserId
-                                        AND (B.iShareTradeId = T.iShareTradeId OR B.iBankStatementId = T.iBankStatementId))
+               CAST(CASE WHEN EXISTS (SELECT 1 FROM tblBankStatement B WHERE B.iUserId = T.iUserId AND B.iShareTradeId = T.iShareTradeId)
+                           OR EXISTS (SELECT 1 FROM tblBankStatement B WHERE B.iUserId = T.iUserId AND B.iBankStatementId = T.iBankStatementId)
                          THEN 1 ELSE 0 END AS bit) AS HasCash,
                CAST(CASE WHEN EXISTS (SELECT 1 FROM tblPayouts P WHERE P.iUserID = T.iUserId AND P.iReinvestmentTradeID = T.iShareTradeId)
                          THEN 1 ELSE 0 END AS bit) AS IsReinvestment
