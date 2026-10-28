@@ -51,6 +51,8 @@ jobs:
           ASPNETCORE_ENVIRONMENT: Development
           # The demo login hasn't agreed to the terms; let it open every page (the legal pages are still checked)
           Legal__RequireAcceptance: "false"
+          # The demo login is the site admin here; don't make it set up two-factor sign-in before the pages open
+          Security__RequireTwoFactorForAdmins: "false"
           ConnectionStrings__Default: Server=localhost,1433;Database=PortfolioManagerSmoke;User Id=sa;Password=Ci-Only-Passw0rd!;TrustServerCertificate=True
       - name: Open every page
         run: bash tests/smoke/smoke.sh http://localhost:5075

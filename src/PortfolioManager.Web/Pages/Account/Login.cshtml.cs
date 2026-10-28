@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.RateLimiting;
 using PortfolioManager.Core.Accounts;
 using PortfolioManager.Core.Email;
+using PortfolioManager.Core.Security;
 using PortfolioManager.Web.Services;
 
 namespace PortfolioManager.Web.Pages.Account;
@@ -13,7 +14,7 @@ namespace PortfolioManager.Web.Pages.Account;
 [AllowViewOnly]
 [EnableRateLimiting(SignInFlow.RateLimit)]
 public class LoginModel(AccountService accounts, SignInFlow signIn, AccountTokens tokens, IEmailSender email, Captcha captcha,
-    SiteBranding site) : PageModel
+    SiteBranding site, AccountSecurity security) : PageModel
 {
     [BindProperty, Required, EmailAddress, Display(Name = "Email")]
     public string Email { get; set; } = "";
@@ -46,12 +47,21 @@ public class LoginModel(AccountService accounts, SignInFlow signIn, AccountToken
             return Page();
         }
 
+        // Five wrong passwords or codes for one email pause it for 15 minutes, wherever the guesses come from
+        if (await security.IsPausedAsync(Email))
+        {
+            ModelState.AddModelError(string.Empty, AccountSecurity.PausedMessage);
+            return Page();
+        }
+
         var user = await accounts.SignInAsync(Email, Password);
         if (user is null)
         {
-            ModelState.AddModelError(string.Empty, "Email and/or password is incorrect.");
+            var paused = await security.FailedAsync(HttpContext, SecurityEvents.Password, Email, await accounts.FindByEmailAsync(Email));
+            ModelState.AddModelError(string.Empty, paused ? AccountSecurity.PausedMessage : "Email and/or password is incorrect.");
             return Page();
         }
+        await security.AddAsync(HttpContext, user.UserId, Email, SecurityEvents.Password);
 
         // Once the site can send email, new logins confirm their address before they can be used
         if (email.IsConfigured && !user.EmailConfirmed)
@@ -89,7 +99,7 @@ public class LoginModel(AccountService accounts, SignInFlow signIn, AccountToken
             ModelState.AddModelError(string.Empty, "The demo portfolio isn't available.");
             return Page();
         }
-        await signIn.SignInAsync(HttpContext, user, rememberMe: false);
+        await signIn.SignInAsync(HttpContext, user, rememberMe: false, notifyNewDevice: false);
         return RedirectToPage("/Index");
     }
 }

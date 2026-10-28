@@ -127,7 +127,9 @@ Open the `https://localhost:...` address it prints, choose **Register**, and cre
 **The first account you register is the site administrator.** `SiteAdminUserIds` in
 `src/PortfolioManager.Web/appsettings.json` lists the administrator accounts by number, and a new database numbers
 its first account 1. Administrators can upload share prices for everyone. Register your own account first, before
-you let anyone else in.
+you let anyone else in. An administrator is asked to turn on two-factor sign-in (account menu, **Two-factor sign-in**)
+before any other page opens. To turn that off, for example on a copy only you use on your own PC, add
+`"Security": { "RequireTwoFactorForAdmins": false }` to appsettings.
 
 To check the code builds and its tests pass: `dotnet test PortfolioManager.slnx`.
 
@@ -165,7 +167,10 @@ Whatever the server, the rules are the same:
 `DataProtection:KeysPath` is a folder where the site keeps the keys that protect sign-in cookies and stored Navexa API
 keys and assistant API keys. Leave it blank on IIS with **Load User Profile** on; otherwise set it to a folder the site
 can write to and that survives updates (for example `/var/lib/portfolio-manager/keys`). If those keys are lost, everyone
-has to sign in again and saved Navexa and assistant keys have to be re-entered.
+has to sign in again and saved Navexa and assistant keys have to be re-entered. Anyone who can read the key files can
+forge a sign-in, so let only the site's own account (on IIS, the app pool identity) read that folder. On Windows the
+site also encrypts new key files for the machine (DPAPI), so a copy of the folder taken elsewhere is useless; keys made
+before this change keep working.
 
 ### Your own name and logo
 
@@ -276,7 +281,11 @@ The authenticator secrets are protected with the same keys as the sign-in cookie
 those keys safe: if they are lost, people with two-factor sign-in need their recovery codes.
 
 **Limits on guessing.** Each address can post the login, sign-up, password reset and code forms at most 10 times a
-minute. For a public site, also turn on the "I'm human" check (a free [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/)
+minute. Each account is also paused for 15 minutes after 5 wrong passwords or codes in a row, wherever they come from,
+and its owner is emailed; resetting the password lifts the pause. Every sign-in, wrong attempt and change to passwords,
+two-factor sign-in and API keys is kept in `tblSecurityEvents`, and each person sees their own under
+**Recent sign-ins** in the account menu. When email is on, people are also emailed when their account is signed in
+to from a browser it hasn't seen before. Resetting a password signs out every other browser within a minute. For a public site, also turn on the "I'm human" check (a free [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/)
 widget) on those forms by adding its two keys:
 
 ```json

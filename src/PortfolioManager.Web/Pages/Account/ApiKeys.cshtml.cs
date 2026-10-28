@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PortfolioManager.Core.Api;
+using PortfolioManager.Core.Security;
 using PortfolioManager.Web.Services;
 
 namespace PortfolioManager.Web.Pages.Account;
@@ -10,7 +11,7 @@ namespace PortfolioManager.Web.Pages.Account;
 /// A key acts as this login, so it reaches the same portfolios with the same role; a read-only key only looks.
 /// </summary>
 [AllowViewOnly]
-public class ApiKeysModel(ApiKeyService keys, ApiAuditService audit) : PageModel
+public class ApiKeysModel(ApiKeyService keys, ApiAuditService audit, AccountSecurity security) : PageModel
 {
     [BindProperty]
     public string? Name { get; set; }
@@ -47,6 +48,7 @@ public class ApiKeysModel(ApiKeyService keys, ApiAuditService audit) : PageModel
             return Page();
         }
 
+        await security.AddAsync(HttpContext, CurrentPortfolio.UserId(User), User.Identity?.Name, SecurityEvents.ApiKeyCreated);
         // Shown on this response only: it isn't kept anywhere it could be shown again
         NewKey = made.Key;
         Name = null;
@@ -58,6 +60,8 @@ public class ApiKeysModel(ApiKeyService keys, ApiAuditService audit) : PageModel
     public async Task<IActionResult> OnPostRevokeAsync(int apiKeyId)
     {
         var result = await keys.RevokeAsync(CurrentPortfolio.UserId(User), apiKeyId);
+        if (result.Ok)
+            await security.AddAsync(HttpContext, CurrentPortfolio.UserId(User), User.Identity?.Name, SecurityEvents.ApiKeyRevoked);
         TempData[result.Ok ? "Message" : "Error"] = result.Ok ? "Key revoked. Anything using it stops working now." : result.Error;
         return RedirectToPage();
     }

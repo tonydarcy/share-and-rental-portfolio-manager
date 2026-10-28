@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
+using PortfolioManager.Core.Security;
 using PortfolioManager.Core.Alerts;
 using PortfolioManager.Core.Accounting;
 using PortfolioManager.Core.Accounts;
@@ -49,6 +50,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 // Each connection carries the signed-in login, for the audit trail
 builder.Services.AddSingleton<IDbConnectionFactory>(sp => new AuditedConnectionFactory(connectionString, sp.GetRequiredService<IHttpContextAccessor>()));
 builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<SecurityLogService>();
 builder.Services.AddScoped<PortfolioService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<HoldingsService>();
@@ -174,6 +176,7 @@ else
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<AccountTokens>();
 builder.Services.AddScoped<SignInFlow>();
+builder.Services.AddScoped<AccountSecurity>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("Captcha").Get<CaptchaSettings>() ?? new CaptchaSettings());
 builder.Services.AddHttpClient<Captcha>(client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton(new SiteAdmin(builder.Configuration.GetSection("SiteAdminUserIds").Get<int[]>() ?? []));
@@ -182,7 +185,13 @@ builder.Services.AddSingleton(new SiteAdmin(builder.Configuration.GetSection("Si
 // otherwise everyone is logged out whenever IIS recycles the app pool.
 var keysPath = builder.Configuration["DataProtection:KeysPath"];
 if (!string.IsNullOrWhiteSpace(keysPath))
-    builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+{
+    var protection = builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+    // On Windows the key files are also encrypted for this machine, so a copy of the folder alone can't be used
+    // to forge sign-ins or read the stored Navexa, Anthropic and accounting keys
+    if (OperatingSystem.IsWindows())
+        protection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+}
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -195,6 +204,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.ExpireTimeSpan = TimeSpan.FromDays(14);
         options.SlidingExpiration = true;
+        // Signs a browser out once its password has changed (Services/AccountSecurity.cs)
+        options.Events.OnValidatePrincipal = AccountSecurity.ValidateAsync;
     })
     // The JSON API and MCP server sign in with an API key instead (Account > API keys)
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
@@ -227,6 +238,8 @@ builder.Services.AddScoped<LockedPeriodFilter>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("Legal").Get<LegalSettings>() ?? new LegalSettings());
 builder.Services.AddScoped<TermsService>();
 builder.Services.AddScoped<TermsFilter>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("Security").Get<SecuritySettings>() ?? new SecuritySettings());
+builder.Services.AddScoped<AdminTwoFactorFilter>();
 builder.Services.AddRazorPages(options =>
 {
     // People with View access to a portfolio can't post changes to it
@@ -235,6 +248,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(LockedPeriodFilter)));
     // Signed-in people agree to the current terms before carrying on (Legal:RequireAcceptance)
     options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(TermsFilter)));
+    // Site admins turn on two-factor sign-in before anything else (Security:RequireTwoFactorForAdmins)
+    options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(AdminTwoFactorFilter)));
 });
 
 var app = builder.Build();
@@ -246,6 +261,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+// Content-Security-Policy, no framing by other sites, and the rest (Services/SecurityHeaders.cs)
+app.UseSecurityHeaders();
 app.UseRouting();
 // Before sign-in, so API key guesses are limited before they reach the database
 app.UseRateLimiter();

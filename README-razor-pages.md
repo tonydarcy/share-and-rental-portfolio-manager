@@ -615,6 +615,12 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   trade. Nothing else changes. Takes a minute or so on a big database.
 - `2026-10-28-02-price-trend-speed.sql`: the daily price job's trend update (`uspUpdateMissingSharePriceTrendsByDateAndExchange`)
   finds the traded stocks' new prices through the index instead of reading every price on each pass. Same results.
+- `2026-10-28-03-security-log.sql`: adds `tblSecurityEvents` (sign-ins, wrong passwords and codes, password, two-factor
+  and API key changes, with the internet address and browser) and four procs: `uspAddSecurityEvent`,
+  `uspCountRecentSignInFailures` (pauses an account after 5 wrong attempts in 15 minutes), `uspGetSecurityEvents`
+  (Account > Recent sign-ins) and `uspGetSignInHistory` (new-device emails). Run it before deploying: until it runs,
+  logging in fails with a database error. After deploying, everyone is signed out once, because sign-in cookies now
+  carry a password stamp.
 - `2026-10-28-04-terms-acceptance.sql`: adds `tblTermsAcceptances` (which version of the terms of use each login agreed
   to, when and from where) with `uspAddTermsAcceptance` and `uspGetTermsAcceptance`. Run it before deploying: until it
   runs, signing up and every page after sign-in fail with a database error. With the `Legal` settings at their defaults,
