@@ -51,6 +51,11 @@ a test file. `src/PortfolioManager.Core/Trades/TradeService.cs` is a short examp
   defaulting to Australia (1 Jul to 30 Jun, AUD, en-AU). `RegionSettings.Current` and the request culture are set per
   request, so `FinancialYear` and `ToString("C")` follow it. Franking and the CGT discount (50% for assets held more
   than 12 months) only show when the country is Australia.
+- **For an unfamiliar feature, look before you write.** Spend a few searches (not a long survey) on GitHub and NuGet
+  for open-source code that already solves it, compare one or two approaches, then build. Prefer a well-maintained
+  NuGet package (recent releases, wide use) over copying code. Its licence must be AGPL-3.0 compatible (MIT, BSD,
+  Apache-2.0, LGPL, GPL-3.0 or AGPL-3.0; not GPL-2.0-only, SSPL or "non-commercial"), and copied code keeps its
+  notice. Tax rules found in other projects, even Australian ones, still go in the PR as awaiting Tony's check.
 
 ## Build and test
 
