@@ -1,0 +1,46 @@
+@model IndexModel
+@if (Model.ClientList.Count == 0)
+{
+    return;
+}
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="h6 mb-0">Your clients (@FinancialYearLabel())</h2>
+            <a asp-page="/Clients/Dashboard" class="small">All @Model.ClientCount on the practice dashboard</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle small mb-0">
+                <thead>
+                    <tr><th>Client</th><th class="text-end">Value</th><th>Year end</th><th class="text-end">Bank lines</th><th class="text-end">Queries</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in Model.ClientList)
+                    {
+                        var r = c.Client;
+                        <tr>
+                            <td>@r.Client.PortfolioName <span class="text-muted">@r.Client.EntityType</span></td>
+                            <td class="text-end">@c.Value?.ToString("C0")</td>
+                            <td><span class="badge @YearStatuses.Badge(r.Status)">@YearStatuses.Label(r.Status)</span> <span class="text-muted">@r.ChecklistDone/@r.ChecklistItems</span></td>
+                            <td class="text-end @(r.Unallocated > 0 ? "text-warning" : "")">@r.Unallocated</td>
+                            <td class="text-end">@(r.OpenQueries + r.AnsweredQueries)</td>
+                            <td class="text-end">
+                                @if (r.Client.PortfolioId != Model.Portfolio?.PortfolioId)
+                                {
+                                    <form method="post" asp-page="/Portfolio/Select" class="d-inline">
+                                        <input type="hidden" name="portfolioId" value="@r.Client.PortfolioId" />
+                                        <input type="hidden" name="returnUrl" value="/" />
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary py-0">Open</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@functions {
+    private string FinancialYearLabel() => PortfolioManager.Core.Tax.FinancialYear.Label(Model.ClientYear);
+}

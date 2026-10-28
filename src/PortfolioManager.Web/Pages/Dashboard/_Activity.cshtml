@@ -1,0 +1,34 @@
+@model IndexModel
+<div class="card shadow-sm h-100">
+    <div class="card-body">
+        <h2 class="h6">Recent activity</h2>
+        @if (Model.Activity.Count == 0)
+        {
+            <p class="text-muted small mb-0">No trades or income recorded yet.</p>
+        }
+        else
+        {
+            <table class="table table-sm small mb-0">
+                <tbody>
+                    @foreach (var a in Model.Activity)
+                    {
+                        <tr>
+                            <td class="text-muted text-nowrap">@a.Date.ToString("d MMM")</td>
+                            <td>
+                                @if (a.RouteId is { } rid)
+                                {
+                                    <a asp-page="@a.Page" asp-route-id="@rid" class="text-reset">@a.Text</a>
+                                }
+                                else
+                                {
+                                    <a asp-page="@a.Page" class="text-reset">@a.Text</a>
+                                }
+                            </td>
+                            <td class="text-end text-nowrap">@a.Amount?.ToString("C0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

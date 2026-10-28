@@ -1,0 +1,76 @@
+@model IndexModel
+@{
+    string[] palette = ["#0d6efd", "#198754", "#fd7e14", "#6f42c1", "#20c997", "#dc3545", "#ffc107", "#0dcaf0", "#6c757d", "#d63384"];
+    var slices = Model.Allocation.Take(9).ToList();
+    if (Model.Allocation.Count > 9)
+        slices.Add(new AllocationSlice("Everything else", Model.Allocation.Skip(9).Sum(a => a.Value), Model.Allocation.Skip(9).Sum(a => a.Share)));
+    var spec = new
+    {
+        type = "doughnut", format = "money", legend = true,
+        labels = slices.Select(s => s.Label).ToList(),
+        datasets = new[] { new { label = "Value", data = slices.Select(s => Math.Round(s.Value, 2)).ToList(), colors = palette.Take(slices.Count).ToArray() } },
+    };
+}
+<div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+        <div class="card-body">
+            <h2 class="h6"><a asp-page="/Holdings" class="text-reset">Top holdings</a></h2>
+            @if (Model.Top.Count == 0)
+            {
+                <p class="text-muted mb-0">No open holdings yet.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr><th>Holding</th><th class="text-end">Value</th><th class="text-end">Weight</th><th class="text-end">Gain</th><th class="text-end d-none d-sm-table-cell">On cost</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in Model.Top)
+                            {
+                                <tr>
+                                    <td><a asp-page="/Prices/Quote" asp-route-code="@($"{t.Holding.ExchangeCode}:{t.Holding.StockCode}")">@t.Holding.StockCode</a> <span class="text-muted small">@t.Holding.ExchangeCode</span></td>
+                                    <td class="text-end">@t.Holding.MarketValue.ToString("C0")</td>
+                                    <td class="text-end">
+                                        <div class="d-flex align-items-center justify-content-end gap-1">
+                                            <div class="progress d-none d-md-flex" style="width: 50px; height: 6px;"><div class="progress-bar" style="width: @((t.Weight * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></div></div>
+                                            @IndexModel.Pct(t.Weight)
+                                        </div>
+                                    </td>
+                                    <td class="text-end @IndexModel.Tone(t.Holding.CapitalGain)">@IndexModel.Signed(t.Holding.CapitalGain, "C0")</td>
+                                    <td class="text-end d-none d-sm-table-cell @IndexModel.Tone(t.GainPercent ?? 0)">@IndexModel.Pct(t.GainPercent)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+<div class="col-lg-5">
+    <div class="card shadow-sm h-100">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h6 mb-0">Where the money is</h2>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Group by">
+                    <a href="@Model.AllocLink("type", false)" data-section="@Model.AllocLink("type", true)" class="btn @(!Model.BySector ? "btn-secondary" : "btn-outline-secondary")">By type</a>
+                    <a href="@Model.AllocLink("sector", false)" data-section="@Model.AllocLink("sector", true)" class="btn @(Model.BySector ? "btn-secondary" : "btn-outline-secondary")">By sector</a>
+                </div>
+            </div>
+            @if (slices.Count == 0)
+            {
+                <p class="text-muted mb-0">@(Model.BySector ? "No sectors on file for these holdings." : "Nothing held yet.")</p>
+            }
+            else
+            {
+                <div class="chart-box" style="height: 280px;"><canvas id="allocationChart" data-chart="@JsonSerializer.Serialize(spec)"></canvas></div>
+                @if (Model.BySector)
+                {
+                    <div class="small text-muted mt-1">Shares and funds only. <a asp-page="/Reports/Diversity">Sector and industry report</a></div>
+                }
+            }
+        </div>
+    </div>
+</div>

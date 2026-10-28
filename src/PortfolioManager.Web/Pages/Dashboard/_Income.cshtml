@@ -1,0 +1,56 @@
+@model IndexModel
+@{
+    var months = Model.IncomeMonths;
+    var au = Model.Region.IsAustralia;
+    var labels = months.Select(m => m.Month.ToString("MMM yy")).ToList();
+    var datasets = new List<object>();
+    if (au)
+    {
+        datasets.Add(new { label = "Franked", data = months.Select(m => m.Franked).ToList(), color = "#198754", stack = "in" });
+        datasets.Add(new { label = "Unfranked", data = months.Select(m => m.Unfranked).ToList(), color = "#75b798", stack = "in" });
+        datasets.Add(new { label = "Interest and other", data = months.Select(m => m.Other).ToList(), color = "#a3cfbb", stack = "in" });
+    }
+    else
+    {
+        datasets.Add(new { label = "Received", data = months.Select(m => m.Received).ToList(), color = "#198754", stack = "in" });
+    }
+    datasets.Add(new { label = "Projected", data = months.Select(m => m.Projected).ToList(), color = "rgba(13,110,253,.45)", stack = "in" });
+    var spec = new { type = "bar", format = "money", legend = true, stacked = true, labels, datasets };
+    var received = months.Sum(m => m.Received);
+    var projected = months.Sum(m => m.Projected);
+}
+<div class="card shadow-sm h-100">
+    <div class="card-body">
+        <h2 class="h6"><a asp-page="/Reports/IncomeCalendar" class="text-reset">Income: last 12 months and next 12</a></h2>
+        @if (received == 0 && projected == 0)
+        {
+            <p class="text-muted">No income in the last year and nothing to project from.</p>
+        }
+        else
+        {
+            <div class="chart-box" style="height: 260px;"><canvas id="incomeChart" data-chart="@JsonSerializer.Serialize(spec)"></canvas></div>
+            <div class="row small text-center mt-2">
+                <div class="col"><div class="text-muted">Received (12 months)</div><div>@received.ToString("C0")</div></div>
+                <div class="col"><div class="text-muted">Projected (next 12)</div><div>@projected.ToString("C0")</div></div>
+            </div>
+        }
+        @if (Model.Upcoming.Count > 0)
+        {
+            <h3 class="h6 mt-3">Coming up</h3>
+            <table class="table table-sm small mb-0">
+                <thead><tr><th>Holding</th><th>Ex-date</th><th>Pays</th><th class="text-end">Estimate</th></tr></thead>
+                <tbody>
+                    @foreach (var u in Model.Upcoming)
+                    {
+                        <tr>
+                            <td>@u.StockCode</td>
+                            <td>@u.ExDate.ToString("d MMM")@(u.ExDatePassed ? " (passed)" : "")</td>
+                            <td>@(u.PaymentDate?.ToString("d MMM") ?? "–")</td>
+                            <td class="text-end">@(string.IsNullOrEmpty(u.Currency) || u.Currency == Model.Region.Currency ? u.Estimate.ToString("C") : $"{u.Currency} {u.Estimate:N2}")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

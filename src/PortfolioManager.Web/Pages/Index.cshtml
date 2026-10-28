@@ -3,13 +3,25 @@
 @{
     ViewData["Title"] = "Dashboard";
     var currency = Model.Value.PortfolioCurrency;
+    string Src(string name) => Url.Page("/Index", "Section", new { name, period = Model.Period, view = Model.View, bm = Model.Bm, alloc = Model.Alloc })!;
 }
 
-<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
-    <h1 class="h2 mb-0">Dashboard</h1>
-    @if (!string.IsNullOrWhiteSpace(currency))
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-0">Dashboard</h1>
+        @if (!string.IsNullOrWhiteSpace(currency))
+        {
+            <span class="text-muted small">All values in @currency</span>
+        }
+    </div>
+    @if (Model.Portfolio is { CanEdit: true })
     {
-        <span class="text-muted">All values in @currency</span>
+        <div class="d-flex flex-wrap gap-2 no-print">
+            <a asp-page="/Trades/Add" class="btn btn-sm btn-primary">Add trade</a>
+            <a asp-page="/Payouts/Add" class="btn btn-sm btn-outline-primary">Add income</a>
+            <a asp-page="/Import/Trades" class="btn btn-sm btn-outline-primary">Import CSV</a>
+            <a asp-page="/Accounting/Unallocated" class="btn btn-sm btn-outline-primary">Code bank lines</a>
+        </div>
     }
 </div>
 
@@ -19,7 +31,7 @@
     return;
 }
 
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-3">
     <div class="col-md-4">
         <div class="card shadow-sm h-100">
             <div class="card-body">
@@ -31,7 +43,7 @@
     <div class="col-md-4">
         <div class="card shadow-sm h-100">
             <div class="card-body">
-                <div class="text-muted small">Shares</div>
+                <div class="text-muted small"><a asp-page="/Holdings" class="text-reset">Shares and funds</a></div>
                 <div class="kpi-value">@Model.Value.TotalShareValue.ToString("C")</div>
             </div>
         </div>
@@ -39,7 +51,7 @@
     <div class="col-md-4">
         <div class="card shadow-sm h-100">
             <div class="card-body">
-                <div class="text-muted small">Cash</div>
+                <div class="text-muted small"><a asp-page="/Cash/Index" class="text-reset">Cash</a></div>
                 <div class="kpi-value">@Model.Value.TotalCashValue.ToString("C")</div>
             </div>
         </div>
@@ -66,70 +78,134 @@
     }
 </div>
 
-<div class="row g-3">
-    <div class="col-lg-7">
-        <div class="card shadow-sm h-100">
-            <div class="card-body">
-                <h2 class="h6">Value over the last @DashboardService.HistoryDays days</h2>
-                @if (Model.HistoryRefreshFailed)
-                {
-                    <p class="text-warning small">The history couldn't be recalculated just now, so recent days may be missing.</p>
-                }
-                @if (Model.History.Count == 0)
-                {
-                    <p class="text-muted">No history yet.</p>
-                }
-                else
-                {
-                    <div class="chart-box"><canvas id="historyChart"></canvas></div>
-                }
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-5">
-        <div class="card shadow-sm h-100">
-            <div class="card-body">
-                <h2 class="h6">Projected income (next 12 months)</h2>
-                @if (Model.ProjectedIncome.Count == 0)
-                {
-                    <p class="text-muted">No payouts in the last year to project from.</p>
-                }
-                else
-                {
-                    <div class="chart-box"><canvas id="incomeChart"></canvas></div>
-                }
-            </div>
-        </div>
+@* Each card below loads on its own. The hidden link lets the page work (and be checked) without the script. *@
+<div class="row g-3 mb-3">
+    <div class="col-12" data-src="@Src("summary")">
+        <partial name="Dashboard/_Loading" model="@("Working out performance")" />
+        <a href="@Src("summary")" class="visually-hidden">Performance this year</a>
     </div>
 </div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-8" data-src="@Src("chart")">
+        <partial name="Dashboard/_Loading" model="@("Drawing the value chart")" />
+        <a href="@Src("chart")" class="visually-hidden">Value chart</a>
+    </div>
+    <div class="col-lg-4" data-src="@Src("attention")">
+        <partial name="Dashboard/_Loading" model="@("Checking what needs attention")" />
+        <a href="@Src("attention")" class="visually-hidden">Needs attention</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3" data-src="@Src("holdings")">
+    <partial name="Dashboard/_Loading" model="@("Loading holdings")" />
+    <a href="@Src("holdings")" class="visually-hidden">Top holdings</a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-7" data-src="@Src("income")">
+        <partial name="Dashboard/_Loading" model="@("Loading income")" />
+        <a href="@Src("income")" class="visually-hidden">Income</a>
+    </div>
+    @if (Model.Region.IsAustralia)
+    {
+        <div class="col-lg-5" data-src="@Src("tax")" data-hide-empty>
+            <partial name="Dashboard/_Loading" model="@("Working out the tax year so far")" />
+            <a href="@Src("tax")" class="visually-hidden">Tax year so far</a>
+        </div>
+    }
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg" data-src="@Src("property")" data-hide-empty>
+        <a href="@Src("property")" class="visually-hidden">Rental properties</a>
+    </div>
+    <div class="col-lg" data-src="@Src("business")" data-hide-empty>
+        <a href="@Src("business")" class="visually-hidden">Business</a>
+    </div>
+    <div class="col-lg" data-src="@Src("activity")">
+        <partial name="Dashboard/_Loading" model="@("Loading recent activity")" />
+        <a href="@Src("activity")" class="visually-hidden">Recent activity</a>
+    </div>
+</div>
+
+@if (Model.HasClients)
+{
+    <div class="row g-3 mb-3">
+        <div class="col-12" data-src="@Src("clients")" data-hide-empty>
+            <partial name="Dashboard/_Loading" model="@("Loading your clients")" />
+            <a href="@Src("clients")" class="visually-hidden">Clients</a>
+        </div>
+    </div>
+}
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
-        const money = v => v.toLocaleString(pmLocale, { style: 'currency', currency: pmCurrency });
-        const history = @Json.Serialize(Model.History.Select(h => new { label = h.Date.ToString("d MMM"), value = h.TotalEquity }));
-        const income = @Json.Serialize(Model.ProjectedIncome.Select(m => new { label = m.Month.ToString("MMM yyyy"), value = m.Amount }));
+        (() => {
+            const money = v => Number(v).toLocaleString(pmLocale, { style: 'currency', currency: pmCurrency, maximumFractionDigits: 0 });
+            const moneyExact = v => Number(v).toLocaleString(pmLocale, { style: 'currency', currency: pmCurrency });
+            const pct = v => (Number(v) * 100).toFixed(1) + '%';
+            const charts = new Map();
 
-        if (document.getElementById('historyChart')) {
-            new Chart(document.getElementById('historyChart'), {
-                type: 'line',
-                data: {
-                    labels: history.map(p => p.label),
-                    datasets: [{ label: 'Total value', data: history.map(p => p.value), borderColor: '#0d6efd', pointRadius: 0, tension: 0.2 }]
-                },
-                options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => money(c.parsed.y) } } }, scales: { y: { ticks: { callback: money } } } }
-            });
-        }
+            // A card's charts come as data-chart specs: { type, labels, format, stacked, legend, datasets: [{ label, data, color, dashed, stack }] }
+            function draw(root) {
+                if (typeof Chart === 'undefined') return;
+                root.querySelectorAll('canvas[data-chart]').forEach(canvas => {
+                    const s = JSON.parse(canvas.dataset.chart);
+                    const fmt = s.format === 'percent' ? pct : money;
+                    const exact = s.format === 'percent' ? pct : moneyExact;
+                    const round = s.type === 'doughnut';
+                    const datasets = s.datasets.map(d => ({
+                        label: d.label, data: d.data, stack: d.stack,
+                        borderColor: round ? '#fff' : d.color, backgroundColor: d.colors ?? d.color,
+                        borderDash: d.dashed ? [6, 4] : undefined, pointRadius: 0, tension: 0.2, borderWidth: s.type === 'line' ? 2 : 1
+                    }));
+                    const options = {
+                        maintainAspectRatio: false,
+                        interaction: { mode: round ? 'nearest' : 'index', intersect: round },
+                        plugins: {
+                            legend: { display: !!s.legend, position: round ? 'bottom' : 'top' },
+                            tooltip: { callbacks: { label: c => `${c.dataset.label && !round ? c.dataset.label + ': ' : (round ? c.label + ': ' : '')}${exact(c.parsed.y ?? c.parsed)}` } }
+                        }
+                    };
+                    if (!round) options.scales = { x: { stacked: !!s.stacked, ticks: { maxTicksLimit: 8 } }, y: { stacked: !!s.stacked, ticks: { callback: fmt } } };
+                    charts.get(canvas.id)?.destroy();
+                    charts.set(canvas.id, new Chart(canvas, { type: s.type, data: { labels: s.labels, datasets }, options }));
+                });
+            }
 
-        if (document.getElementById('incomeChart')) {
-            new Chart(document.getElementById('incomeChart'), {
-                type: 'bar',
-                data: {
-                    labels: income.map(p => p.label),
-                    datasets: [{ label: 'Projected income', data: income.map(p => p.value), backgroundColor: '#198754' }]
-                },
-                options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => money(c.parsed.y) } } }, scales: { y: { ticks: { callback: money } } } }
+            async function load(el, url) {
+                url ??= el.dataset.src;
+                try {
+                    const r = await fetch(url, { credentials: 'same-origin' });
+                    if (!r.ok) throw new Error(r.status);
+                    const html = (await r.text()).trim();
+                    el.dataset.src = url;
+                    el.innerHTML = html;
+                    if (!html && el.hasAttribute('data-hide-empty')) el.classList.add('d-none');
+                    draw(el);
+                } catch {
+                    el.innerHTML = '<div class="card shadow-sm h-100"><div class="card-body small text-warning">This card couldn\'t be loaded. <a href="#" data-retry>Try again</a></div></div>';
+                }
+            }
+
+            document.addEventListener('click', e => {
+                const retry = e.target.closest('[data-retry]');
+                const link = e.target.closest('a[data-section]');
+                if (!retry && !link) return;
+                e.preventDefault();
+                const el = (retry ?? link).closest('[data-src]');
+                if (link) {
+                    // Keep the other cards' choices in the address too
+                    const u = new URL(location.href);
+                    new URL(link.href).searchParams.forEach((v, k) => u.searchParams.set(k, v));
+                    history.replaceState(null, '', u);
+                }
+                load(el, link?.dataset.section);
             });
-        }
+
+            document.querySelectorAll('[data-src]').forEach(el => load(el));
+        })();
     </script>
 }

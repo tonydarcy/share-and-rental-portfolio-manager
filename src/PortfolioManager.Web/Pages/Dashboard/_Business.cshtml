@@ -1,0 +1,35 @@
+@model IndexModel
+@if (!Model.HasBusiness)
+{
+    return;
+}
+<div class="card shadow-sm h-100">
+    <div class="card-body">
+        <h2 class="h6">Business</h2>
+        <div class="row small text-center">
+            <div class="col">
+                <div class="text-muted"><a asp-page="/Invoices/Aged" class="text-reset">Owed to you</a></div>
+                <div class="fs-5">@Model.Receivable.ToString("C0")</div>
+                @if (Model.ReceivableOverdue > 0)
+                {
+                    <div class="text-danger">@Model.ReceivableOverdue.ToString("C0") overdue</div>
+                }
+            </div>
+            <div class="col">
+                <div class="text-muted"><a asp-page="/Bills/Aged" class="text-reset">You owe</a></div>
+                <div class="fs-5">@Model.Payable.ToString("C0")</div>
+                @if (Model.PayableOverdue > 0)
+                {
+                    <div class="text-danger">@Model.PayableOverdue.ToString("C0") overdue</div>
+                }
+            </div>
+        </div>
+        @if (Model.Portfolio is { CanEdit: true })
+        {
+            <div class="d-flex gap-2 mt-3">
+                <a asp-page="/Invoices/Edit" class="btn btn-sm btn-outline-primary">New invoice</a>
+                <a asp-page="/Bills/Edit" class="btn btn-sm btn-outline-primary">New bill</a>
+            </div>
+        }
+    </div>
+</div>

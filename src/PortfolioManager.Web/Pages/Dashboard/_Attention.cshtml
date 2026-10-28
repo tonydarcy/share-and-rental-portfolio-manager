@@ -1,0 +1,22 @@
+@model IndexModel
+<div class="card shadow-sm h-100">
+    <div class="card-body">
+        <h2 class="h6">Needs attention</h2>
+        @if (Model.Attention.Count == 0)
+        {
+            <p class="text-success mb-0">Nothing to do. Bank lines are coded, prices are current and nothing is overdue.</p>
+        }
+        else
+        {
+            <ul class="list-unstyled mb-0">
+                @foreach (var item in Model.Attention.OrderByDescending(a => a.Urgent))
+                {
+                    <li class="d-flex gap-2 py-1 border-bottom">
+                        <span class="badge rounded-pill align-self-start mt-1 @(item.Urgent ? "text-bg-danger" : "text-bg-warning")">@(item.Urgent ? "!" : "•")</span>
+                        <a asp-page="@item.Page" class="text-reset small">@item.Text</a>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>

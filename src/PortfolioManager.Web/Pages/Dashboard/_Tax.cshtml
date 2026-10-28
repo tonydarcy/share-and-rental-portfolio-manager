@@ -1,0 +1,100 @@
+@model IndexModel
+@{
+    var w = Model.Workpaper;
+}
+@if (w is null)
+{
+    return;
+}
+<div class="card shadow-sm h-100">
+    <div class="card-body">
+        <h2 class="h6"><a asp-page="/TaxWork/Reconciliation" class="text-reset">Tax year so far (@w.YearLabel)</a></h2>
+        <table class="table table-sm small mb-2">
+            <tbody>
+                <tr><td>Dividends and distributions</td><td class="text-end">@((w.Income.Franked + w.Income.Unfranked + w.Income.TrustIncome).ToString("C0"))</td></tr>
+                <tr><td>Franking credits</td><td class="text-end">@w.Income.FrankingCredits.ToString("C0")</td></tr>
+                @if (w.Income.Interest != 0)
+                {
+                    <tr><td>Interest</td><td class="text-end">@w.Income.Interest.ToString("C0")</td></tr>
+                }
+                @if (w.Income.ForeignIncome != 0)
+                {
+                    <tr><td>Foreign income</td><td class="text-end">@w.Income.ForeignIncome.ToString("C0")</td></tr>
+                }
+                <tr>
+                    <td><a asp-page="/Reports/CapitalGains">Net capital gain</a>
+                        @if (w.Cgt.Discount > 0)
+                        {
+                            <div class="text-muted">after @w.Cgt.Discount.ToString("C0") CGT discount</div>
+                        }
+                    </td>
+                    <td class="text-end">@w.Cgt.NetCapitalGain.ToString("C0")</td>
+                </tr>
+                @if (w.Cgt.LossCarriedForward > 0)
+                {
+                    <tr><td>Capital losses to carry forward</td><td class="text-end">@w.Cgt.LossCarriedForward.ToString("C0")</td></tr>
+                }
+                @if (w.Rental is { Properties.Count: > 0 } rental)
+                {
+                    <tr><td><a asp-page="/TaxWork/Rental">Net rent</a></td><td class="text-end @IndexModel.Tone(rental.Net)">@rental.Net.ToString("C0")</td></tr>
+                }
+                @if (Model.IndividualEstimate is { } est)
+                {
+                    <tr class="fw-semibold">
+                        <td>@(est.Payable < 0 ? "Refund" : "Tax") on these alone
+                            <div class="fw-normal text-muted">Before salary and other deductions; <a asp-page="/TaxWork/Planning">add them in Tax planning</a></div>
+                        </td>
+                        <td class="text-end">@Math.Abs(est.Payable).ToString("C0")</td>
+                    </tr>
+                }
+                else if (w.Tax is { } tax)
+                {
+                    <tr class="fw-semibold">
+                        <td>Estimated @(tax.Payable < 0 ? "refund" : "tax payable")
+                            <div class="fw-normal text-muted">At @tax.RatePercent.ToString("0.#")% after franking and instalments; <a asp-page="/TaxWork/Planning">plan the year</a></div>
+                        </td>
+                        <td class="text-end">@Math.Abs(tax.Payable).ToString("C0")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (Model.Harvest is { } h)
+        {
+            <div class="alert alert-info small py-2 mb-2">
+                The year ends on @h.YearEnd.ToString("d MMMM"). @h.Holdings holding@(h.Holdings == 1 ? " is" : "s are") about @h.Losses.ToString("C0") below cost@(w.Cgt.NetCapitalGain > 0 ? ", which could offset this year's gains if sold" : "").
+                <a asp-page="/Reports/TaxLoss">See the tax loss report</a>. This isn't advice; check wash sale rules first.
+            </div>
+        }
+        @if (w.Members is { Count: > 0 } members)
+        {
+            <h3 class="h6 mt-3"><a asp-page="/TaxWork/Smsf" class="text-reset">Members</a></h3>
+            <table class="table table-sm small mb-0">
+                <thead><tr><th>Member</th><th class="text-end">Concessional</th><th class="text-end">Non-concessional</th><th class="text-end">Pension</th></tr></thead>
+                <tbody>
+                    @foreach (var m in members)
+                    {
+                        <tr>
+                            <td>@m.Member.Name</td>
+                            <td class="text-end @(m.OverConcessionalCap ? "text-danger fw-semibold" : "")">@m.Concessional.ToString("C0") <span class="text-muted">of @m.Caps.Concessional.ToString("C0")</span></td>
+                            <td class="text-end @(m.OverNonConcessionalCap ? "text-danger fw-semibold" : "")">@m.NonConcessional.ToString("C0") <span class="text-muted">of @m.NonConcessionalLimit.ToString("C0")</span></td>
+                            <td class="text-end @(m.PensionShort ? "text-warning" : "")">
+                                @if (m.MinimumPension is { } min)
+                                {
+                                    @m.PensionPaid.ToString("C0") <span class="text-muted">of @min.ToString("C0") minimum</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">–</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        @if (w.Warnings.Count > 0)
+        {
+            <div class="small text-muted mt-2">@w.Warnings.Count note@(w.Warnings.Count == 1 ? "" : "s") on the <a asp-page="/TaxWork/Reconciliation">tax reconciliation</a>.</div>
+        }
+    </div>
+</div>
