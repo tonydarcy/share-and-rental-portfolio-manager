@@ -628,6 +628,9 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-10-28-05-auto-close-off.sql`: turns off AUTO_CLOSE on the site's database if it is on. With it on, SQL Server
   closes the database whenever nobody is connected, and the first visit afterwards can time out while it reloads.
   Nothing else changes.
+- `2026-10-28-06-price-cache-clustered.sql`: gives `tblSharePriceCache` (each stock's latest price) a clustered index.
+  Without one, the table's daily delete-and-reload left gigabytes of empty pages that SQL Server read whenever it
+  refreshed the table's statistics, so holdings and the dashboard could time out. Can take a minute on a big database.
 
 ## API and MCP server
 
