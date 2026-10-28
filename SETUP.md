@@ -369,7 +369,8 @@ so their prices never mix with real ones.
 4. Copy the contents of `publish/` into the site's folder and add `appsettings.Production.json` there.
 5. For each later release: run any new migration scripts first, then copy the new `publish/` contents over the old
    ones, keeping `appsettings.Production.json`. If a file is locked, put an `app_offline.htm` file in the folder while
-   you copy and delete it afterwards.
+   you copy and delete it afterwards. Or let `deploy\Deploy.cmd` do all of this: clone the code on the server and
+   double-click it (see [deploy/README.md](deploy/README.md)).
 
 ### Linux with nginx
 
@@ -447,7 +448,8 @@ Once the site is running and you have registered:
 
 1. Back up the database.
 2. Run each script in `Database/Migrations` that is newer than your last update, oldest first.
-3. Publish and copy the new build as above, keeping `appsettings.Production.json`.
+3. Publish and copy the new build as above, keeping `appsettings.Production.json`. On Windows with IIS,
+   `deploy\Deploy.cmd` does this step for you and lists the scripts for step 2.
 
 ## Getting help
 
