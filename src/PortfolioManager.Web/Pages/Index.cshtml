@@ -31,12 +31,16 @@
     return;
 }
 
+@if (Model.ValueFailed)
+{
+    <div class="alert alert-warning">The portfolio's value took too long to work out. Refresh the page in a moment to try again.</div>
+}
 <div class="row g-3 mb-3">
     <div class="col-md-4">
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Total portfolio value</div>
-                <div class="kpi-value">@Model.Value.TotalPortfolioValue.ToString("C")</div>
+                <div class="kpi-value">@(Model.ValueFailed ? "—" : Model.Value.TotalPortfolioValue.ToString("C"))</div>
             </div>
         </div>
     </div>
@@ -44,7 +48,7 @@
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small"><a asp-page="/Holdings" class="text-reset">Shares and funds</a></div>
-                <div class="kpi-value">@Model.Value.TotalShareValue.ToString("C")</div>
+                <div class="kpi-value">@(Model.ValueFailed ? "—" : Model.Value.TotalShareValue.ToString("C"))</div>
             </div>
         </div>
     </div>
@@ -52,7 +56,7 @@
         <div class="card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small"><a asp-page="/Cash/Index" class="text-reset">Cash</a></div>
-                <div class="kpi-value">@Model.Value.TotalCashValue.ToString("C")</div>
+                <div class="kpi-value">@(Model.ValueFailed ? "—" : Model.Value.TotalCashValue.ToString("C"))</div>
             </div>
         </div>
     </div>
@@ -71,7 +75,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-muted small">Net worth (portfolio and property)</div>
-                    <div class="kpi-value">@((Model.Value.TotalPortfolioValue + Model.PropertyEquity).ToString("C"))</div>
+                    <div class="kpi-value">@(Model.ValueFailed ? "—" : (Model.Value.TotalPortfolioValue + Model.PropertyEquity).ToString("C"))</div>
                 </div>
             </div>
         </div>
