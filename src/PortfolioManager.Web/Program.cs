@@ -234,6 +234,10 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddScoped<ViewOnlyFilter>();
 builder.Services.AddScoped<LockedPeriodFilter>();
+// Terms of use, privacy policy and disclaimer (Legal section; on unless Legal:Enabled is false)
+builder.Services.AddSingleton(builder.Configuration.GetSection("Legal").Get<LegalSettings>() ?? new LegalSettings());
+builder.Services.AddScoped<TermsService>();
+builder.Services.AddScoped<TermsFilter>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("Security").Get<SecuritySettings>() ?? new SecuritySettings());
 builder.Services.AddScoped<AdminTwoFactorFilter>();
 builder.Services.AddRazorPages(options =>
@@ -242,6 +246,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(ViewOnlyFilter)));
     // A change the database refuses because the year is locked shows its message on the page
     options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(LockedPeriodFilter)));
+    // Signed-in people agree to the current terms before carrying on (Legal:RequireAcceptance)
+    options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(TermsFilter)));
     // Site admins turn on two-factor sign-in before anything else (Security:RequireTwoFactorForAdmins)
     options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(AdminTwoFactorFilter)));
 });

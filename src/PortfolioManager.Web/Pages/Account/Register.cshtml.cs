@@ -13,7 +13,7 @@ namespace PortfolioManager.Web.Pages.Account;
 [AllowViewOnly]
 [EnableRateLimiting(SignInFlow.RateLimit)]
 public class RegisterModel(AccountService accounts, AccountTokens tokens, IEmailSender email, Captcha captcha, SiteBranding site,
-    ILogger<RegisterModel> logger) : PageModel
+    ILogger<RegisterModel> logger, LegalSettings legal, TermsFilter terms) : PageModel
 {
     // Filled in from an invitation email's link
     [BindProperty(SupportsGet = true), Display(Name = "Email")]
@@ -31,6 +31,12 @@ public class RegisterModel(AccountService accounts, AccountTokens tokens, IEmail
     [BindProperty, DataType(DataType.Password), Display(Name = "Confirm password")]
     public string? ConfirmPassword { get; set; }
 
+    /// <summary>The "I agree to the terms" box, shown when the host has the legal pages on (Legal:Enabled).</summary>
+    [BindProperty]
+    public bool AgreeToTerms { get; set; }
+
+    public LegalSettings Legal => legal;
+
     public IActionResult OnGet() =>
         User.Identity?.IsAuthenticated == true ? RedirectToPage("/Index") : Page();
 
@@ -42,6 +48,8 @@ public class RegisterModel(AccountService accounts, AccountTokens tokens, IEmail
             ModelState.AddModelError(string.Empty, "Enter a portfolio name (up to 100 characters).");
         if ((ContactName?.Length ?? 0) > 100)
             ModelState.AddModelError(string.Empty, "Your name can be at most 100 characters.");
+        if (legal.Enabled && !AgreeToTerms)
+            ModelState.AddModelError(string.Empty, "Please tick the box to agree to the terms of use and privacy policy.");
         if (!ModelState.IsValid)
             return Page();
         if (!await captcha.VerifyAsync(HttpContext))
@@ -55,6 +63,10 @@ public class RegisterModel(AccountService accounts, AccountTokens tokens, IEmail
             ModelState.AddModelError(string.Empty, "An account with that email already exists. Log in instead, or use a different email.");
             return Page();
         }
+
+        // Keep a record of which terms they agreed to, and when
+        if (legal.Enabled && await accounts.FindByEmailAsync(Email!) is { } created)
+            await terms.AcceptAsync(created.UserId, HttpContext.Connection.RemoteIpAddress?.ToString());
 
         // With email settings, the new login can't be used until the person follows the emailed link
         if (email.IsConfigured && await accounts.FindByEmailAsync(Email!) is { EmailConfirmed: false } user)

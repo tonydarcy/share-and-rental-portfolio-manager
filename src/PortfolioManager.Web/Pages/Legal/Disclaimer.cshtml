@@ -1,0 +1,47 @@
+@page
+@model PortfolioManager.Web.Pages.Legal.DisclaimerModel
+@{
+    ViewData["Title"] = "Disclaimer";
+}
+
+<div class="col-lg-9">
+    <h1 class="h2 pb-2 mb-3 border-bottom">Disclaimer</h1>
+
+    <h2 class="h5 mt-4">General information only</h2>
+    <p>
+        @Model.SiteName gives general information and calculations based on the records you enter. It is not financial
+        product advice, tax advice or legal advice, and it does not take your objectives, financial situation or needs into
+        account. Think about whether it suits your circumstances, and get advice from a licensed adviser or registered tax
+        agent before acting on it.
+    </p>
+
+    <h2 class="h5 mt-4">Check the figures</h2>
+    <p>
+        Reports, tax schedules, BAS figures and capital gains are worked out from what you entered or imported, using
+        rules that may be simplified and that change over time. They may contain errors. Check them against your source
+        documents, or have your own tax agent check them, before you lodge, pay or rely on them.
+    </p>
+
+    <h2 class="h5 mt-4">Not a tax agent service</h2>
+    <p>
+        Using the site does not make @Model.Operator, or anyone who runs it, your tax or BAS agent, even if they are
+        registered as one.
+    </p>
+
+    <h2 class="h5 mt-4">Prices and outside data</h2>
+    <p>
+        Share prices, exchange rates and other market data come from outside providers. They may be delayed, incomplete or
+        wrong, and are not a quote to buy or sell.
+    </p>
+
+    <h2 class="h5 mt-4">The AI assistant</h2>
+    <p>
+        Answers from the assistant are written by an AI model. They can be wrong or out of date, and any change it suggests
+        is only saved after you approve it.
+    </p>
+
+    <p class="mt-4">
+        Your rights under the Australian Consumer Law are not affected. See the <a asp-page="/Legal/Terms">terms of use</a>
+        for how our liability is limited.
+    </p>
+</div>

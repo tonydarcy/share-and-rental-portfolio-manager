@@ -1,6 +1,7 @@
 @inject CurrentPortfolio Current
 @inject SiteAdmin Admin
 @inject SiteBranding Site
+@inject LegalSettings Legal
 @{
     var signedIn = User.Identity?.IsAuthenticated == true;
     var portfolios = signedIn ? await Current.GetAccessibleAsync() : [];
@@ -307,6 +308,16 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         }
+        @if (Legal.Enabled && ViewContext.ActionDescriptor is Microsoft.AspNetCore.Mvc.RazorPages.CompiledPageActionDescriptor page
+            && LegalSettings.ShowsFiguresNote(page.ViewEnginePath))
+        {
+            <p class="small text-body-secondary border-start border-3 ps-2">@LegalSettings.FiguresNote</p>
+        }
+        else if (Legal.Enabled && ViewContext.ActionDescriptor is Microsoft.AspNetCore.Mvc.RazorPages.CompiledPageActionDescriptor assistant
+            && LegalSettings.ShowsAssistantNote(assistant.ViewEnginePath))
+        {
+            <p class="small text-body-secondary border-start border-3 ps-2">@LegalSettings.AssistantNote</p>
+        }
         @if (signedIn && ViewContext.ActionDescriptor is Microsoft.AspNetCore.Mvc.RazorPages.CompiledPageActionDescriptor { ViewEnginePath: "/Index" }
             && !AccountSecurity.HasTwoFactor(User)
             && (portfolios.Any(p => p.Access != PortfolioManager.Core.Portfolios.PortfolioAccess.Full) || portfolios.Count >= 3))
@@ -319,10 +330,20 @@
         }
         @RenderBody()
     </main>
-    @if (!string.IsNullOrWhiteSpace(Site.SupportEmail))
-    {
-        <footer class="container small text-body-secondary pb-4">Need help? Email <a href="mailto:@Site.SupportEmail">@Site.SupportEmail</a></footer>
-    }
+    <footer class="container small text-body-secondary pb-4 d-print-none">
+        @if (!string.IsNullOrWhiteSpace(Site.SupportEmail))
+        {
+            <span class="me-3">Need help? Email <a href="mailto:@Site.SupportEmail">@Site.SupportEmail</a></span>
+        }
+        @if (Legal.Enabled)
+        {
+            <a class="me-3" href="@(string.IsNullOrWhiteSpace(Legal.TermsUrl) ? Url.Page("/Legal/Terms") : Legal.TermsUrl)">Terms of use</a>
+            <a class="me-3" href="@(string.IsNullOrWhiteSpace(Legal.PrivacyUrl) ? Url.Page("/Legal/Privacy") : Legal.PrivacyUrl)">Privacy</a>
+            <a class="me-3" asp-page="/Legal/Disclaimer">Disclaimer</a>
+        }
+        @* The AGPL-3.0 licence asks a site running this software to offer its users the source code *@
+        <a href="@Legal.SourceCodeUrl" rel="noopener">Source code</a>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script src="~/js/mobile.js" asp-append-version="true"></script>

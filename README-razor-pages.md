@@ -621,6 +621,10 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   (Account > Recent sign-ins) and `uspGetSignInHistory` (new-device emails). Run it before deploying: until it runs,
   logging in fails with a database error. After deploying, everyone is signed out once, because sign-in cookies now
   carry a password stamp.
+- `2026-10-28-04-terms-acceptance.sql`: adds `tblTermsAcceptances` (which version of the terms of use each login agreed
+  to, when and from where) with `uspAddTermsAcceptance` and `uspGetTermsAcceptance`. Run it before deploying: until it
+  runs, signing up and every page after sign-in fail with a database error. With the `Legal` settings at their defaults,
+  everyone is asked to agree to the terms once at their next page.
 
 ## API and MCP server
 

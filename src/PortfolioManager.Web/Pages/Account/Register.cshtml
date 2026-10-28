@@ -33,6 +33,18 @@
                         <label asp-for="ConfirmPassword" class="form-label"></label>
                         <input asp-for="ConfirmPassword" class="form-control" autocomplete="new-password" required />
                     </div>
+                    @if (Model.Legal.Enabled)
+                    {
+                        <div class="form-check mb-3">
+                            <input asp-for="AgreeToTerms" class="form-check-input" />
+                            <label asp-for="AgreeToTerms" class="form-check-label">
+                                I agree to the
+                                <a href="@(string.IsNullOrWhiteSpace(Model.Legal.TermsUrl) ? Url.Page("/Legal/Terms") : Model.Legal.TermsUrl)" target="_blank" rel="noopener">terms of use</a>
+                                and
+                                <a href="@(string.IsNullOrWhiteSpace(Model.Legal.PrivacyUrl) ? Url.Page("/Legal/Privacy") : Model.Legal.PrivacyUrl)" target="_blank" rel="noopener">privacy policy</a>
+                            </label>
+                        </div>
+                    }
                     <partial name="_Captcha" />
                     <button type="submit" class="btn btn-primary w-100">Create account</button>
                 </form>
