@@ -193,6 +193,33 @@ The site calls itself "Share Portfolio Manager" unless you say otherwise. Add a 
   first with `Database/SampleData/demo-portfolio.sql` (login `demo@example.com`, password `demo-portfolio`). Anyone
   who presses the button can change the demo portfolio, so only turn it on for a site meant for trying the app.
 
+### Terms of use, privacy policy and disclaimer
+
+The site comes with plain-English **Terms of use**, **Privacy policy** and **Disclaimer** pages (linked at the foot of
+every page), an "I agree" box on the sign-up page, and a short "check these figures before you lodge" note on tax,
+BAS and capital gains pages. People who signed up before, or before the terms changed, are asked to agree once at
+their next page. Which version each person agreed to, when and from where is kept in `tblTermsAcceptances`.
+
+They are written for a site run in Australia and are a starting point, not legal advice: have a lawyer check them
+before you rely on them. Fill in who runs the site in `appsettings.Production.json`:
+
+```json
+"Legal": {
+  "OperatorName": "Example Pty Ltd",
+  "Abn": "12 345 678 901",
+  "ContactEmail": "privacy@example.com",
+  "HostingLocation": "in Sydney, Australia"
+}
+```
+
+- `TermsUrl` and `PrivacyUrl` point to your own pages instead of the built-in ones. When you use your own terms, set
+  `TermsVersion` too, and change it whenever they change, so everyone is asked to agree to the new version.
+- `RequireAcceptance: false` keeps the pages and notes but stops asking signed-in people to agree.
+- `Enabled: false` turns all of it off, for a copy only you use.
+- `SourceCodeUrl` is always shown as "Source code" at the foot of each page. The AGPL-3.0 licence requires a site that
+  runs a changed copy of this software to offer its users that changed source, so point it at your own fork if you
+  change the code.
+
 ### Email and sign-in security
 
 Without email settings the site works as before: nobody can reset a forgotten password themselves, new accounts can

@@ -1,0 +1,121 @@
+@page
+@model PortfolioManager.Web.Pages.Legal.TermsModel
+@{
+    ViewData["Title"] = "Terms of use";
+}
+
+<div class="col-lg-9">
+    <h1 class="h2 pb-2 mb-3 border-bottom">Terms of use</h1>
+    <p class="text-muted">Version @LegalSettings.BuiltInVersion</p>
+
+    <h2 class="h5 mt-4">1. About these terms</h2>
+    <p>
+        @Model.SiteName is run by @Model.OperatorWithAbn ("we", "us"). These terms apply when you create an account or
+        use the site. By ticking "I agree" you accept them, together with our <a asp-page="/Legal/Privacy">privacy policy</a>.
+        If you use the site for a business or for clients, you accept them for that business too.
+    </p>
+
+    <h2 class="h5 mt-4">2. What the site is, and what it isn't</h2>
+    <p>
+        The site is software for keeping records of shares, cash, property and business transactions and for working out
+        figures from those records, such as capital gains, income, franking credits, GST and ledger reports.
+    </p>
+    <ul>
+        <li><strong>It is not financial advice.</strong> Nothing on the site is a recommendation to buy, sell or hold
+            anything, and it does not take your objectives, financial situation or needs into account.</li>
+        <li><strong>It is not a tax agent service.</strong> Even if the people who run the site are registered tax or
+            BAS agents, using the site does not make them your agent. They are not preparing or lodging anything for you
+            unless you have a separate written agreement with them for that.</li>
+        <li><strong>It is not legal or accounting advice.</strong> For advice about your own situation, see a qualified adviser.</li>
+    </ul>
+
+    <h2 class="h5 mt-4">3. Your responsibilities</h2>
+    <ul>
+        <li>The figures depend on what you enter or import. You are responsible for checking that your records are complete and correct.</li>
+        <li>Check figures before you lodge a return or a BAS, pay tax, or make a decision based on them, or have your own tax agent check them.</li>
+        <li>Keep your password private, use a password you don't use elsewhere, and turn on two-factor sign-in.</li>
+        <li>Only enter other people's information (for example, clients or tenants) if you are allowed to, and tell them how
+            it will be used. If you run a practice on the site, you are responsible for your clients' consent.</li>
+        <li>Don't enter tax file numbers. The site doesn't need them.</li>
+        <li>Don't misuse the site: no attempts to get into other people's records, no harmful files, and no use that breaks the law.</li>
+    </ul>
+
+    <h2 class="h5 mt-4">4. Calculations, prices and tax rules</h2>
+    <p>
+        We work to make the calculations right, but software can have errors, tax rules change, and some situations are
+        handled in a simplified way. Share prices, exchange rates and other data come from outside providers and may be
+        late, missing or wrong. Answers from the AI assistant can be wrong. Keep your own source documents (contract
+        notes, statements, invoices), and download copies of your reports.
+    </p>
+
+    <h2 class="h5 mt-4">5. The service</h2>
+    <p>
+        We may change, add or remove features, and the site may sometimes be unavailable, for example for maintenance.
+        We back up the database regularly but cannot promise that no data will ever be lost. Where we can, we will
+        give you notice before a change that takes away something you rely on.
+    </p>
+
+    <h2 class="h5 mt-4">6. Other services you connect</h2>
+    <p>
+        If you connect another service (for example Navexa, Xero, MYOB or the AI assistant's provider), that service's
+        own terms apply to it, and we are not responsible for what it does with your information or for its availability.
+    </p>
+
+    <h2 class="h5 mt-4">7. Fees</h2>
+    <p>
+        The site is currently free. If we introduce fees, we will tell you first. Fees only apply once you agree to them.
+    </p>
+
+    <h2 class="h5 mt-4">8. Your rights under the Australian Consumer Law</h2>
+    <p>
+        Our services come with guarantees that cannot be excluded under the Australian Consumer Law, including that they
+        will be provided with due care and skill. Nothing in these terms excludes, restricts or changes those guarantees
+        or any other right you have that the law says cannot be excluded.
+    </p>
+
+    <h2 class="h5 mt-4">9. Limits on our liability</h2>
+    <p>As far as the law allows:</p>
+    <ul>
+        <li>Where the law lets us limit our liability for failing to meet a consumer guarantee, our liability is limited
+            to supplying the services again, or paying the cost of having them supplied again.</li>
+        <li>We are not liable for indirect or consequential loss, or for loss of profits, revenue or opportunity.</li>
+        <li>We are not liable for loss caused by information you entered being wrong or incomplete, or by relying on figures
+            you were asked to check without checking them.</li>
+        <li>Our total liability to you for all claims about the site is limited to the fees you paid us in the 12 months
+            before the claim arose, or AUD 100 if you have not paid us anything.</li>
+    </ul>
+    <p>These limits don't apply to loss caused by our fraud or our deliberate wrongdoing.</p>
+
+    <h2 class="h5 mt-4">10. Security and data breaches</h2>
+    <p>
+        We take reasonable steps to protect your information (see the <a asp-page="/Legal/Privacy">privacy policy</a>),
+        but no website is completely secure. If a data breach is likely to cause you serious harm, we will tell you and
+        the Office of the Australian Information Commissioner as the Notifiable Data Breaches scheme requires.
+    </p>
+
+    <h2 class="h5 mt-4">11. Ending your use</h2>
+    <p>
+        You can stop using the site at any time and ask us to close your account and delete your records by emailing
+        <partial name="_Contact" model="Model" />. We may suspend or close an account that breaks these terms or puts other
+        users at risk; unless the risk is urgent, we will tell you first and let you download your records.
+    </p>
+
+    <h2 class="h5 mt-4">12. Open-source software</h2>
+    <p>
+        The software that runs this site is open source under the GNU Affero General Public License, version 3
+        (<a href="@Model.Legal.SourceCodeUrl" rel="noopener">source code</a>). That licence covers the software itself
+        and comes with no warranty. These terms cover the service we run with it.
+    </p>
+
+    <h2 class="h5 mt-4">13. Changes to these terms</h2>
+    <p>
+        We may update these terms. When we do, we will show the new version and ask you to agree to it before you carry on
+        using the site. If you don't agree, you can stop using the site and ask us to delete your records.
+    </p>
+
+    <h2 class="h5 mt-4">14. Law and contact</h2>
+    <p>
+        These terms are governed by the law of the Australian state or territory where @Model.Operator is based. Questions
+        about these terms: <partial name="_Contact" model="Model" />.
+    </p>
+</div>

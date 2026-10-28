@@ -49,6 +49,8 @@ jobs:
           for i in $(seq 1 60); do curl -s -o /dev/null http://localhost:5075/Account/Login && break; sleep 2; done
         env:
           ASPNETCORE_ENVIRONMENT: Development
+          # The demo login hasn't agreed to the terms; let it open every page (the legal pages are still checked)
+          Legal__RequireAcceptance: "false"
           ConnectionStrings__Default: Server=localhost,1433;Database=PortfolioManagerSmoke;User Id=sa;Password=Ci-Only-Passw0rd!;TrustServerCertificate=True
       - name: Open every page
         run: bash tests/smoke/smoke.sh http://localhost:5075

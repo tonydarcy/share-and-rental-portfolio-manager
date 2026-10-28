@@ -615,6 +615,10 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   trade. Nothing else changes. Takes a minute or so on a big database.
 - `2026-10-28-02-price-trend-speed.sql`: the daily price job's trend update (`uspUpdateMissingSharePriceTrendsByDateAndExchange`)
   finds the traded stocks' new prices through the index instead of reading every price on each pass. Same results.
+- `2026-10-28-04-terms-acceptance.sql`: adds `tblTermsAcceptances` (which version of the terms of use each login agreed
+  to, when and from where) with `uspAddTermsAcceptance` and `uspGetTermsAcceptance`. Run it before deploying: until it
+  runs, signing up and every page after sign-in fail with a database error. With the `Legal` settings at their defaults,
+  everyone is asked to agree to the terms once at their next page.
 
 ## API and MCP server
 

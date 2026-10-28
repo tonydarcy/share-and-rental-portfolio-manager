@@ -1,0 +1,9 @@
+@model PortfolioManager.Web.Pages.Legal.LegalPageModel
+@if (Model.Contact is { } contact)
+{
+    <a href="mailto:@contact">@contact</a>
+}
+else
+{
+    <text>the contact details on this site</text>
+}

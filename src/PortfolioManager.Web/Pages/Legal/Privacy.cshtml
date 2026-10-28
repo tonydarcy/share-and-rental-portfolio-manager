@@ -1,0 +1,93 @@
+@page
+@model PortfolioManager.Web.Pages.Legal.PrivacyModel
+@{
+    ViewData["Title"] = "Privacy policy";
+}
+
+<div class="col-lg-9">
+    <h1 class="h2 pb-2 mb-3 border-bottom">Privacy policy</h1>
+    <p class="text-muted">Version @LegalSettings.BuiltInVersion</p>
+
+    <p>
+        This policy explains how @Model.OperatorWithAbn ("we", "us") handles personal information on @Model.SiteName.
+        We follow the Australian Privacy Principles in the Privacy Act 1988.
+    </p>
+
+    <h2 class="h5 mt-4">What we collect</h2>
+    <ul>
+        <li><strong>Your account:</strong> your email address, your name if you give it, and your password (stored only as a
+            one-way hash we cannot read back).</li>
+        <li><strong>The records you enter or import:</strong> trades, holdings, dividends, bank transactions, invoices, bills,
+            properties, tenants, clients, attachments and the other records the site keeps. These can include other people's
+            details if you enter them.</li>
+        <li><strong>Security and technical details:</strong> your internet address, your browser, and a log of sign-ins,
+            wrong passwords and changes to your password, two-factor sign-in and API keys.</li>
+        <li><strong>Messages you send us</strong>, such as support emails.</li>
+    </ul>
+    <p>Please don't enter tax file numbers. The site doesn't need them, and we ask you not to store them here.</p>
+
+    <h2 class="h5 mt-4">Why we use it</h2>
+    <ul>
+        <li>To run the site for you: storing your records, working out your reports and sending the emails you ask for.</li>
+        <li>To keep accounts secure: checking sign-ins, stopping password guessing and warning you about unusual sign-ins.</li>
+        <li>To answer your questions, fix problems and meet our legal obligations.</li>
+    </ul>
+    <p>We don't sell your information, we don't show advertising, and we don't use tracking or analytics cookies.</p>
+
+    <h2 class="h5 mt-4">Cookies</h2>
+    <p>
+        The site uses only the cookies it needs to work: one that keeps you signed in, one that remembers which portfolio you
+        picked, one that recognises your browser so we can warn you about sign-ins from new devices, and short-lived ones
+        that protect forms and pass messages between pages. If the "I'm human" check is turned on, Cloudflare sets its own
+        cookie on the sign-in and sign-up pages. If you turn on offline copies, pages are saved on your own device.
+    </p>
+
+    <h2 class="h5 mt-4">Where it is stored</h2>
+    <p>
+        Your records are kept in our database on a server @(string.IsNullOrWhiteSpace(Model.Legal.HostingLocation) ? "run by our hosting provider" : Model.Legal.HostingLocation!.Trim()),
+        and in our backups.
+    </p>
+
+    <h2 class="h5 mt-4">Who we share it with</h2>
+    <p>We only share your information when you use a feature that needs it, when you ask us to, or when the law requires it:</p>
+    <ul>
+        <li><strong>People you share a portfolio with</strong>, at the access level you choose.</li>
+        <li><strong>The AI assistant and document reading</strong> send your question, the records it needs and any file you
+            ask it to read to Anthropic in the United States.</li>
+        <li><strong>Accounting software</strong> (Xero or MYOB) receives the journals you choose to send, and
+            <strong>Navexa</strong> is contacted when you connect it to import your records.</li>
+        <li><strong>Our email provider</strong> delivers the emails the site sends you.</li>
+        <li><strong>Cloudflare</strong> checks your internet address and browser on the sign-in and sign-up pages, if the
+            "I'm human" check is turned on.</li>
+        <li><strong>Share price providers</strong> are only sent share codes, never your details.</li>
+    </ul>
+    <p>
+        Some of these providers are overseas (for example Anthropic and Cloudflare in the United States, and Xero and MYOB
+        may store data outside Australia). We use them only for the feature you choose to use.
+    </p>
+
+    <h2 class="h5 mt-4">How we protect it</h2>
+    <p>
+        The site uses HTTPS, hashed passwords, optional two-factor sign-in, encrypted storage of the keys you connect to other
+        services, limits on password guessing and a security log. Access to the server and database is restricted. If a
+        data breach is likely to cause you serious harm, we will tell you and the Office of the Australian Information
+        Commissioner as the law requires.
+    </p>
+
+    <h2 class="h5 mt-4">How long we keep it</h2>
+    <p>
+        We keep your records while you have an account. If you ask us to close your account, we delete your records within
+        30 days, except anything the law requires us to keep. Copies in backups are removed as those backups expire.
+    </p>
+
+    <h2 class="h5 mt-4">Seeing, correcting or deleting your information</h2>
+    <p>
+        You can see and change most of your information on the site. To ask for a copy of what we hold, a correction or
+        deletion, or to make a privacy complaint, email <partial name="_Contact" model="Model" />. We will reply within 30 days.
+        If you are not happy with our answer, you can complain to the
+        <a href="https://www.oaic.gov.au/privacy/privacy-complaints" rel="noopener">Office of the Australian Information Commissioner</a>.
+    </p>
+
+    <h2 class="h5 mt-4">Changes to this policy</h2>
+    <p>If we change this policy, we will show the new version on the site and ask you to agree to it.</p>
+</div>

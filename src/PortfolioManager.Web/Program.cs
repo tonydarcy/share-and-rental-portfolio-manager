@@ -223,12 +223,18 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddScoped<ViewOnlyFilter>();
 builder.Services.AddScoped<LockedPeriodFilter>();
+// Terms of use, privacy policy and disclaimer (Legal section; on unless Legal:Enabled is false)
+builder.Services.AddSingleton(builder.Configuration.GetSection("Legal").Get<LegalSettings>() ?? new LegalSettings());
+builder.Services.AddScoped<TermsService>();
+builder.Services.AddScoped<TermsFilter>();
 builder.Services.AddRazorPages(options =>
 {
     // People with View access to a portfolio can't post changes to it
     options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(ViewOnlyFilter)));
     // A change the database refuses because the year is locked shows its message on the page
     options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(LockedPeriodFilter)));
+    // Signed-in people agree to the current terms before carrying on (Legal:RequireAcceptance)
+    options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(TermsFilter)));
 });
 
 var app = builder.Build();
