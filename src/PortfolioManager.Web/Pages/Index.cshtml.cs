@@ -57,6 +57,9 @@ public class IndexModel(
 
     public string Section { get; private set; } = "";
 
+    /// <summary>True when the value figures couldn't be loaded (e.g. the database was slow to wake), so the page shows dashes, not zeros.</summary>
+    public bool ValueFailed { get; private set; }
+
     public async Task OnGetAsync()
     {
         Portfolio = await current.GetSelectedAsync();
@@ -64,7 +67,16 @@ public class IndexModel(
             return;
         var id = Portfolio.PortfolioId;
         Region = await current.GetRegionAsync();
-        Value = await dashboard.GetValueAsync(id);
+        // A slow or failed value query shows dashes and a note instead of an error page; the cards below load on their own
+        try
+        {
+            Value = await dashboard.GetValueAsync(id);
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.SqlClient.SqlException or TimeoutException)
+        {
+            logger.LogWarning(ex, "Dashboard value failed for portfolio {PortfolioId}", id);
+            ValueFailed = true;
+        }
         Properties = await PropertiesAsync(id);
         HasClients = (await current.GetAccessibleAsync()).Count > 1;
         Period = DashboardFigures.NormalPeriod(Period);

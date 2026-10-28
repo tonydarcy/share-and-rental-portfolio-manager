@@ -153,6 +153,10 @@ Whatever the server, the rules are the same:
   variable `ConnectionStrings__Default`). That file holds a password: keep it out of git and out of anything you share.
 - Serve the site over HTTPS (for example with a free Let's Encrypt certificate). Sign-in does not work over plain HTTP.
 - Give the site a SQL login that owns only its own database, not `sa`.
+- Make sure the database's **Auto Close** option is off (`ALTER DATABASE [YourDb] SET AUTO_CLOSE OFF`; some hosting
+  control panels turn it on). With it on, the first visit after a quiet spell can time out while SQL Server reopens it.
+- On IIS, stop the app pool going to sleep: set its **Idle Time-out** to 0 and **Start Mode** to AlwaysRunning, and
+  turn on **Preload Enabled** for the site (needs the Application Initialization feature).
 - Back up the database. A nightly full backup kept somewhere other than the server is the minimum.
 
 ```json

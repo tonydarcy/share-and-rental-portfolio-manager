@@ -625,6 +625,9 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   to, when and from where) with `uspAddTermsAcceptance` and `uspGetTermsAcceptance`. Run it before deploying: until it
   runs, signing up and every page after sign-in fail with a database error. With the `Legal` settings at their defaults,
   everyone is asked to agree to the terms once at their next page.
+- `2026-10-28-05-auto-close-off.sql`: turns off AUTO_CLOSE on the site's database if it is on. With it on, SQL Server
+  closes the database whenever nobody is connected, and the first visit afterwards can time out while it reloads.
+  Nothing else changes.
 
 ## API and MCP server
 

@@ -54,6 +54,9 @@ jobs:
           # The demo login is the site admin here; don't make it set up two-factor sign-in before the pages open
           Security__RequireTwoFactorForAdmins: "false"
           ConnectionStrings__Default: Server=localhost,1433;Database=PortfolioManagerSmoke;User Id=sa;Password=Ci-Only-Passw0rd!;TrustServerCertificate=True
+      - name: Empty the database caches
+        # So the page timings below are from a cold start, like the first visit after the server has been quiet
+        run: docker exec sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SQL_PASSWORD" -C -b -Q "CHECKPOINT; DBCC DROPCLEANBUFFERS; DBCC FREEPROCCACHE;"
       - name: Open every page
         run: bash tests/smoke/smoke.sh http://localhost:5075
       - name: Site log
