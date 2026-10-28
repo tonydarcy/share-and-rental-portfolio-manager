@@ -1,0 +1,69 @@
+@model IndexModel
+@{
+    var fy = Model.YearToDate;
+    var open = Model.OpenTotal;
+    var unrealised = open is null ? 0 : open.MarketValue - open.Cost;
+    decimal? unrealisedPct = open is { Cost: > 0 } ? unrealised / open.Cost : null;
+}
+<div class="row g-3">
+    <div class="col-6 col-lg-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Latest day's move@(Model.Move is { } m ? $" ({m.Date:ddd d MMM})" : "")</div>
+                @if (Model.Move is { } move)
+                {
+                    <div class="fs-4 fw-semibold @IndexModel.Tone(move.Change)">@IndexModel.Signed(move.Change)</div>
+                    <div class="small @IndexModel.Tone(move.Return)">@IndexModel.Pct(move.Return)</div>
+                }
+                else
+                {
+                    <div class="fs-4 text-muted">–</div>
+                    <div class="small text-muted">No price changes in the last 10 days</div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small"><a asp-page="/Reports/Performance" class="text-reset">Gain this financial year</a></div>
+                @if (fy is not null)
+                {
+                    <div class="fs-4 fw-semibold @IndexModel.Tone(fy.TotalGain)">@IndexModel.Signed(fy.TotalGain)</div>
+                    <div class="small"><span class="@IndexModel.Tone(fy.TimeWeightedReturn)">@IndexModel.Pct(fy.TimeWeightedReturn)</span> <span class="text-muted">time-weighted, since @fy.From.ToString("d MMM")</span></div>
+                }
+                else
+                {
+                    <div class="fs-4 text-muted">–</div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small"><a asp-page="/Reports/UnrealisedGains" class="text-reset">Unrealised gain</a></div>
+                <div class="fs-4 fw-semibold @IndexModel.Tone(unrealised)">@IndexModel.Signed(unrealised)</div>
+                <div class="small text-muted">@(unrealisedPct is null ? "No cost recorded" : $"{IndexModel.Pct(unrealisedPct)} on cost of {open!.Cost:C0}")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small"><a asp-page="/Reports/TaxableIncome" class="text-reset">Income this financial year</a></div>
+                <div class="fs-4 fw-semibold">@Model.YearIncome.ToString("C")</div>
+                <div class="small text-muted">
+                    @if (Model.Region.IsAustralia && Model.YearFranking > 0)
+                    {
+                        @:plus @Model.YearFranking.ToString("C") franking credits
+                    }
+                    else
+                    {
+                        @:Dividends, distributions and interest
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

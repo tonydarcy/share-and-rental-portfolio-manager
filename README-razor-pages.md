@@ -34,7 +34,16 @@ over a SQL Server database whose stored procedures post the double-entry journal
 - **API keys and AI assistants** (account menu, `/Account/ApiKeys`): each login makes, names and revokes its own API keys,
   optionally read only, and sees a log of every change made with them (and by anyone's keys in portfolios it owns).
   The keys drive the JSON API and the MCP server described under "API and MCP server" below.
-- **Dashboard:** total, share and cash value, 90-day value chart and projected income, using the same procs as `Dashboard.aspx`.
+- **Dashboard:** total, share and cash value (and property equity), then cards that each load on their own so a slow one
+  doesn't hold up the page: the latest day's move, gain and time-weighted return this financial year, unrealised gain and
+  income with franking; a value chart with a period picker (1M to All), money put in, and a Return view against an ASX 200
+  index or fund; a "Needs attention" list (bank lines to code, prices over 5 days old, holdings with no cost, the next BAS
+  date, Navexa sync failures, rent arrears and property checks, overdue invoices and bills); top 10 holdings and where the
+  money is (by type or sector); income received by month (franked, unfranked, other) with the next 12 months projected and
+  announced dividends coming up; the tax year so far (Australia only: net capital gain, franking, net rent, an estimate,
+  SMSF members' caps and minimum pension, and a tax-loss hint in the last 60 days of the year); rental and business cards
+  when there are properties, invoices or bills; recent activity; quick action buttons; and a client list for logins that
+  can open several portfolios. No migration.
 - **Import from Navexa** (`/Import/Navexa`): a one-off import of a Navexa trades CSV and income CSV, with a preview,
   per-row errors and a duplicate check, saved through `uspAddShareTrade` / `AddShareTradeWithCashTransaction` and `uspAddPayout`.
   Navexa's `Crypto` exchange becomes `CRYPTO` with codes like `BTC-AUD`, and staking, airdrop and mining rows in the trades

@@ -1,0 +1,38 @@
+@model IndexModel
+@if (Model.ActiveProperties == 0)
+{
+    return;
+}
+<div class="card shadow-sm h-100">
+    <div class="card-body">
+        <h2 class="h6"><a asp-page="/Rentals/Index" class="text-reset">Rental properties</a></h2>
+        <div class="row small text-center mb-2">
+            <div class="col"><div class="text-muted">Properties</div><div class="fs-5">@Model.ActiveProperties</div></div>
+            <div class="col"><div class="text-muted">Vacant</div><div class="fs-5 @(Model.VacantProperties > 0 ? "text-warning" : "")">@Model.VacantProperties</div></div>
+            <div class="col"><div class="text-muted">Rent behind</div><div class="fs-5 @(Model.Arrears > 0 ? "text-danger" : "")">@Model.Arrears.ToString("C0")</div></div>
+        </div>
+        @if (Model.Properties.Count > 0)
+        {
+            var worth = Model.Properties.Sum(p => p.Value ?? 0);
+            var rent = Model.Properties.Sum(p => p.GrossRent);
+            <div class="small text-muted mb-2">Gross yield @IndexModel.Pct(worth > 0 ? rent / worth : (decimal?)null) on @worth.ToString("C0") of property (last full year's rent)</div>
+        }
+        @if (Model.Reminders.Count == 0)
+        {
+            <p class="small text-success mb-0">No leases, reviews or checks coming up.</p>
+        }
+        else
+        {
+            <ul class="small mb-0 ps-3">
+                @foreach (var r in Model.Reminders.Take(4))
+                {
+                    <li class="@(r.Urgent ? "text-danger" : "")">@r.Text <span class="text-muted">@r.Address</span></li>
+                }
+            </ul>
+            @if (Model.Reminders.Count > 4)
+            {
+                <a asp-page="/Rentals/Index" class="small">@(Model.Reminders.Count - 4) more</a>
+            }
+        }
+    </div>
+</div>

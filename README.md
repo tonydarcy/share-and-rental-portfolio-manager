@@ -40,6 +40,9 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
 
 ### Reports
 
+- A dashboard showing the latest day's move, this year's gain and income, the value over any period against the
+  ASX 200, what needs attention (bank lines to code, old prices, BAS due, overdue bills, rent arrears), top holdings and
+  where the money is, income by month with franking, the tax year so far, and a client list for accountants.
 - Performance (time-weighted return, monthly returns) against an index or any share, and contribution by holding,
   split into price gain, income and currency.
 - Diversity by sector, country and company, looking through ETFs and funds (from the fund issuer's holdings file, the

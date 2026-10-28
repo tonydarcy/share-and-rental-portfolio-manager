@@ -1,0 +1,108 @@
+@model IndexModel
+@{
+    var days = Model.ChartDays;
+    var idx = DashboardFigures.ChartIndexes(days.Count);
+    var labelFormat = days.Count > 400 ? "MMM yyyy" : "d MMM";
+    var labels = idx.Select(i => days[i].Date.ToString(labelFormat)).ToList();
+    object? spec = null;
+    var summary = Model.Perf?.Summary;
+    if (days.Count > 1 && Model.ShowReturn)
+    {
+        var baseCum = 1 + days[0].Cumulative;
+        var bench = Model.Benchmark?.Days.ToDictionary(d => d.Date, d => d.Cumulative);
+        var datasets = new List<object> { new { label = "This portfolio", data = idx.Select(i => Math.Round((1 + days[i].Cumulative) / baseCum - 1, 5)).ToList(), color = "#0d6efd" } };
+        if (bench is { Count: > 0 })
+        {
+            double? last = null;
+            datasets.Add(new
+            {
+                label = Model.Benchmark!.Choice.Label,
+                data = idx.Select(i => { if (bench.TryGetValue(days[i].Date, out var b)) last = b; return last is { } v ? Math.Round(v, 5) : (double?)null; }).ToList(),
+                color = "#6c757d",
+                dashed = true,
+            });
+        }
+        spec = new { type = "line", format = "percent", legend = true, labels, datasets };
+    }
+    else if (days.Count > 1)
+    {
+        // Money put in: the starting value plus every dollar added less every dollar taken out. The gap to the value line is growth and income.
+        var start = days[0].Value - days[0].MoneyIn + days[0].MoneyOut;
+        var running = start;
+        var invested = new List<decimal>();
+        var j = 0;
+        for (var i = 0; i < days.Count; i++)
+        {
+            running += days[i].MoneyIn - days[i].MoneyOut;
+            if (j < idx.Count && idx[j] == i) { invested.Add(Math.Round(running, 2)); j++; }
+        }
+        spec = new
+        {
+            type = "line", format = "money", legend = true, labels,
+            datasets = new object[]
+            {
+                new { label = "Value", data = idx.Select(i => Math.Round(days[i].Value, 2)).ToList(), color = "#0d6efd" },
+                new { label = "Money put in", data = invested, color = "#adb5bd", dashed = true },
+            },
+        };
+    }
+}
+<div class="card shadow-sm h-100">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h2 class="h6 mb-0">@(Model.ShowReturn ? "Return compared with the market" : "Value and money put in")</h2>
+            <div class="d-flex flex-wrap gap-2">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Period">
+                    @foreach (var p in DashboardFigures.Periods)
+                    {
+                        <a href="@Model.ChartLink(period: p.Key)" data-section="@Model.ChartLink(period: p.Key, section: true)"
+                           class="btn @(p.Key == Model.Period ? "btn-secondary" : "btn-outline-secondary")">@p.Label</a>
+                    }
+                </div>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Show">
+                    <a href="@Model.ChartLink(view: "value")" data-section="@Model.ChartLink(view: "value", section: true)"
+                       class="btn @(!Model.ShowReturn ? "btn-secondary" : "btn-outline-secondary")">Value</a>
+                    <a href="@Model.ChartLink(view: "return")" data-section="@Model.ChartLink(view: "return", section: true)"
+                       class="btn @(Model.ShowReturn ? "btn-secondary" : "btn-outline-secondary")">Return</a>
+                </div>
+            </div>
+        </div>
+        @if (spec is null)
+        {
+            <p class="text-muted">Nothing held in this period yet.</p>
+        }
+        else
+        {
+            <div class="chart-box"><canvas id="valueChart" data-chart="@JsonSerializer.Serialize(spec)"></canvas></div>
+        }
+        @if (summary is not null && days.Count > 1)
+        {
+            <div class="row small mt-2 text-center">
+                <div class="col"><div class="text-muted">Money added (net)</div><div>@summary.NetMoneyAdded.ToString("C0")</div></div>
+                <div class="col"><div class="text-muted">Growth</div><div class="@IndexModel.Tone(summary.Growth)">@IndexModel.Signed(summary.Growth, "C0")</div></div>
+                <div class="col"><div class="text-muted">Income</div><div>@summary.Income.ToString("C0")</div></div>
+                <div class="col"><div class="text-muted">Return</div><div class="@IndexModel.Tone(summary.TimeWeightedReturn)">@IndexModel.Pct(summary.TimeWeightedReturn)</div></div>
+                @if (Model.Benchmark?.Return is { } br)
+                {
+                    <div class="col"><div class="text-muted">@Model.Benchmark.Choice.Label</div><div class="@IndexModel.Tone(br)">@IndexModel.Pct(br)</div></div>
+                }
+            </div>
+        }
+        @if (Model.ShowReturn && Model.Choices.Count > 0)
+        {
+            <div class="small mt-2">
+                Compare with:
+                @foreach (var c in Model.Choices)
+                {
+                    <a href="@Model.ChartLink(bm: c.Key)" data-section="@Model.ChartLink(bm: c.Key, section: true)"
+                       class="ms-2 @(c.Key == Model.Bm ? "fw-semibold text-reset" : "")">@c.Label</a>
+                }
+            </div>
+        }
+        else if (Model.ShowReturn)
+        {
+            <p class="small text-muted mt-2 mb-0">No index or ASX 200 fund prices are on file to compare with.</p>
+        }
+        <div class="small text-muted mt-1">Benchmarks are price only (no dividends). <a asp-page="/Reports/Performance">Full performance report</a></div>
+    </div>
+</div>
