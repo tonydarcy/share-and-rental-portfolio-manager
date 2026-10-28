@@ -8,7 +8,8 @@ namespace PortfolioManager.Web.Pages.Account;
 
 /// <summary>Turn two-factor sign-in (an authenticator app code after the password) on or off, and make new recovery codes.</summary>
 [AllowViewOnly]
-public class TwoFactorModel(AccountService accounts, AccountTokens tokens, SiteBranding site, TimeProvider clock) : PageModel
+public class TwoFactorModel(AccountService accounts, AccountTokens tokens, SiteBranding site, TimeProvider clock,
+    AccountSecurity security) : PageModel
 {
     /// <summary>The new secret being set up, carried in the form until the first code checks out.</summary>
     [BindProperty]
@@ -48,6 +49,8 @@ public class TwoFactorModel(AccountService accounts, AccountTokens tokens, SiteB
 
         var (codes, stored) = TwoFactor.NewRecoveryCodes();
         await accounts.SetTwoFactorAsync(user.UserId, tokens.ProtectSecret(Secret), stored);
+        await security.AddAsync(HttpContext, user.UserId, user.Email, SecurityEvents.TwoFactorOn);
+        await SignInFlow.RefreshAsync(HttpContext, user with { TwoFactorSecret = Secret });
         IsOn = true;
         RecoveryCodesLeft = codes.Count;
         NewRecoveryCodes = codes;
@@ -65,6 +68,7 @@ public class TwoFactorModel(AccountService accounts, AccountTokens tokens, SiteB
         }
         var (codes, stored) = TwoFactor.NewRecoveryCodes();
         await accounts.SetTwoFactorAsync(user.UserId, user.TwoFactorSecret, stored);
+        await security.AddAsync(HttpContext, user.UserId, user.Email, SecurityEvents.RecoveryCodes);
         RecoveryCodesLeft = codes.Count;
         NewRecoveryCodes = codes;
         return Page();
@@ -80,6 +84,8 @@ public class TwoFactorModel(AccountService accounts, AccountTokens tokens, SiteB
             return Page();
         }
         await accounts.SetTwoFactorAsync(user.UserId, null, null);
+        await security.AddAsync(HttpContext, user.UserId, user.Email, SecurityEvents.TwoFactorOff);
+        await SignInFlow.RefreshAsync(HttpContext, user with { TwoFactorSecret = null });
         TempData["Message"] = "Two-factor sign-in is off. You'll log in with just your password.";
         return RedirectToPage();
     }

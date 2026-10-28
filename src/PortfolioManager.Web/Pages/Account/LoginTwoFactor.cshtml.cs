@@ -13,7 +13,8 @@ namespace PortfolioManager.Web.Pages.Account;
 [AllowAnonymous]
 [AllowViewOnly]
 [EnableRateLimiting(SignInFlow.RateLimit)]
-public class LoginTwoFactorModel(AccountService accounts, AccountTokens tokens, SignInFlow signIn, TimeProvider clock) : PageModel
+public class LoginTwoFactorModel(AccountService accounts, AccountTokens tokens, SignInFlow signIn, TimeProvider clock,
+    AccountSecurity security) : PageModel
 {
     [BindProperty, Required, Display(Name = "Code from your authenticator app, or a recovery code")]
     public string Code { get; set; } = "";
@@ -35,13 +36,20 @@ public class LoginTwoFactorModel(AccountService accounts, AccountTokens tokens, 
             return Page();
 
         var (user, rememberMe) = pending;
+        if (await security.IsPausedAsync(user.Email))
+        {
+            ModelState.AddModelError(string.Empty, AccountSecurity.PausedMessage);
+            return Page();
+        }
         var secret = tokens.UnprotectSecret(user.TwoFactorSecret);
         if (!TwoFactor.VerifyCode(secret, Code, clock.GetUtcNow()))
         {
             // Not an authenticator code: maybe one of the one-off recovery codes
             if (TwoFactor.UseRecoveryCode(user.RecoveryCodes, Code) is not { } remaining)
             {
-                ModelState.AddModelError(string.Empty, "That code isn't right. Check the time on your phone is correct, and use the newest code.");
+                var paused = await security.FailedAsync(HttpContext, SecurityEvents.TwoFactorCode, user.Email, user);
+                ModelState.AddModelError(string.Empty, paused ? AccountSecurity.PausedMessage
+                    : "That code isn't right. Check the time on your phone is correct, and use the newest code.");
                 return Page();
             }
             await accounts.SetTwoFactorAsync(user.UserId, user.TwoFactorSecret, remaining);

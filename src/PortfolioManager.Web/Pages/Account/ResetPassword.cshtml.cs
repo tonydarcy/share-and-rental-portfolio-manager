@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.RateLimiting;
 using PortfolioManager.Core.Accounts;
+using PortfolioManager.Core.Security;
 using PortfolioManager.Web.Services;
 
 namespace PortfolioManager.Web.Pages.Account;
@@ -12,7 +13,7 @@ namespace PortfolioManager.Web.Pages.Account;
 [AllowAnonymous]
 [AllowViewOnly]
 [EnableRateLimiting(SignInFlow.RateLimit)]
-public class ResetPasswordModel(AccountService accounts, AccountTokens tokens) : PageModel
+public class ResetPasswordModel(AccountService accounts, AccountTokens tokens, AccountSecurity security) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public string? Token { get; set; }
@@ -40,7 +41,9 @@ public class ResetPasswordModel(AccountService accounts, AccountTokens tokens) :
             return Page();
 
         await accounts.SetPasswordAsync(user.UserId, Password!);
-        TempData["Message"] = "Your password has been changed. Log in with the new one.";
+        // Also lifts a pause from wrong attempts; every browser signed in with the old password is signed out within a minute
+        await security.AddAsync(HttpContext, user.UserId, user.Email, SecurityEvents.PasswordReset);
+        TempData["Message"] = "Your password has been changed, and any other browsers signed in to your account have been signed out. Log in with the new one.";
         return RedirectToPage("/Account/Login");
     }
 
