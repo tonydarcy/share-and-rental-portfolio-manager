@@ -433,6 +433,38 @@ public sealed class PayoutService(IDbConnectionFactory db)
     }
 
     /// <summary>
+    /// Adds a rental payout whose journal takes the other side to <paramref name="offsetAccountId"/> instead of the bank,
+    /// for an entry no cash moved for: depreciation against accumulated depreciation, or interest charged to the loan.
+    /// uspRepostPayoutJournal rebuilds the journal against that account, and keeps it there when the entry is edited.
+    /// Returns the payout's id.
+    /// </summary>
+    public async Task<int> AddRentalAsync(int portfolioId, RentalPayoutInput r, int offsetAccountId)
+    {
+        await using var con = db.Create();
+        await con.OpenAsync();
+        await using var tx = await con.BeginTransactionAsync();
+        var payoutId = await AddRentalAsync(con, tx, portfolioId, r);
+        await con.ExecuteAsync("uspRepostPayoutJournal", new { iUserId = portfolioId, iPayoutID = payoutId, iTargetAccountID = offsetAccountId },
+            tx, commandType: CommandType.StoredProcedure);
+        await tx.CommitAsync();
+        return payoutId;
+    }
+
+    /// <summary>Adds a rental payout with uspAddRentalPayout inside the caller's transaction and returns its id.</summary>
+    public static async Task<int> AddRentalAsync(System.Data.Common.DbConnection con, System.Data.Common.DbTransaction tx, int portfolioId, RentalPayoutInput r)
+    {
+        await con.ExecuteAsync("uspAddRentalPayout", new DynamicParameters(r.AddParameters(portfolioId)), tx,
+            commandType: CommandType.StoredProcedure);
+        // The payout just added (uspAddRentalPayout doesn't return its id)
+        return await con.QuerySingleOrDefaultAsync<int?>("""
+            SELECT TOP 1 iPayoutID FROM tblPayouts
+            WHERE iUserID = @portfolioId AND strStockCode = @code AND dtmTransactionDate = @date
+            ORDER BY iPayoutID DESC
+            """, new { portfolioId, code = r.PropertyCode.Trim().ToUpperInvariant(), date = r.Date.Date }, tx)
+            ?? throw new InvalidOperationException("The new rental entry wasn't found; nothing was saved.");
+    }
+
+    /// <summary>
     /// Updates a rental payout with uspUpdateRentalPayout, which re-posts its journal.
     /// Returns false if the payout doesn't belong to the portfolio.
     /// </summary>

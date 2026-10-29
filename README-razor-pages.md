@@ -647,6 +647,9 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-10-29-delete-sync-records.sql` (after the one above): **Delete data** of trades, payouts or cash now also
   forgets the Navexa sync's record of the ones it had added, so the next sync brings them back instead of skipping
   them. Changes `uspDeletePortfolioData` only.
+- `2026-10-29-rental-offset-account.sql`: `uspRepostPayoutJournal` can move a payout journal's cash side to another
+  account. Needed by the API and MCP tool `add_rental_entry` when it is given `offsetAccountId` (non-cash amounts such as
+  depreciation, or interest charged to the loan); nothing else changes, and everything else works without it.
 
 ## API and MCP server
 
@@ -689,6 +692,7 @@ These tools have no REST path of their own; call them with `POST /api/v1/tools/{
 | Tool | Changes? |
 | --- | --- |
 | `edit_payout`, `add_drp`, `add_rental_entry`, `edit_rental_entry` | yes |
+| `list_rental_properties`; `save_rental_property`, `allocate_bank_transaction_to_property` | the last two |
 | `edit_cash_transaction`, `delete_cash_transaction` | yes |
 | `list_corporate_actions`; `add_split`, `delete_split`, `add_return_of_capital`, `delete_return_of_capital` | the last four (`preview: true` saves nothing) |
 | `list_journals`, `get_journal`; `save_journal`, `delete_journal` (manual journals only) | the last two |
@@ -708,6 +712,12 @@ trade gets a new id, which the tool returns. A cash settlement is kept in the sa
 trade date. Trades a DRP, split, demerger/takeover or saved parcel choice points at are refused with what to do
 instead, and a locked period refuses the whole change. Every other edit tool works the same way: send the id and only the fields that
 change (`AgentCall.BindOver` lays them over the stored record, which then goes through the page's own checks).
+Rental entries reach a property's rental schedule through the property's payout code (Rental properties page, or
+`save_rental_property`). `allocate_bank_transaction_to_property` records an imported bank line as a rental entry for a
+property, split into rent and expenses, and matches the line to it, so the schedule and the ledger both get it and the
+cash is counted once. `add_rental_entry` with `offsetAccountId` posts a non-cash entry (depreciation, capital works,
+borrowing costs written off, interest charged to the loan) against that account instead of the bank; editing the entry
+keeps it there.
 `edit_cash_transaction` is a delete and re-add too (new id); payouts, rental entries, journals, invoices and bills keep
 their ids. `send_invoice` emails the customer (or `to`) with replies going to the key's login. Errors come back as `{"error": "...", "fields": {...}}` with status 400 (invalid), 403 (not allowed),
 404 (not found), 409 (locked period) or 500.
