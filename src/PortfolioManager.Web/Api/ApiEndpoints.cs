@@ -34,6 +34,9 @@ public static class ApiEndpoints
         Post(api, "/portfolios/{portfolioId:int}/cash", "add_cash_transaction");
         Get(api, "/portfolios/{portfolioId:int}/bank-accounts", "list_bank_accounts");
         Get(api, "/portfolios/{portfolioId:int}/ledger-accounts", "list_ledger_accounts");
+        Get(api, "/portfolios/{portfolioId:int}/chart-of-accounts", "list_chart_of_accounts");
+        Post(api, "/portfolios/{portfolioId:int}/chart-of-accounts", "create_ledger_account");
+        Patch(api, "/portfolios/{portfolioId:int}/chart-of-accounts/{accountId:int}", "edit_ledger_account");
         Get(api, "/portfolios/{portfolioId:int}/tax-codes", "list_tax_codes");
         Post(api, "/portfolios/{portfolioId:int}/bank-imports", "import_bank_transactions");
         Get(api, "/portfolios/{portfolioId:int}/unallocated", "list_unallocated");

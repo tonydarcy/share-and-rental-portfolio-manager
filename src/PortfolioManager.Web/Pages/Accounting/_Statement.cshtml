@@ -17,6 +17,7 @@
                     var css = l.IsHeader ? "table-light fw-bold text-uppercase text-secondary small"
                         : l.IsGrandTotal ? "table-dark fw-bold"
                         : l.IsTotal ? "table-active fw-bold"
+                        : l.IsGroup ? "fw-semibold"
                         : "";
                     <tr class="@css">
                         <td style="padding-left: @(0.5 + l.Indent * 1.5)rem">@l.Label</td>
