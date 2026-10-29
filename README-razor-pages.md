@@ -644,6 +644,9 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   and **Delete account** (account menu): `uspDeletePortfolioData`, `uspDeletePortfolio`, `uspDeleteLogin`, the
   internal `uspPurgePortfolio`, `uspRecalcBankBalances` and `uspClearDeletedJournalLinks`, and the functions
   `fnCanDeletePortfolio`, `fnIsLoginRow` and `fnLoginDeletePlan`. Running it deletes nothing. Those two pages need it.
+- `2026-10-29-delete-sync-records.sql` (after the one above): **Delete data** of trades, payouts or cash now also
+  forgets the Navexa sync's record of the ones it had added, so the next sync brings them back instead of skipping
+  them. Changes `uspDeletePortfolioData` only.
 
 ## API and MCP server
 

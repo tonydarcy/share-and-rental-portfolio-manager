@@ -45,15 +45,18 @@ public sealed class DeletionService(IDbConnectionFactory db)
     public static string Describe(DataPart part) => part switch
     {
         DataPart.Trades => "Every share trade, with its journal and the cash settlement recorded with it, and the corporate actions, " +
-                           "splits, returns of capital, parcel choices and parcel transfers that depend on trades. Payouts stay.",
+                           "splits, returns of capital, parcel choices and parcel transfers that depend on trades. Payouts stay. " +
+                           "A Navexa sync brings the trades it added back on its next run.",
         DataPart.Payouts => "Every payout (dividends, distributions, interest and other income) with its journal, and the units " +
-                            "dividend reinvestment bought.",
-        DataPart.Cash => "Every cash transaction with its journal, except the cash settlements of trades (those go with the trades).",
+                            "dividend reinvestment bought. A Navexa sync brings the payouts it added back on its next run.",
+        DataPart.Cash => "Every cash transaction with its journal, except the cash settlements of trades (those go with the trades). " +
+                        "A Navexa sync brings the cash it added back on its next run.",
         DataPart.Journals => "Every journal in the ledger, bank reconciliations, currency revaluations and stock adjustments. " +
                              "Trades, payouts, cash, invoices and bills stay, but no longer appear in the accounts.",
         DataPart.Prices => "Share prices entered by hand or uploaded for this portfolio. Daily market prices aren't affected.",
         _ => "Everything recorded in the portfolio. Its name, settings, chart of accounts, tax codes, tracking categories, " +
-             "custom groups, sharing, connections and audit trail stay, so you can start again.",
+             "custom groups, sharing, connections and audit trail stay, so you can start again. A Navexa sync " +
+             "brings everything back on its next run.",
     };
 
     public static string Title(DataPart part) => part switch

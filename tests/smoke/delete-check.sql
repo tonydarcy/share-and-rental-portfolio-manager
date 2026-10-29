@@ -12,6 +12,17 @@ BEGIN TRANSACTION;
 EXEC dbo.AddNewPortfolio @id, 'Second portfolio', 'Company';
 DECLARE @second INT = (SELECT MAX(iUserId) FROM tblUsers WHERE strLoginEmail = 'demo@example.com');
 
+-- Deleting trades forgets the Navexa sync's record of the trades it added (so a re-sync adds them again), and only those
+INSERT INTO tblNavexaSyncItem (iUserId, strNavexaType, strNavexaId, strStatus, strKind)
+VALUES (@id, 'trade', 'smoke-1', 'Imported', 'Trade'), (@id, 'dividend', 'smoke-2', 'Imported', 'Payout');
+INSERT INTO @d EXEC dbo.uspDeletePortfolioData @id, @id, 'Trades';
+IF NOT EXISTS (SELECT 1 FROM @d WHERE Result = 'Deleted')
+    THROW 50000, 'uspDeletePortfolioData Trades failed', 1;
+IF EXISTS (SELECT 1 FROM tblNavexaSyncItem WHERE iUserId = @id AND strNavexaId = 'smoke-1')
+   OR NOT EXISTS (SELECT 1 FROM tblNavexaSyncItem WHERE iUserId = @id AND strNavexaId = 'smoke-2')
+    THROW 50000, 'Deleting trades should forget the Navexa sync records of trades only', 1;
+DELETE FROM @d;
+
 INSERT INTO @d EXEC dbo.uspDeletePortfolioData @id, @id, 'All';
 IF NOT EXISTS (SELECT 1 FROM @d WHERE Result = 'Deleted')
     THROW 50000, 'uspDeletePortfolioData All failed', 1;
