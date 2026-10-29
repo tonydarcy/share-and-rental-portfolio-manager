@@ -36,6 +36,10 @@ public static class NavexaSyncPlanner
         var setup = new SetupNeeds();
         var drpTrades = PairDrpTrades(list);
         var rewardTrades = PairRewardTrades(list);
+        var customCodes = NavexaCustomAssets.Codes(list
+            .SelectMany(t => t.Legs.Concat(t.Fees ?? []))
+            .Select(l => l.Holding).OfType<NavexaApiHolding>().Where(IsCustom)
+            .Select(h => (h.Id, h.Symbol)));
         var items = new List<PlannedItem>();
 
         foreach (var tx in list)
@@ -67,7 +71,7 @@ public static class NavexaSyncPlanner
             }
 
             var input = k?.Input ?? new SyncInput();
-            var ctx = new Context(settings, setup, input);
+            var ctx = new Context(settings, setup, input, customCodes);
             switch (tx.Type)
             {
                 case "trade":
@@ -102,7 +106,8 @@ public static class NavexaSyncPlanner
 
     public static string Key(NavexaApiTransaction tx) => $"{tx.Type}:{tx.Id}";
 
-    private sealed record Context(SyncSettings Settings, SetupNeeds Setup, SyncInput Input);
+    /// <param name="CustomCodes">The code each Navexa custom holding is recorded under, by holding id, unique across the portfolio.</param>
+    private sealed record Context(SyncSettings Settings, SetupNeeds Setup, SyncInput Input, IReadOnlyDictionary<string, string> CustomCodes);
 
     // ---------- Trades ----------
 
@@ -648,7 +653,9 @@ public static class NavexaSyncPlanner
     /// <param name="currency">What the record is priced in, for a coin's code (BTC in AUD is BTC-AUD).</param>
     private static HoldingMapping? ResolveHolding(NavexaApiHolding h, PlannedItem item, Context ctx, string? currency = null)
     {
-        if (ctx.Settings.Holdings.TryGetValue(h.Id, out var mapped))
+        // "CUSTOM" was the exchange this page used to suggest for custom holdings. It isn't a market this site prices by
+        // hand, so a mapping left on it gives way to the automatic one below.
+        if (ctx.Settings.Holdings.TryGetValue(h.Id, out var mapped) && !(mapped is not null && IsCustom(h) && NavexaCustomAssets.IsCustomExchange(mapped.Exchange)))
         {
             if (mapped is null)
                 item.Skip("You chose not to bring this holding across.");
@@ -664,6 +671,11 @@ public static class NavexaSyncPlanner
             item.Ask(InputNeed.Mapping, $"Choose the code to record \"{h.Symbol}\" under on this site (above).");
             return null;
         }
+
+        // A custom holding (unlisted fund, property, bullion) goes on a manually priced market under a short code, with no
+        // question asked, so the scheduled sync brings it across too. Saving a different exchange or code above overrides it.
+        if (IsCustom(h) && ctx.CustomCodes.TryGetValue(h.Id, out var customCode))
+            return new HoldingMapping(NavexaCustomAssets.Market(h.Symbol), customCode);
 
         var (exchangeInSymbol, code) = NavexaExchanges.SplitSymbol(h.Symbol);
         var exchange = NavexaExchanges.Map(exchangeInSymbol ?? h.Exchange ?? "ASX");
@@ -749,6 +761,10 @@ public static class NavexaSyncPlanner
 
     private static NavexaApiLeg? HoldingLeg(NavexaApiTransaction tx) =>
         tx.Legs.FirstOrDefault(l => l.Holding is { } h && !IsCash(h));
+
+    private static bool IsCustom(NavexaApiHolding h) =>
+        string.Equals(h.HoldingType, "CUSTOM", StringComparison.OrdinalIgnoreCase)
+        || (h.HoldingType is null && NavexaCustomAssets.IsCustomExchange(h.Exchange));
 
     private static bool IsCrypto(NavexaApiHolding h) =>
         string.Equals(h.HoldingType, "CRYPTO", StringComparison.OrdinalIgnoreCase)

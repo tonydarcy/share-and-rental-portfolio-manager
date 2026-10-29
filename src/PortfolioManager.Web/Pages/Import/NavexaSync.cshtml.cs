@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PortfolioManager.Core.Accounting;
 using PortfolioManager.Core.Cash;
+using PortfolioManager.Core.Import;
 using PortfolioManager.Core.NavexaSync;
 using PortfolioManager.Core.Portfolios;
 using PortfolioManager.Web.Services;
@@ -421,7 +422,8 @@ public class NavexaSyncModel(
     public async Task<(List<HoldingRow> Holdings, List<CashAccountRow> Cash, List<CashTypeRow> Types)> MappingRowsAsync()
     {
         var saved = Portfolio is null ? [] : await sync.GetMappingsAsync(Portfolio.PortfolioId);
-        var holdings = saved.Where(m => m.Kind == NavexaMapping.Holding)
+        // Mappings to the old "CUSTOM" suggestion are no longer used (custom holdings are mapped automatically), so they aren't shown
+        var holdings = saved.Where(m => m.Kind == NavexaMapping.Holding && (m.Skip || !NavexaCustomAssets.IsCustomExchange(m.Exchange)))
             .Select(m => new HoldingRow { Key = m.Key, Label = m.Label, Skip = m.Skip, Exchange = m.Exchange, Code = m.Code }).ToList();
         var cashRows = saved.Where(m => m.Kind == NavexaMapping.CashAccount)
             .Select(m => new CashAccountRow { Key = m.Key, Label = m.Label, Skip = m.Skip, BankAccount = m.Code }).ToList();
@@ -490,7 +492,7 @@ public class NavexaSyncModel(
     /// <summary>A one-line summary of what will be posted, in the portfolio's currency.</summary>
     public static string WillPost(PlannedItem i) => i switch
     {
-        { Trade: { } t } => $"{t.Type} {t.Quantity:#,##0} {t.Exchange}:{t.Code} at {t.Price:0.00####} {t.Currency}" +
+        { Trade: { } t } => $"{t.Type} {t.Quantity:#,##0.########} {t.Exchange}:{t.Code} at {t.Price:0.00####} {t.Currency}" +
                             (t.Brokerage > 0 ? $", brokerage {t.Brokerage:0.00}" : "") +
                             (t.BankAccount is null ? ", no cash entry" : $", settles in {t.BankAccount}"),
         { Payout: { } p } => $"{p.Exchange}:{p.Code} cash {p.Net:C}, franked {p.Franked:C}, unfranked {p.Unfranked:C}, franking credit {p.FrankingCredit:C}" +
