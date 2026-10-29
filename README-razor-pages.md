@@ -54,13 +54,18 @@ over a SQL Server database whose stored procedures post the double-entry journal
   across, once or daily/weekly. Check Navexa shows what would come across without adding anything; Sync now adds what's
   ready. Each Navexa record is remembered, so a re-run never adds it twice, and records that look like ones already
   entered by hand are asked about first. Where the ledger needs something Navexa doesn't give, the page asks: a franking
-  credit (suggested at 30%), DRP units and price, a split ratio, the code for an unlisted holding, which bank account a
+  credit (suggested at 30%), DRP units and price, a split ratio, the code for a holding on an exchange it doesn't know, which bank account a
   Navexa cash account is, and which ledger account interest and fees post to. Everything goes through the usual procs.
   Crypto comes across too: buys and sells on `CRYPTO` (BTC as `BTC-AUD`), a deposit with a cost as a Buy without cash,
   swaps (Navexa type 7, or a trade with coins on both sides) as a crypto swap, and staking income (and staking, airdrop and
   mining trades with no income record) as crypto rewards. Withdrawals, transfers, lost and stolen coins are listed but
   not added. Coins kept to more than 8 places are rounded, and a dust sale whose fee is more than its proceeds has the fee
   cut to the proceeds.
+  Navexa custom holdings (unlisted funds, property, bullion) come across without asking, on a manually priced market:
+  `FUND` when the name says fund or trust, `PROPERTY` when it says property, otherwise `OTHER`. The code is a code-like
+  word after the colon ("Brickx Managed Fund: BXM01 - ..." is `BXM01`) or the first word and the initials of the rest
+  ("ABC Bullion: Gold (Gold Saver)" is `GOLD-GS`), with `-2` added if two holdings would share one. Enter their prices on
+  Prices > Manual prices. A code saved on the page overrides it; one saved on the old `CUSTOM` suggestion is ignored.
   Scheduled syncs run inside the web app every 30 minutes while it's awake; for them to run on time set the app pool's
   Start Mode to AlwaysRunning and Idle Time-out to 0 (otherwise a due sync runs soon after the next visit).
 - **Payouts** (Income menu): list by date range or financial year, add, edit and delete dividends, distributions, interest

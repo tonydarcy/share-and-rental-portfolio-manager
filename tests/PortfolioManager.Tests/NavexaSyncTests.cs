@@ -89,21 +89,62 @@ public class NavexaSyncTests
     }
 
     [Fact]
-    public void Custom_holding_asks_for_a_code_with_a_suggestion_then_is_ready()
+    public void Custom_holding_is_recorded_on_a_manual_market_without_asking()
     {
         var plan = Plan(Items(), Settings());
         var sell = Find(plan, "14427969");
-        Assert.Equal(SyncStatus.NeedsInput, sell.Status);
-        Assert.Equal(InputNeed.Mapping, sell.Need);
-        var need = Assert.Single(plan.Setup.Holdings);
-        Assert.Equal(("961769", "CUSTOM", "WRF01"), (need.Key, need.SuggestedExchange, need.SuggestedCode));
-
-        plan = Plan(Items(), Settings(holdings: new() { ["961769"] = new HoldingMapping("CUSTOM", "WRF01") }));
-        sell = Find(plan, "14427969");
         Assert.Equal(SyncStatus.Ready, sell.Status);
-        Assert.Equal(("Sell", 8, 191m, 7.64m), (sell.Trade!.Type, sell.Trade.Quantity, sell.Trade.Price, sell.Trade.Brokerage));
+        Assert.Equal(("FUND", "WRF01"), (sell.Trade!.Exchange, sell.Trade.Code));
+        Assert.Equal(("Sell", 8, 191m, 7.64m), (sell.Trade.Type, sell.Trade.Quantity, sell.Trade.Price, sell.Trade.Brokerage));
         Assert.Empty(plan.Setup.Holdings);
     }
+
+    [Fact]
+    public void Saved_mapping_overrides_the_custom_holding_code()
+    {
+        var plan = Plan(Items(), Settings(holdings: new() { ["961769"] = new HoldingMapping("PROPERTY", "WOOMBYE") }));
+        Assert.Equal(("PROPERTY", "WOOMBYE"), (Find(plan, "14427969").Trade!.Exchange, Find(plan, "14427969").Trade!.Code));
+    }
+
+    [Fact]
+    public void Old_CUSTOM_mapping_gives_way_to_the_automatic_one()
+    {
+        var plan = Plan(Items(), Settings(holdings: new() { ["961769"] = new HoldingMapping("CUSTOM", "WRF01") }));
+        Assert.Equal(("FUND", "WRF01"), (Find(plan, "14427969").Trade!.Exchange, Find(plan, "14427969").Trade!.Code));
+    }
+
+    [Fact]
+    public void Custom_holding_mapped_to_skip_stays_skipped()
+    {
+        var plan = Plan(Items(), Settings(holdings: new() { ["961769"] = null }));
+        Assert.Equal(SyncStatus.Skipped, Find(plan, "14427969").Status);
+    }
+
+    [Fact]
+    public void Two_custom_holdings_never_share_a_code()
+    {
+        var plan = Plan([CustomBuy("1", "1053975", "ABC Bullion: Gold (Pool Allocated)"), CustomBuy("2", "1070547", "ABC Bullion: Gold"),
+            CustomBuy("3", "1070548", "Gold")], Settings());
+        Assert.Equal(["OTHER:GOLD-PA", "OTHER:GOLD", "OTHER:GOLD-2"],
+            plan.Items.OrderBy(i => i.NavexaId).Select(i => $"{i.Trade!.Exchange}:{i.Trade.Code}"));
+    }
+
+    private static NavexaApiTransaction CustomBuy(string id, string holdingId, string symbol) => Tx($$"""
+        {"id":"{{id}}","type":"trade","date":"2025-10-17T00:00:00Z","tradeTypeId":1,"tradeType":"buy","value":598.94,"currency":"AUD",
+         "incoming":[{"id":"{{id}}","holding":{"id":{{holdingId}},"symbol":"{{symbol}}","exchange":"CUSTOM","displayExchange":"Custom","holdingTypeId":4,"holdingType":"Custom"},
+           "currency":"AUD","quantity":0.2,"price":2994.7,"amount":598.94,"baseAmount":598.94,"tradeTypeId":1,"tradeType":"buy","brokerage":0}],
+         "outgoing":[{"currency":"AUD","quantity":598.94,"price":1,"amount":598.94,"baseAmount":598.94}]}
+        """);
+
+    [Theory]
+    [InlineData("Brickx Managed Fund: BXM01 - Secured Mortgages", "FUND", "BXM01")]
+    [InlineData("Brickx Managed Fund: ARN01 - 213 Princes Hwy Arncliffe NSW 2205", "FUND", "ARN01")]
+    [InlineData("ABC Bullion: Silver (Pool Allocated - KG)", "OTHER", "SILVER-PAK")]
+    [InlineData("ABC Bullion: Gold (Gold Saver)", "OTHER", "GOLD-GS")]
+    [InlineData("SOM01", "OTHER", "SOM01")]
+    [InlineData("Investment Property: 12 Smith St", "PROPERTY", "12-SS")]
+    public void Custom_asset_market_and_code(string symbol, string market, string code) =>
+        Assert.Equal((market, code), (NavexaCustomAssets.Market(symbol), NavexaCustomAssets.Code(symbol)));
 
     [Fact]
     public void Holding_mapped_to_skip_is_not_brought_across()
