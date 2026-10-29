@@ -45,6 +45,7 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
   restores as a new portfolio on this site or on another copy of it, so you can move between the hosted site and one
   you run yourself, either way, or just keep a copy of your own. A backup from an older or newer copy still restores;
   anything the copy restoring it can't hold yet is listed.
+  must be typed to confirm. Deleting everything also switches an old single-entry portfolio to double entry.
 
 ### Reports
 
@@ -83,6 +84,9 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
 - Realised gains posted automatically on each sale, and market value revaluation with deferred tax.
 - Budgets, tracking categories (with a profit and loss by category), foreign currency accounts and foreign exchange
   revaluation.
+- Switch an old single-entry portfolio to double entry (Portfolio settings): posts the journal every trade, cash
+  transaction, payout, DRP, return of capital, demerger, fund statement and loan entry would have posted, so the
+  ledger reports include them. New portfolios are always double entry.
 - Locked periods, an audit trail (changes after a lock are marked), and attachments on trades, journals, clients,
   years and workpapers.
 - Export to Xero (manual journal CSV) and MYOB AccountRight (general journal), or connect the portfolio to Xero or
