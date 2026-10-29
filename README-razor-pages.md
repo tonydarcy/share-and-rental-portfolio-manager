@@ -17,6 +17,19 @@ over a SQL Server database whose stored procedures post the double-entry journal
   and attempts are still recorded with `uspRecordLoginAttempt`.
 - **Portfolio picker** in the navbar, using `uspGetAccessiblePortfolios`. The choice is checked
   against that list on every request.
+- **Back up or restore** (account menu, `Pages/Portfolio/Backup`, `Core/Backup`): an owner downloads the portfolio as
+  a `.pmbackup` file (gzip-compressed JSON: the portfolio's settings, then every table in `BackupPlan.Tables` with its
+  rows and their old ids, plus the standard accounts and share names it uses). Restoring it adds a new portfolio for
+  the signed-in login (`AddNewPortfolio`) in one transaction: rows go in in the plan's order with new ids, every id
+  column (and the account, tax code, item and tracking ids inside repeating invoice, bill and journal lines) is
+  renumbered to rows from the same file, journal sources and attachment targets follow their kind, logins become the
+  person restoring, standard accounts are matched to the site's own by number and name, and locked periods go in last.
+  The rows are copied as the procs wrote them (journals, parcel matching, bank matches and reconciliations), not
+  replayed, so the books come back unchanged. Columns are matched by name, so a backup from an older or newer database
+  still restores; missing columns get their defaults and anything this database lacks is listed on the page. Left
+  out: logins, sharing, API keys, accounting and Navexa connections (their tokens), audit trails and market prices.
+  No migration. When a migration adds a portfolio table or id column, add it to `BackupPlan` (`BackupPlanTests`
+  checks every id column points at a planned table).
 - **Sharing** (account menu, or Share on Manage portfolios): give another login a role in the selected portfolio by their
   email: Owner (`Admin`: view, change and share), Editor (`Edit`: view and change, not share) or Read only (`View`),
   change it, or take it away (`uspGetPortfolioShares`, `uspSharePortfolio`, `uspRemovePortfolioShare`). Only the

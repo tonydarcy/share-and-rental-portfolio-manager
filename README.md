@@ -40,6 +40,11 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
 - Permanent deletes for owners (account menu > Delete data): all share trades, all payouts, all cash transactions,
   every journal, prices entered by hand, or everything in a portfolio while keeping its settings; or a whole extra
   portfolio. Journals go whole, so the accounts still balance, and locked years are respected. The portfolio's name
+  must be typed to confirm.
+- Backup and restore (account menu > Back up or restore): an owner downloads the whole portfolio as one file, which
+  restores as a new portfolio on this site or on another copy of it, so you can move between the hosted site and one
+  you run yourself, either way, or just keep a copy of your own. A backup from an older or newer copy still restores;
+  anything the copy restoring it can't hold yet is listed.
   must be typed to confirm. Deleting everything also switches an old single-entry portfolio to double entry.
 
 ### Reports
@@ -252,6 +257,9 @@ then publish and copy the site again as in [SETUP.md](SETUP.md#updating-to-a-new
   address is a setting because it hasn't been tested against a live MYOB file yet.
 - **Tax planning** for trusts and SMSFs is an estimate: family Medicare thresholds, the trust's own losses and the
   actuary's exact ECPI percentage aren't applied.
+- **Backups restore as a new portfolio**, never over an existing one, and the file isn't password protected. Sharing,
+  API keys and connections to Xero, MYOB and Navexa aren't in it (connect them again), and nor are market prices. A
+  backup to restore can be up to 256 MB; leave attached files out of a bigger one.
 - **English only.**
 - **Daily prices need an EODHD plan** that covers your exchanges (the free plan allows 20 calls a day and may not
   include the ASX). Without one, upload prices as a CSV.
