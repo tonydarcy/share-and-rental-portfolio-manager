@@ -83,6 +83,24 @@
                 <button type="submit" class="btn btn-primary">Save settings</button>
             </fieldset>
         </form>
+
+        <div class="card shadow-sm mt-4">
+            <div class="card-body">
+                <h2 class="h5">Accounting</h2>
+                @if (PortfolioManager.Core.Accounting.AccountingMode.PostsJournals(Model.AccountingMode))
+                {
+                    <p class="mb-0">Double entry: trades, cash, payouts and corporate actions post journals to the ledger.</p>
+                }
+                else
+                {
+                    <p>
+                        Single entry: this portfolio was set up before the ledger, so its trades, cash and payouts don't post
+                        journals. Switch it to double entry to see them in the balance sheet, profit and loss and other ledger reports.
+                    </p>
+                    <a asp-page="/Accounting/SwitchToDoubleEntry" class="btn btn-outline-primary">Switch to double entry</a>
+                }
+            </div>
+        </div>
     </div>
 </div>
 

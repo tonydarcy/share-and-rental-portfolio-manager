@@ -1,0 +1,93 @@
+@page
+@model SwitchToDoubleEntryModel
+@{
+    ViewData["Title"] = "Switch to double entry";
+    var p = Model.Preview;
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Switch to double entry</h1>
+    <a asp-page="/Portfolio/Settings" class="btn btn-sm btn-outline-secondary">Portfolio settings</a>
+</div>
+
+@if (Model.Portfolio is null || p is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+@if (p.PostsJournals)
+{
+    <div class="alert alert-success">"@Model.Portfolio.Name" already uses double entry, so there is nothing to switch.</div>
+    return;
+}
+
+<div asp-validation-summary="All" class="text-danger"></div>
+
+<p>
+    "@Model.Portfolio.Name" uses <strong>single-entry</strong> accounting, from before the site had a ledger. Its trades, cash and
+    payouts are recorded, but they don't post journals, so the balance sheet, profit and loss, trial balance and other ledger
+    reports leave them out. Every new portfolio is double entry.
+</p>
+<p>
+    Switching posts the journal each record would have posted if the portfolio had been double entry from the start, then
+    turns double entry on, so everything added later posts too. Your records themselves don't change, and neither do the
+    tax reports (capital gains, taxable income), which work from the trades and payouts, not the ledger.
+    Sales post their realised gain or loss on the FIFO cost, as they do in any double-entry portfolio.
+</p>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h2 class="h5">What will be posted</h2>
+        <table class="table table-sm mb-0 w-auto">
+            <tbody>
+                <tr><td>Trades (including dividend reinvestment)</td><td class="text-end">@p.Trades.ToString("N0")</td></tr>
+                <tr><td>Cash transactions and trade settlements</td><td class="text-end">@p.Cash.ToString("N0")</td></tr>
+                <tr><td>Payouts (dividends, distributions, interest, rent)</td><td class="text-end">@p.Payouts.ToString("N0")</td></tr>
+                <tr><td>Returns of capital and demergers</td><td class="text-end">@p.CorporateActions.ToString("N0")</td></tr>
+                <tr><td>Fund tax statements and loan entries</td><td class="text-end">@p.Other.ToString("N0")</td></tr>
+                <tr class="fw-bold"><td>Records</td><td class="text-end">@p.Records.ToString("N0")</td></tr>
+            </tbody>
+        </table>
+        @if (p.Earliest is { } first)
+        {
+            <p class="text-muted small mt-2 mb-0">The earliest is dated @first.ToString("d MMM yyyy").</p>
+        }
+    </div>
+</div>
+
+@if (p.MayDoubleUp)
+{
+    <div class="alert alert-warning">
+        <strong>Check your bank imports.</strong> This portfolio's ledger already has @p.BankImportJournals.ToString("N0") journals from
+        imported bank statements. If you allocated deposits to dividend or other income accounts, or withdrawals to capital, those
+        amounts will now be in the ledger twice: once from the bank line and once from the payout or cash transaction. After switching,
+        look at <a asp-page="/Accounting/ProfitLoss">profit and loss</a> and re-allocate those bank lines by matching them to the
+        payouts instead.
+    </div>
+}
+@if (p.ManualJournals > 0)
+{
+    <div class="alert alert-secondary small">
+        Your @p.ManualJournals.ToString("N0") manual journals stay as they are. If any of them recorded trades or income by hand,
+        delete them after switching so they aren't counted twice.
+    </div>
+}
+
+@if (!Model.Portfolio.CanShare || !p.CanSwitch)
+{
+    <div class="alert alert-info">Only an owner of this portfolio can switch it to double entry.</div>
+}
+else if (p.Locked)
+{
+    <div class="alert alert-info">
+        Some records are dated in a locked period (up to @p.LockedTo!.Value.ToString("d MMM yyyy")). Remove the lock on
+        <a asp-page="/Accounting/Lock">Lock periods</a>, switch, then lock the years again.
+    </div>
+}
+else
+{
+    <form method="post" onsubmit="return confirm('Switch this portfolio to double entry? This can\'t be undone.');">
+        <button type="submit" class="btn btn-primary">Switch to double entry</button>
+        <span class="text-muted small ms-2">This can't be undone. A large portfolio can take a minute.</span>
+    </form>
+}

@@ -650,6 +650,14 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-10-29-rental-offset-account.sql`: `uspRepostPayoutJournal` can move a payout journal's cash side to another
   account. Needed by the API and MCP tool `add_rental_entry` when it is given `offsetAccountId` (non-cash amounts such as
   depreciation, or interest charged to the loan); nothing else changes, and everything else works without it.
+- `2026-10-29-convert-to-double-entry.sql`: **required before deploying the build with Switch to double entry**. Adds
+  `fnDoubleEntryPending` (the records of a portfolio with no journal yet), `uspGetDoubleEntryConversion` (what a switch
+  would post) and `uspConvertToDoubleEntry` (posts those journals, as the add procs do in double entry, and sets the
+  portfolio to DoubleEntry, all in one transaction). Also makes `tblUsers.strAccountingMode` default to DoubleEntry
+  (the site already sets it for every new portfolio). Running it changes no portfolio. `tests/smoke/convert-check.sql`
+  checks in CI that a switched portfolio's ledger matches one that was double entry from the start.
+- `2026-10-29-switch-on-delete-all.sql` (after `2026-10-29-delete-sync-records.sql`): **Delete data > Everything** also
+  switches a single-entry portfolio to double entry, since nothing is left to post. Changes `uspDeletePortfolioData` only.
 
 ## API and MCP server
 

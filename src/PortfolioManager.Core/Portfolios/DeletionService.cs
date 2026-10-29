@@ -56,7 +56,7 @@ public sealed class DeletionService(IDbConnectionFactory db)
         DataPart.Prices => "Share prices entered by hand or uploaded for this portfolio. Daily market prices aren't affected.",
         _ => "Everything recorded in the portfolio. Its name, settings, chart of accounts, tax codes, tracking categories, " +
              "custom groups, sharing, connections and audit trail stay, so you can start again. A Navexa sync " +
-             "brings everything back on its next run.",
+             "brings everything back on its next run. An old single-entry portfolio becomes double entry, like every new one.",
     };
 
     public static string Title(DataPart part) => part switch

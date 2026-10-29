@@ -102,6 +102,7 @@ builder.Services.AddScoped<ChartOfAccountsService>();
 builder.Services.AddScoped<JournalService>();
 builder.Services.AddScoped<LedgerReportService>();
 builder.Services.AddScoped<RealisedGainService>();
+builder.Services.AddScoped<DoubleEntryConversionService>();
 builder.Services.AddScoped<BankImportService>();
 builder.Services.AddScoped<RevaluationService>();
 builder.Services.AddScoped<BankReconciliationService>();
