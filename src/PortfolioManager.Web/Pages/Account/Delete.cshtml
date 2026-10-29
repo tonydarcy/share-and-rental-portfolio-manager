@@ -1,0 +1,76 @@
+@page
+@model PortfolioManager.Web.Pages.Account.DeleteModel
+@{
+    ViewData["Title"] = "Delete account";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Delete your account</h1>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="alert alert-warning">
+            <strong>Deleting your account can't be undone.</strong> You won't be able to sign in again, and we can't bring
+            anything back. If you might need your records, download a copy first from
+            <a asp-page="/Accounting/Export">Accounting &gt; Export</a> or <a asp-page="/Accounting/ReportPack">the report pack</a>.
+            To clear out a portfolio but keep your account, use <a asp-page="/Portfolio/Delete">Delete data</a> instead.
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-body pb-0">
+                <h2 class="h6">What happens to your portfolios</h2>
+                <p class="small text-muted mb-2">
+                    Portfolios only you use are deleted with everything in them. Portfolios you've shared stay for the people
+                    you shared them with, so their work isn't lost; your email, password and contact details are removed from them.
+                    Your API keys, sign-in history and access to other people's portfolios go too.
+                </p>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th>Portfolio</th><th>What happens</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in Model.Plan)
+                        {
+                            <tr>
+                                <td>@p.Name</td>
+                                <td class="small">
+                                    @if (p.WillBeDeleted)
+                                    {
+                                        <span class="badge text-bg-danger">Deleted</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-secondary">Kept</span>
+                                        <span>for the @(p.OthersWithAccess == 1 ? "person" : $"{p.OthersWithAccess} people") you shared it with.</span>
+                                        @if (p.OthersBecomeOwners)
+                                        {
+                                            <span>@(p.OthersWithAccess == 1 ? "They aren't an owner, so they become its owner." : "None of them is an owner, so those with the most access become its owners.")</span>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <form method="post" class="card shadow-sm border-danger">
+            <div class="card-body">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                <div class="mb-3">
+                    <label asp-for="ConfirmEmail" class="form-label">To confirm, type your email: <strong>@Model.Email</strong></label>
+                    <input asp-for="ConfirmEmail" class="form-control" autocomplete="off" />
+                    <span asp-validation-for="ConfirmEmail" class="text-danger small"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label">Your password</label>
+                    <input asp-for="Password" type="password" class="form-control" autocomplete="current-password" />
+                    <span asp-validation-for="Password" class="text-danger small"></span>
+                </div>
+                <button type="submit" class="btn btn-danger">Delete my account permanently</button>
+            </div>
+        </form>
+    </div>
+</div>

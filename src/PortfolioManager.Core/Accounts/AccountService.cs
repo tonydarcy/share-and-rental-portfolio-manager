@@ -22,6 +22,9 @@ public sealed class AccountService(IDbConnectionFactory db)
     public async Task<SignedInUser?> SignInAsync(string email, string password)
     {
         email = email.Trim();
+        // A deleted account's kept portfolios have a blank email and password; never look those up
+        if (email.Length == 0)
+            return null;
         await using var con = db.Create();
 
         var details = await con.QuerySingleOrDefaultAsync<LoginDetails>(
@@ -59,7 +62,7 @@ public sealed class AccountService(IDbConnectionFactory db)
         await using var con = db.Create();
         var details = await con.QuerySingleOrDefaultAsync<LoginDetails>(
             "uspGetLoginDetails", new { strLoginEmail = email.Trim() }, commandType: CommandType.StoredProcedure);
-        return details is { iUserId: > 0 } ? details.ToUser() : null;
+        return details is { iUserId: > 0, strLoginEmail.Length: > 0 } ? details.ToUser() : null;
     }
 
     public async Task<SignedInUser?> FindByIdAsync(int userId)
@@ -67,7 +70,8 @@ public sealed class AccountService(IDbConnectionFactory db)
         await using var con = db.Create();
         var details = await con.QuerySingleOrDefaultAsync<LoginDetails>(
             "uspGetLoginById", new { iUserId = userId }, commandType: CommandType.StoredProcedure);
-        return details is { iUserId: > 0 } ? details.ToUser() : null;
+        // A deleted account whose portfolio was kept for others has a blank email: it is no longer a login
+        return details is { iUserId: > 0, strLoginEmail.Length: > 0 } ? details.ToUser() : null;
     }
 
     /// <summary>Sets a new password after a reset (stored as a hash). It also marks the email as checked.</summary>

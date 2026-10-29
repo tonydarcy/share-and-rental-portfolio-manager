@@ -37,6 +37,10 @@ Live site: https://app.shareportfoliomanager.com. You can use it there, or run y
 - Margin and investment loans (loan-to-value ratio, interest and its deductible part), and term deposits and bonds
   (interest earned and accrued at the year end), posted to the ledger with year-end interest accruals.
 - Custom groups, to classify holdings your own way (for example by risk or strategy).
+- Permanent deletes for owners (account menu > Delete data): all share trades, all payouts, all cash transactions,
+  every journal, prices entered by hand, or everything in a portfolio while keeping its settings; or a whole extra
+  portfolio. Journals go whole, so the accounts still balance, and locked years are respected. The portfolio's name
+  must be typed to confirm.
 
 ### Reports
 
@@ -169,7 +173,8 @@ Email checks for new accounts, password reset by email, two-factor sign-in with 
 password guessing, an optional "I'm human" check, and email alerts for price targets, announced dividends, failed
 syncs and bank lines waiting to be allocated. The site works on a phone and can be added to the home screen, and
 "Offline copies on this device" (account menu) keeps the main pages to look at with no connection, deleted on
-signing out.
+signing out. Account > Delete account removes the account after its email and password are typed: portfolios only
+you use are deleted, and portfolios you've shared stay with the people you shared them with.
 
 ## Running it yourself
 

@@ -269,6 +269,7 @@
                             @if (selected?.CanShare == true)
                             {
                                 <li><a class="dropdown-item" asp-page="/Portfolio/Sharing">Share this portfolio</a></li>
+                                <li><a class="dropdown-item" asp-page="/Portfolio/Delete">Delete data</a></li>
                             }
                             <li><a class="dropdown-item" asp-page="/Clients/Practice">Practice details</a></li>
                             <li><a class="dropdown-item" asp-page="/Account/TwoFactor">Two-factor sign-in</a></li>
@@ -280,6 +281,7 @@
                             {
                                 <li><a class="dropdown-item" asp-page="/Account/TestEmail">Check email settings</a></li>
                             }
+                            <li><a class="dropdown-item" asp-page="/Account/Delete">Delete account</a></li>
                             <li><hr class="dropdown-divider" /></li>
                             <li>
                                 <form method="post" asp-page="/Account/Logout">
