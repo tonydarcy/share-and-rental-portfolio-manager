@@ -635,6 +635,10 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   hand with its journal and recalculates the account's running balances (a trade's settlement, or an entry ticked off on
   a bank reconciliation, is refused). Needed by the API and MCP tools `edit_cash_transaction` and
   `delete_cash_transaction`; nothing else uses it, so the site works without it until then.
+- `2026-10-29-delete-portfolios-and-accounts.sql`: adds the procs behind **Delete data** (part or all of a portfolio)
+  and **Delete account** (account menu): `uspDeletePortfolioData`, `uspDeletePortfolio`, `uspDeleteLogin`, the
+  internal `uspPurgePortfolio`, `uspRecalcBankBalances` and `uspClearDeletedJournalLinks`, and the functions
+  `fnCanDeletePortfolio`, `fnIsLoginRow` and `fnLoginDeletePlan`. Running it deletes nothing. Those two pages need it.
 
 ## API and MCP server
 

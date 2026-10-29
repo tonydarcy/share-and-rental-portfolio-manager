@@ -52,6 +52,7 @@ builder.Services.AddSingleton<IDbConnectionFactory>(sp => new AuditedConnectionF
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<SecurityLogService>();
 builder.Services.AddScoped<PortfolioService>();
+builder.Services.AddScoped<DeletionService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<HoldingsService>();
 builder.Services.AddScoped<TradesService>();

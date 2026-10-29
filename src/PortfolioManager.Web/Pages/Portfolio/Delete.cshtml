@@ -1,0 +1,116 @@
+@page
+@model PortfolioManager.Web.Pages.Portfolio.DeleteModel
+@using PortfolioManager.Core.Portfolios
+@{
+    ViewData["Title"] = "Delete data";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Delete data from @(Model.Portfolio?.Name ?? "this portfolio")</h1>
+    <a asp-page="/Portfolio/Settings" class="btn btn-sm btn-outline-secondary">Portfolio settings</a>
+</div>
+
+@if (Model.Portfolio is null)
+{
+    <div class="alert alert-info">You don't have access to any portfolios yet.</div>
+    return;
+}
+@if (!Model.Portfolio.CanShare || Model.Counts is null)
+{
+    <div class="alert alert-info">Only an owner of this portfolio can delete its data.</div>
+    return;
+}
+
+<div class="alert alert-warning">
+    <strong>Deleting can't be undone.</strong> There is no recycle bin, and we can't bring deleted records back.
+    If you might need them, download a copy first from <a asp-page="/Accounting/Export">Accounting &gt; Export</a>
+    or <a asp-page="/Accounting/ReportPack">the report pack</a>.
+    @if (Model.Shares.Count > 0)
+    {
+        <span>This portfolio is shared, so the @(Model.Shares.Count == 1 ? "person" : $"{Model.Shares.Count} people") you shared it with will lose the deleted records too.</span>
+    }
+</div>
+@if (Model.Counts.LockedTo is { } locked)
+{
+    <div class="alert alert-info">
+        The ledger is locked up to @locked.ToString("d"). Anything dated on or before then can't be deleted until you
+        unlock it on <a asp-page="/Accounting/Lock">Accounting &gt; Lock periods</a>; if any is, nothing is deleted.
+    </div>
+}
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <form method="post" asp-page-handler="Data" class="card shadow-sm border-danger">
+            <div class="card-body">
+                <h2 class="h5">Delete part of the portfolio</h2>
+                <p class="small text-muted">
+                    Each journal is deleted whole, so the accounts still balance. Anything ticked off on a bank reconciliation
+                    is unticked. The portfolio itself, its settings and its sharing stay.
+                </p>
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                <span asp-validation-for="Part" class="text-danger small d-block mb-2"></span>
+                @foreach (var part in Enum.GetValues<DataPart>())
+                {
+                    var count = Model.Counts.Of(part);
+                    var id = $"part-{part}";
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="Part" id="@id" value="@part" checked="@(Model.Part == part.ToString())" />
+                        <label class="form-check-label" for="@id">
+                            <strong>@DeletionService.Title(part)</strong>
+                            <span class="badge text-bg-light">@count.ToString("N0") @(part == DataPart.All ? "records in the main lists" : count == 1 ? "record" : "records")</span>
+                            <span class="d-block small text-muted">@DeletionService.Describe(part)</span>
+                        </label>
+                    </div>
+                }
+                <div class="mt-3">
+                    <label asp-for="ConfirmName" class="form-label">To confirm, type the portfolio's name: <strong>@Model.Portfolio.Name</strong></label>
+                    <input asp-for="ConfirmName" class="form-control" autocomplete="off" />
+                    <span asp-validation-for="ConfirmName" class="text-danger small"></span>
+                </div>
+                <button type="submit" class="btn btn-danger mt-3">Delete permanently</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-danger">
+            <div class="card-body">
+                <h2 class="h5">Delete the whole portfolio</h2>
+                @if (Model.IsLoginPortfolio)
+                {
+                    <p class="small mb-0">
+                        This is the portfolio the account signs in with, so it can't be deleted on its own. To clear it out,
+                        choose <strong>@DeletionService.Title(DataPart.All)</strong> on the left. To remove it completely,
+                        <a asp-page="/Account/Delete">delete the account</a>.
+                    </p>
+                }
+                else
+                {
+                    <p class="small">
+                        Deletes the portfolio and everything in it, including its settings, chart of accounts and audit trail.
+                        It disappears from everyone's portfolio list.
+                    </p>
+                    @if (Model.Shares.Count > 0)
+                    {
+                        <p class="small mb-1">These people will lose it:</p>
+                        <ul class="small">
+                            @foreach (var s in Model.Shares)
+                            {
+                                <li>@(string.IsNullOrEmpty(s.Name) ? s.Email : $"{s.Name} ({s.Email})"), @PortfolioService.AccessLabel(s.Access).ToLowerInvariant()</li>
+                            }
+                        </ul>
+                    }
+                    <form method="post" asp-page-handler="Portfolio">
+                        @if (ViewData.ModelState["ConfirmPortfolio"]?.Errors.FirstOrDefault() is { } error)
+                        {
+                            <div class="alert alert-danger small">@error.ErrorMessage</div>
+                        }
+                        <label for="confirmPortfolio" class="form-label">To confirm, type the portfolio's name: <strong>@Model.Portfolio.Name</strong></label>
+                        <input id="confirmPortfolio" name="ConfirmName" class="form-control" autocomplete="off" />
+                        <button type="submit" class="btn btn-danger mt-3">Delete this portfolio permanently</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>
