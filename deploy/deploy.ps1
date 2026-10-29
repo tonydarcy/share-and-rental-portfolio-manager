@@ -122,6 +122,11 @@ function Restore-Backup($backup, $site) {
 
 # ---------------------------------------------------------------------------
 
+if (-not (Test-Path (Join-Path $RepoRoot 'PortfolioManager.slnx'))) {
+    Stop-Deploy ("This copy of Deploy.cmd is not in the code folder from GitHub Desktop ($RepoRoot)." +
+        "`nIn GitHub Desktop choose Repository > Show in Explorer, then run deploy\Deploy.cmd from there.")
+}
+
 $settings = Get-Settings
 $site = $settings.SiteFolder
 $deployFolder = $settings.DeployFolder
@@ -139,7 +144,6 @@ if ($Rollback) {
     exit 0
 }
 
-if (-not (Test-Path (Join-Path $RepoRoot 'PortfolioManager.slnx'))) { Stop-Deploy "Run this from the deploy folder inside the code folder." }
 if ($site.TrimEnd('\').StartsWith($RepoRoot.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
     Stop-Deploy 'The site folder is inside the code folder. The site must run from its own folder.'
 }

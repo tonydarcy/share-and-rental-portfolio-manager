@@ -5,7 +5,8 @@ One double-click does the whole update. You only step in to run new database scr
 ## Every update
 
 1. Sign in to the server (Remote Desktop).
-2. Double-click **`Deploy.cmd`** in this `deploy` folder of the code folder.
+2. Double-click **`Deploy.cmd`** in the `deploy` folder of the code that GitHub Desktop pulls (in GitHub Desktop,
+   **Repository > Show in Explorer** opens it). A copy anywhere else won't work.
    (Tip: right-click it, **Send to > Desktop (create shortcut)**, and use the desktop icon from then on.)
 3. If it lists database scripts, open each one in SSMS, pick the live database, run it, top to bottom.
    Then type **Y**. If there are none, it carries straight on.
