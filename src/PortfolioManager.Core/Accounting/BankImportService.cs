@@ -323,6 +323,46 @@ public sealed class BankImportService(IDbConnectionFactory db, ChartOfAccountsSe
         return result;
     }
 
+    /// <summary>
+    /// Records a bank line as a rental entry for a property (rent in, or property expenses out) and matches the line to it,
+    /// in one transaction, so the amounts reach that property's rental schedule and the cash is counted once, in the
+    /// imported bank account. The entry's net (income less expenses) must be the line's amount.
+    /// </summary>
+    public async Task<AllocationResult> AddRentalAndMatchAsync(int portfolioId, int lineId, RentalPayoutInput input)
+    {
+        if (!AccountingMode.PostsJournals(await accounts.GetAccountingModeAsync(portfolioId)))
+            return new AllocationResult("This portfolio uses single-entry accounting, so rental entries don't post ledger journals to match. Allocate the line to an account instead.");
+
+        await using var con = db.Create();
+        await con.OpenAsync();
+        await using var tx = await con.BeginTransactionAsync();
+
+        if (await LineAsync(con, tx, portfolioId, lineId) is not { } line)
+            return new AllocationResult("That transaction wasn't found, or it has already been allocated.");
+        if (RentalMismatch(line.Line.Amount, input.Net) is { } mismatch)
+            return new AllocationResult(mismatch);
+        input.Date = line.Line.Date.ToDateTime(TimeOnly.MinValue);
+
+        var payoutId = await PayoutService.AddRentalAsync(con, tx, portfolioId, input);
+        var match = (await PayoutMatchesAsync(con, tx, portfolioId, line, payoutId)).FirstOrDefault()
+            ?? throw new InvalidOperationException("The new rental entry's journal wasn't found, so it couldn't be matched; nothing was saved.");
+
+        var result = await AllocateAsync(con, tx, portfolioId, lineId, match.TargetAccountId, MatchDescription("payout", match.Id, match.Description));
+        if (!result.Ok)
+            throw new InvalidOperationException($"The new rental entry couldn't be matched ({result.Error}); nothing was saved.");
+
+        await tx.CommitAsync();
+        return result;
+    }
+
+    /// <summary>Why a rental entry's net can't settle a bank line, or null when it can (a deposit is income less expenses; a withdrawal the reverse).</summary>
+    public static string? RentalMismatch(decimal lineAmount, decimal net) =>
+        Math.Round(net, 2) == Math.Round(lineAmount, 2)
+            ? null
+            : lineAmount >= 0
+                ? $"The rent less expenses comes to {net:N2}, but the deposit is {lineAmount:N2}. They must be the same."
+                : $"The expenses less any rent come to {-net:N2}, but the withdrawal is {-lineAmount:N2}. They must be the same.";
+
     private static async Task<AllocationResult> AllocateAsync(DbConnection con, DbTransaction? tx, int portfolioId, int lineId, int accountId, string description,
         int? taxCodeId = null, decimal? taxAmount = null)
     {

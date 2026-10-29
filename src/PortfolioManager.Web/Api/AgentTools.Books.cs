@@ -49,17 +49,23 @@ public sealed partial class AgentTools
 
         new("add_rental_entry", "Add a rental entry",
             "Records rent and property expenses for a period (a rental payout), as the Add rental payout page does, posting its journal. "
-            + "Amounts are positive; expenses are taken off the rent.",
+            + "Amounts are the whole property's, positive; expenses are taken off the rent. The entry fills the rental schedule of the "
+            + "property whose payout code is propertyCode (list_rental_properties). Its journal puts the net through the bank, so for cash "
+            + "that came through an imported bank statement use allocate_bank_transaction_to_property instead. For an entry no cash moved "
+            + "for (depreciation, capital works, borrowing costs written off, interest charged straight to the loan), give offsetAccountId: "
+            + "the journal then goes against that account (e.g. accumulated depreciation, or the property loan) instead of the bank. "
+            + "Depreciation and capital works entered here are added to any worked out from the property's assets on the site.",
             true, new ToolSchema().Portfolio()
                 .Date("date", "Date of the entry", required: true)
-                .String("propertyCode", "The property's short code, e.g. 12SMITH", required: true)
+                .String("propertyCode", "The property's payout code, e.g. 12SMITH", required: true)
                 .String("exchangeCode", "The property's exchange code (default PROP)")
                 .String("comment", "Note to keep with the entry")
+                .Int("offsetAccountId", "For a non-cash entry: the account for the other side instead of the bank, from list_ledger_accounts")
                 .Object("amounts", "The amounts by name; leave out the ones that are zero", RentalAmountsSchema(), required: true).Build(),
             AddRental),
 
         new("edit_rental_entry", "Edit a rental entry",
-            "Changes a rental entry (from list_payouts); send only what changes. Amounts sent replace those amounts; the others stay. Its journal is posted again.",
+            "Changes a rental entry (from list_payouts); send only what changes. Amounts sent replace those amounts; the others stay. Its journal is posted again, against the same bank or offset account.",
             true, new ToolSchema().Portfolio()
                 .Int("payoutId", "The rental entry, from list_payouts", required: true)
                 .Date("date", "Date of the entry")
@@ -399,8 +405,26 @@ public sealed partial class AgentTools
         if (input.Validate() is { Count: > 0 } errors)
             throw new AgentToolException(400, string.Join(" ", errors));
 
-        await c.Service<PayoutService>().AddRentalAsync(c.PortfolioId, input);
-        return new { Message = $"Recorded the {input.PropertyCode.Trim().ToUpperInvariant()} rental entry, net {input.Net:N2}.", Amounts = input.NamedAmounts() };
+        var payouts = c.Service<PayoutService>();
+        int? payoutId = null;
+        if (c.Int("offsetAccountId") is { } offset)
+        {
+            var accounts = c.Service<ChartOfAccountsService>();
+            if ((await accounts.GetJournalAccountsAsync(c.PortfolioId)).All(a => a.AccountId != offset))
+                throw new AgentToolException(400, "That offset account isn't one of this portfolio's. list_ledger_accounts gives the ids.");
+            if (!AccountingMode.PostsJournals(await accounts.GetAccountingModeAsync(c.PortfolioId)))
+                throw new AgentToolException(400, "This portfolio uses single-entry accounting, so rental entries post no journal to offset. Leave out offsetAccountId.");
+            payoutId = await payouts.AddRentalAsync(c.PortfolioId, input, offset);
+        }
+        else
+            await payouts.AddRentalAsync(c.PortfolioId, input);
+        var code = input.PropertyCode.Trim().ToUpperInvariant();
+        return new
+        {
+            Message = $"Recorded the {code} rental entry, net {input.Net:N2}" + (payoutId is null ? "." : $", against the offset account (payout {payoutId}).")
+                + (await HasPayoutCodeAsync(c, code) ? "" : " " + NotLinked(code)),
+            Amounts = input.NamedAmounts(),
+        };
     }
 
     private static async Task<object?> EditRental(AgentCall c)
