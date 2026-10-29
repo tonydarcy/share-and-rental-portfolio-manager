@@ -28,7 +28,7 @@ public sealed partial class AgentTools
 
     public AgentTools()
     {
-        All = [.. Build(), .. BuildBooks(), .. BuildProperty()];
+        All = [.. Build(), .. BuildBooks(), .. BuildProperty(), .. BuildAccounts()];
         _byName = All.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -168,7 +168,8 @@ public sealed partial class AgentTools
             async c => await c.Service<ChartOfAccountsService>().GetImportAccountsAsync(c.PortfolioId)),
 
         new("list_ledger_accounts", "List ledger accounts",
-            "Chart of accounts entries a bank transaction can be allocated to, with their ids (for allocate_bank_transaction).",
+            "Chart of accounts entries a bank transaction can be allocated to, with their ids (for allocate_bank_transaction). "
+            + "list_chart_of_accounts gives the whole chart with numbers, types and parents; create_ledger_account adds one.",
             false, new ToolSchema().Portfolio().Build(),
             async c => await c.Service<ChartOfAccountsService>().GetJournalAccountsAsync(c.PortfolioId)),
 
@@ -249,12 +250,12 @@ public sealed partial class AgentTools
             async c => await c.Service<LedgerReportService>().TrialBalanceAsync(c.PortfolioId, AsAt(c))),
 
         new("report_profit_and_loss", "Profit and loss",
-            "Ledger profit and loss for a period.",
+            "Ledger profit and loss for a period. A Group row is a parent account's total over the sub-account Items under it; don't add it in too.",
             false, PeriodSchema(),
             async c => await Period(c, async p => await c.Service<LedgerReportService>().ProfitLossAsync(c.PortfolioId, p.From, p.To))),
 
         new("report_balance_sheet", "Balance sheet",
-            "Ledger balance sheet at a date.",
+            "Ledger balance sheet at a date. A Group row is a parent account's total over the sub-account Items under it; don't add it in too.",
             false, new ToolSchema().Portfolio().Date("asAt", "Date (default today)").Build(),
             async c => await c.Service<LedgerReportService>().BalanceSheetAsync(c.PortfolioId, AsAt(c))),
 

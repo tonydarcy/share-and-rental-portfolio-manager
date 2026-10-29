@@ -6,7 +6,8 @@ namespace PortfolioManager.Core.Accounting;
 
 /// <summary>
 /// One row of a ledger statement as the procs lay it out. RowType is Header, Item, Total,
-/// GrandTotal or Spacer; headers and spacers have no amount.
+/// GrandTotal or Spacer; headers and spacers have no amount. Group is a parent account's total over its
+/// sub-accounts, which follow it indented (AccountRollup); add up Items, never Groups.
 /// </summary>
 public sealed record StatementLine(string Label, decimal? Amount, string RowType, int Indent, string Section = "")
 {
@@ -14,6 +15,7 @@ public sealed record StatementLine(string Label, decimal? Amount, string RowType
     public bool IsSpacer => RowType == "Spacer";
     public bool IsTotal => RowType == "Total";
     public bool IsGrandTotal => RowType == "GrandTotal";
+    public bool IsGroup => RowType == AccountRollup.GroupRow;
 }
 
 public sealed record ProfitLossReport(IReadOnlyList<StatementLine> Lines, decimal Revenue, decimal Expenses, decimal NetProfit);
@@ -46,16 +48,24 @@ public sealed record TrialBalanceReport(IReadOnlyList<TrialBalanceLine> Lines, d
 }
 
 /// <summary>The double-entry reports from the legacy Reports folder, over the existing report procs.</summary>
-public sealed class LedgerReportService(IDbConnectionFactory db, RealisedGainService gains)
+public sealed class LedgerReportService(IDbConnectionFactory db, RealisedGainService gains, ChartOfAccountsService chart)
 {
     public async Task<TrialBalanceReport> TrialBalanceAsync(int portfolioId, DateOnly asAt) =>
         MapTrialBalance(await RowsAsync(portfolioId, "uspGetTrialBalance", new { iUserId = portfolioId, dtEndDate = Day(asAt) }));
 
-    public async Task<ProfitLossReport> ProfitLossAsync(int portfolioId, DateOnly from, DateOnly to) =>
-        MapProfitLoss(await RowsAsync(portfolioId, "uspGetProfitLossReport", new { iUserId = portfolioId, dtStartDate = Day(from), dtEndDate = Day(to) }));
+    /// <summary>Sub-accounts show under their parent (AccountRollup).</summary>
+    public async Task<ProfitLossReport> ProfitLossAsync(int portfolioId, DateOnly from, DateOnly to)
+    {
+        var report = MapProfitLoss(await RowsAsync(portfolioId, "uspGetProfitLossReport", new { iUserId = portfolioId, dtStartDate = Day(from), dtEndDate = Day(to) }));
+        return report with { Lines = AccountRollup.Apply(report.Lines, await chart.GetAccountsAsync(portfolioId)) };
+    }
 
-    public async Task<BalanceSheetReport> BalanceSheetAsync(int portfolioId, DateOnly asAt) =>
-        MapBalanceSheet(await RowsAsync(portfolioId, "uspGetBalanceSheet", new { iUserId = portfolioId, dtAsAtDate = Day(asAt) }));
+    /// <summary>Sub-accounts show under their parent (AccountRollup).</summary>
+    public async Task<BalanceSheetReport> BalanceSheetAsync(int portfolioId, DateOnly asAt)
+    {
+        var report = MapBalanceSheet(await RowsAsync(portfolioId, "uspGetBalanceSheet", new { iUserId = portfolioId, dtAsAtDate = Day(asAt) }));
+        return report with { Lines = AccountRollup.Apply(report.Lines, await chart.GetAccountsAsync(portfolioId)) };
+    }
 
     /// <summary>The cash movement statement the legacy CashMovement page shows (uspGetDetailedCashFlowReport).</summary>
     public async Task<CashFlowReport> CashFlowAsync(int portfolioId, DateOnly from, DateOnly to) =>

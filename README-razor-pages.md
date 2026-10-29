@@ -202,6 +202,8 @@ over a SQL Server database whose stored procedures post the double-entry journal
   accounts are read only), manual journal entry and the journal history (only manual journals can be edited or
   deleted), QIF/OFX bank statement import with a preview and import history, allocating imported lines to an
   account, a payout or a trade, and the trial balance, profit & loss, balance sheet and cash movement reports.
+  On the profit & loss and balance sheet a sub-account (an account with a parent, e.g. each loan under Property Loans)
+  shows indented under its parent, whose line is the total of them all.
   It uses `uspGetChartOfAccounts`, `uspAddChartOfAccount`, `uspUpdateChartOfAccount`, `uspSetChartOfAccountActive`,
   `uspDeleteChartOfAccount`, `uspGetJournalList`, `uspGetJournalDetail`, `uspAddJournalHeader`, `uspAddJournalLine`,
   `uspUpdateJournalHeader`, `uspClearJournalLines`, `uspDeleteJournal`, `uspAddBankImportJournal`,
@@ -700,6 +702,7 @@ portfolio, the tool, what was sent and the result. It shows on the API keys page
 | `list_payouts`, `add_payout`, `delete_payout` | `GET /payouts?from=&to=&stockCode=&limit=`, `POST /payouts`, `DELETE /payouts/{payoutId}` | add, delete |
 | `list_cash_transactions`, `add_cash_transaction` | `GET /cash?account=&limit=`, `POST /cash` | add |
 | `list_bank_accounts`, `list_ledger_accounts`, `list_tax_codes` | `GET /bank-accounts`, `/ledger-accounts`, `/tax-codes` | |
+| `list_chart_of_accounts`, `create_ledger_account`, `edit_ledger_account` | `GET /chart-of-accounts`, `POST /chart-of-accounts`, `PATCH /chart-of-accounts/{accountId}` | create, edit |
 | `import_bank_transactions` | `POST /bank-imports` | yes |
 | `list_unallocated`, `find_bank_transaction_matches` | `GET /unallocated`, `GET /unallocated/{lineId}/matches` | |
 | `allocate_bank_transaction`, `match_bank_transaction` | `POST /unallocated/{lineId}/allocate`, `/match` | yes |

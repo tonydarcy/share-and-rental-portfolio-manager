@@ -37,6 +37,30 @@ public static class AccountTypes
         "Expense" => "5xxx or 6xxx",
         _ => "",
     };
+
+    /// <summary>
+    /// A free account number when none is given: the next after the parent's for a sub-account (2301, 2302
+    /// under 2300 Investment Loans), otherwise the next free ten in the type's range (6010 for an expense).
+    /// Null when that range is full.
+    /// </summary>
+    public static int? NextNumber(IReadOnlyList<LedgerAccount> accounts, LedgerAccount? parent, string type)
+    {
+        var used = accounts.Select(a => a.Number).ToHashSet();
+        if (parent is not null)
+        {
+            for (var n = parent.Number + 1; n <= Math.Min(parent.Number + 99, 999999); n++)
+                if (!used.Contains(n))
+                    return n;
+            return null;
+        }
+        var start = type switch { "Asset" => 1000, "Liability" => 2000, "Equity" => 3000, "Revenue" => 4000, "Expense" => 6000, _ => 0 };
+        if (start == 0)
+            return null;
+        for (var n = start + 10; n < start + 1000; n += 10)
+            if (!used.Contains(n))
+                return n;
+        return null;
+    }
 }
 
 /// <summary>The fields of the add / edit account form.</summary>
