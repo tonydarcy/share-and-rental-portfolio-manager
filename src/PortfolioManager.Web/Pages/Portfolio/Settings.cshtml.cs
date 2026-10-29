@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using PortfolioManager.Core.Accounting;
 using PortfolioManager.Core.Portfolios;
 using PortfolioManager.Core.Regions;
 using PortfolioManager.Web.Services;
@@ -10,7 +11,7 @@ namespace PortfolioManager.Web.Pages.Portfolio;
 /// The picked portfolio's country, financial year start, currency and date/number format.
 /// Australia is the default; only Australia gets the franking and CGT discount wording.
 /// </summary>
-public class SettingsModel(CurrentPortfolio current, PortfolioService portfolios) : PageModel
+public class SettingsModel(CurrentPortfolio current, PortfolioService portfolios, ChartOfAccountsService chart) : PageModel
 {
     [BindProperty]
     public string CountryCode { get; set; } = RegionSettings.AustraliaCode;
@@ -32,6 +33,9 @@ public class SettingsModel(CurrentPortfolio current, PortfolioService portfolios
     /// <summary>The currency when the page was opened, to warn that changing it doesn't convert anything.</summary>
     public string SavedCurrency { get; private set; } = "AUD";
 
+    /// <summary>The portfolio's strAccountingMode; an old single-entry one is offered the switch to double entry.</summary>
+    public string AccountingMode { get; private set; } = "DoubleEntry";
+
     public async Task OnGetAsync()
     {
         Portfolio = await current.GetSelectedAsync();
@@ -42,6 +46,8 @@ public class SettingsModel(CurrentPortfolio current, PortfolioService portfolios
         Currency = region.Currency;
         Format = region.Format;
         SavedCurrency = region.Currency;
+        if (Portfolio is not null)
+            AccountingMode = await chart.GetAccountingModeAsync(Portfolio.PortfolioId);
     }
 
     public async Task<IActionResult> OnPostAsync()
@@ -50,6 +56,7 @@ public class SettingsModel(CurrentPortfolio current, PortfolioService portfolios
         SavedCurrency = (await current.GetRegionAsync()).Currency;
         if (Portfolio is null || !Portfolio.CanEdit)
             return RedirectToPage();
+        AccountingMode = await chart.GetAccountingModeAsync(Portfolio.PortfolioId);
 
         var errors = RegionSettings.Validate(CountryCode, YearStartMonth, YearStartDay, Currency, Format);
         foreach (var e in errors)

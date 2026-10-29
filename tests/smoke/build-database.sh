@@ -27,6 +27,7 @@ for pass in 1 2; do
 done
 for f in Database/SampleData/*.sql; do echo "$(basename "$f")"; run "$f"; done
 echo "delete-check.sql"; run tests/smoke/delete-check.sql
+echo "convert-check.sql"; run tests/smoke/convert-check.sql
 
 # Every stored procedure the code calls must exist
 sql -d "$DB" -h -1 -W -Q "SET NOCOUNT ON; SELECT name FROM sys.procedures" | sort -u > /tmp/db-procs.txt

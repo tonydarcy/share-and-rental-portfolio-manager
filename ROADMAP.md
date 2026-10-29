@@ -58,6 +58,15 @@ This page lists only what is **not built yet**. Everything already in the site i
     row-level security, and fix any page that gets noticeably slower first. This is not true end-to-end encryption
     (the server holds the keys while a request runs), so it doesn't protect against someone who takes over the server.
 
+## Next: tidying up
+
+10. **Retire single-entry accounting.** Portfolios made before December 2025 can still be single entry, so their
+    trades, cash and payouts post no journals. They can now be switched (Portfolio settings > Switch to double entry),
+    and new ones are always double entry. Once every live portfolio has been switched: a migration that switches any
+    left (after checking each one's bank imports, which can double up with payouts), then take out the single-entry
+    branches in the procs (`IF @strAccountingMode IN ('Hybrid', 'DoubleEntry')`), the `AccountingMode` checks and
+    single-entry notices in the site, and finally the `strAccountingMode` column.
+
 ## Using it outside Australia
 
 The site already lets each portfolio pick its country, financial year, currency and number format, keeps foreign
