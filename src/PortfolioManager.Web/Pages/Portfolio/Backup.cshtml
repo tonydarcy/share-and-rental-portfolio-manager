@@ -1,0 +1,96 @@
+@page
+@model PortfolioManager.Web.Pages.Portfolio.BackupModel
+@using PortfolioManager.Core.Backup
+@{
+    ViewData["Title"] = "Back up or restore";
+}
+
+<div class="d-flex justify-content-between flex-wrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2 mb-0">Back up or restore a portfolio</h1>
+    <a asp-page="/Portfolio/Manage" class="btn btn-sm btn-outline-secondary">Manage portfolios</a>
+</div>
+
+@if (Model.Restored is { } done)
+{
+    <div class="alert alert-success">
+        <strong>Restored.</strong> "@done.Name" is a new portfolio with @done.Total.ToString("N0") records
+        (@done.Of("tblShareTrades").ToString("N0") trades, @done.Of("tblPayouts").ToString("N0") payouts,
+        @done.Of("tblBankStatement").ToString("N0") cash transactions and @done.Of("tblJournal").ToString("N0") journals)@(Model.RestoredFrom is { } from ? $", from {from}" : "").
+        It is open now. <a asp-page="/Holdings">See its holdings</a>.
+        @if (done.Notes.Count > 0)
+        {
+            <div class="mt-2">Some things couldn't come across:</div>
+            <ul class="mb-0">
+                @foreach (var note in done.Notes)
+                {
+                    <li>@note</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5">Download a backup</h2>
+                @if (Model.Portfolio is null)
+                {
+                    <p class="text-muted mb-0">You don't have a portfolio to back up yet.</p>
+                }
+                else if (!Model.Portfolio.CanShare)
+                {
+                    <p class="text-muted mb-0">Only an owner of "@Model.Portfolio.Name" can download a backup of it.</p>
+                }
+                else
+                {
+                    <p>
+                        One file with everything in <strong>@Model.Portfolio.Name</strong>: trades, payouts, cash, the accounts and
+                        their journals, invoices and bills, rental properties, tax and year-end records, prices you entered,
+                        and its settings. Keep it somewhere safe; it isn't password protected.
+                    </p>
+                    <p class="small text-muted">
+                        Left out: who it's shared with, API keys, connections to Xero, MYOB and Navexa (connect them again
+                        after restoring) and market prices, which each copy of the site loads for itself.
+                    </p>
+                    <form method="post" asp-page-handler="Download">
+                        <div class="form-check mb-3">
+                            <input asp-for="WithAttachments" class="form-check-input" />
+                            <label asp-for="WithAttachments" class="form-check-label">Include attached files (makes the backup bigger)</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-download"></i> Download backup</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5">Restore a backup</h2>
+                <p>
+                    Restoring adds the backup as a <strong>new portfolio</strong> that you own; nothing you already have is
+                    changed. The backup can come from this site or from another copy of it, for example moving from the
+                    hosted site to one you run yourself, or back.
+                </p>
+                <p class="small text-muted">
+                    If the copy you restore to is older than the one the backup came from, update it and run its latest
+                    database migrations first, or newer details are left out (the page lists anything that was).
+                </p>
+                <form method="post" asp-page-handler="Restore" enctype="multipart/form-data">
+                    <div asp-validation-summary="All" class="alert alert-danger py-2" role="alert"></div>
+                    <div class="mb-3">
+                        <label asp-for="Upload" class="form-label">Backup file (.pmbackup)</label>
+                        <input asp-for="Upload" type="file" class="form-control" accept="@BackupFile.Extension,.json,.gz" required />
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="NewName" class="form-label">Name for the new portfolio</label>
+                        <input asp-for="NewName" class="form-control" maxlength="100" placeholder="The backup's name, with (restored)" />
+                    </div>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-upload"></i> Restore as a new portfolio</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

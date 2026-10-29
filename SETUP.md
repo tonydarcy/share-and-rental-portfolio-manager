@@ -448,6 +448,13 @@ Once the site is running and you have registered:
    same page, and **Revoke** stops it at once. Other apps can use the same key with the JSON API at
    `https://your-site/api/v1/` (see README-razor-pages.md, "API and MCP server").
 
+### Moving a portfolio between copies of the site
+
+Account menu > **Back up or restore** downloads a portfolio as one `.pmbackup` file, and restores one as a new
+portfolio, so you can move from the hosted site to your own copy or back. Update the copy you restore to (and run its
+migrations) first, so nothing newer is left out. A backup can be up to 256 MB (the site's `web.config` raises IIS's
+usual 30 MB upload limit for it); if yours is bigger, download it again without attached files.
+
 ## Updating to a new version
 
 1. Back up the database.

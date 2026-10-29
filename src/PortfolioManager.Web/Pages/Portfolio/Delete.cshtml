@@ -23,7 +23,8 @@
 
 <div class="alert alert-warning">
     <strong>Deleting can't be undone.</strong> There is no recycle bin, and we can't bring deleted records back.
-    If you might need them, download a copy first from <a asp-page="/Accounting/Export">Accounting &gt; Export</a>
+    If you might need them, download a <a asp-page="/Portfolio/Backup">backup</a> first (it can be restored later as a
+    new portfolio), or a copy from <a asp-page="/Accounting/Export">Accounting &gt; Export</a>
     or <a asp-page="/Accounting/ReportPack">the report pack</a>.
     @if (Model.Shares.Count > 0)
     {
