@@ -61,10 +61,14 @@ a test file. `src/PortfolioManager.Core/Trades/TradeService.cs` is a short examp
 ## Build and test
 
 ```
-dotnet build PortfolioManager.slnx
-dotnet test PortfolioManager.slnx
+dotnet build PortfolioManager.slnx -v q --nologo
+dotnet test PortfolioManager.slnx -v q --nologo --logger "console;verbosity=minimal"
 dotnet run --project src/PortfolioManager.Web
 ```
+
+Keep the quiet flags: full build and test output fills the session with text nobody reads. Errors and failing tests
+still print. To dig into one failure, re-run only it (`--filter "FullyQualifiedName~PayoutTests"`) rather than turning
+verbosity up for the whole solution.
 
 Cloud sessions install the .NET 10 SDK at startup (`.claude/hooks/install-dotnet.sh`); if `dotnet` is still missing,
 `apt-get install -y dotnet-sdk-10.0`. GitHub Actions (`.github/workflows/ci.yml`) builds and tests every PR, but run
