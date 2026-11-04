@@ -25,7 +25,7 @@ public sealed record CgtReturnReport(
 /// Returns of capital (tblReturnsOfCapital) reduce the cost bases, with any excess a G1 gain.
 /// </summary>
 public sealed class CgtDiscountService(TradesService trades, CorporateActionsService actions, ParcelChoiceService parcelChoices,
-    TaxWork.RentalService rentals)
+    TaxWork.RentalService rentals, TradeService tradeEntry)
 {
     /// <summary>Saved parcel choices apply. Rental properties sold (Rental properties > Sale) are added as events of their own.</summary>
     public async Task<CgtReturnReport> GetReturnAsync(int portfolioId, string? entityType, ReportPeriod period)
@@ -59,10 +59,26 @@ public sealed class CgtDiscountService(TradesService trades, CorporateActionsSer
             match.CapitalReturns);
     }
 
-    /// <summary>All the portfolio's trades, oldest first, for parcel matching.</summary>
-    public async Task<IReadOnlyList<TradeLot>> LoadTradesAsync(int portfolioId) =>
-        (await trades.GetTradesAsync(portfolioId, null, oldestFirst: true))
+    /// <summary>All the portfolio's trades, oldest first, for parcel matching. India's securities transaction tax is taken out.</summary>
+    public async Task<IReadOnlyList<TradeLot>> LoadTradesAsync(int portfolioId)
+    {
+        var lots = (await trades.GetTradesAsync(portfolioId, null, oldestFirst: true))
             .Select(t => new TradeLot(t.TradeId, t.ExchangeCode, t.StockCode, t.Type, DateOnly.FromDateTime(t.Date),
                 (decimal)t.Quantity, (decimal)t.CostBasisPerUnit))
             .ToList();
+        return Regions.RegionSettings.Current.CountryCode == "IN"
+            ? WithoutSecuritiesTax(lots, await tradeEntry.GetSecuritiesTaxAsync(portfolioId))
+            : lots;
+    }
+
+    /// <summary>
+    /// India: STT isn't part of the cost of acquisition or a cost of transfer, so it comes off a buy's cost per unit
+    /// and is added back to a sale's net proceeds per unit.
+    /// </summary>
+    public static IReadOnlyList<TradeLot> WithoutSecuritiesTax(IReadOnlyList<TradeLot> lots, IReadOnlyDictionary<int, decimal> tax) =>
+        tax.Count == 0
+            ? lots
+            : lots.Select(l => tax.TryGetValue(l.TradeId, out var stt) && stt > 0 && l.Quantity != 0
+                ? l with { CostBasisPerUnit = l.CostBasisPerUnit + (l.Type.Trim().Equals("BUY", StringComparison.OrdinalIgnoreCase) ? -1 : 1) * stt / Math.Abs(l.Quantity) }
+                : l).ToList();
 }

@@ -140,6 +140,7 @@ public static class BackupPlan
         Owned(Trades, "iShareTradeId") with { Ids = [new IdColumn("iBankStatementId", "tblBankStatement", Later: true)] },
         Owned("tblBankStatement", "iBankStatementId") with { Ids = Ids(("iShareTradeId", Trades)) },
         Child("tblShareTradeGroups", "iShareTradeID", Trades, "iTradeGroupID") with { Ids = Ids(("iGroupID", "tblCustomGroups")) },
+        Owned("tblTradeSecuritiesTax") with { Ids = Ids(("iShareTradeId", Trades)) },
         Owned("tblPayouts", "iPayoutID") with { Ids = Ids(("iReinvestmentTradeID", Trades)) },
         Owned("tblCorporateActions", "iActionID"),
         Child("tblCorporateActionTrades", "iActionID", "tblCorporateActions") with { Ids = Ids(("iShareTradeId", Trades)) },

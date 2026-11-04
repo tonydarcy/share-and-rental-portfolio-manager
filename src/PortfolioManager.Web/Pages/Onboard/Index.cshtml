@@ -24,10 +24,10 @@
         <div class="row g-2 mb-3">
             <div class="col-12"><label asp-for="Details.LegalName" class="form-label">Full legal name@(type == ClientEntityTypes.Individual ? "" : " of the " + ClientEntityTypes.Describe(type).ToLowerInvariant())</label>
                 <input asp-for="Details.LegalName" class="form-control" maxlength="500" required /></div>
-            <div class="col-md-6"><label asp-for="Details.Abn" class="form-label">ABN (if any)</label><input asp-for="Details.Abn" class="form-control" inputmode="numeric" maxlength="20" /></div>
+            <div class="col-md-6"><label asp-for="Details.Abn" class="form-label">@RegionSettings.Current.BusinessNumberLabel (if any)</label><input asp-for="Details.Abn" class="form-control" inputmode="numeric" maxlength="20" /></div>
             @if (type == ClientEntityTypes.Company)
             {
-                <div class="col-md-6"><label asp-for="Details.Acn" class="form-label">ACN</label><input asp-for="Details.Acn" class="form-control" inputmode="numeric" maxlength="20" required /></div>
+                <div class="col-md-6"><label asp-for="Details.Acn" class="form-label">@RegionSettings.Current.CompanyNumberLabel</label><input asp-for="Details.Acn" class="form-control" inputmode="numeric" maxlength="20" required /></div>
             }
             @if (ClientEntityTypes.HasTrustee(type))
             {

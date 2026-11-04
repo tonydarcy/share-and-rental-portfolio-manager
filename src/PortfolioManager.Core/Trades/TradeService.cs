@@ -22,12 +22,31 @@ public sealed class TradeService(IDbConnectionFactory db)
         await tx.CommitAsync();
     }
 
-    /// <summary>Records the trade inside the caller's transaction.</summary>
-    public static Task AddAsync(IDbConnection con, IDbTransaction tx, int portfolioId, NewTrade trade)
+    /// <summary>Records the trade inside the caller's transaction, then any securities transaction tax (India) against it.</summary>
+    public static async Task AddAsync(IDbConnection con, IDbTransaction tx, int portfolioId, NewTrade trade)
     {
         var (proc, parameters) = trade.Cash is null
             ? ("uspAddShareTrade", TradeEntry.ShareTradeParameters(portfolioId, trade))
             : ("AddShareTradeWithCashTransaction", TradeEntry.ShareTradeWithCashParameters(portfolioId, trade));
-        return con.ExecuteAsync(proc, new DynamicParameters(parameters), tx, commandType: CommandType.StoredProcedure);
+        await con.ExecuteAsync(proc, new DynamicParameters(parameters), tx, commandType: CommandType.StoredProcedure);
+        if (trade.SecuritiesTax > 0)
+            await con.ExecuteAsync("uspSetLatestTradeSecuritiesTax", SecuritiesTaxParameters(portfolioId, trade), tx,
+                commandType: CommandType.StoredProcedure);
+    }
+
+    /// <summary>The STT in the portfolio currency (the exchange rate is trade currency per portfolio currency).</summary>
+    public static object SecuritiesTaxParameters(int portfolioId, NewTrade trade) => new
+    {
+        iPortfolioId = portfolioId,
+        dblAmount = Math.Round(trade.SecuritiesTax / (trade.ExchangeRate > 0 ? trade.ExchangeRate : 1m), 2, MidpointRounding.AwayFromZero),
+    };
+
+    /// <summary>Securities transaction tax recorded on the portfolio's trades, by trade id (portfolio currency).</summary>
+    public async Task<IReadOnlyDictionary<int, decimal>> GetSecuritiesTaxAsync(int portfolioId)
+    {
+        await using var con = db.Create();
+        var rows = await con.QueryAsync<(int TradeId, decimal Amount)>("uspGetTradeSecuritiesTax", new { iPortfolioId = portfolioId },
+            commandType: CommandType.StoredProcedure);
+        return rows.ToDictionary(r => r.TradeId, r => r.Amount);
     }
 }

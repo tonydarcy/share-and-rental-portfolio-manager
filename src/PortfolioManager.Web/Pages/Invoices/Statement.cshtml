@@ -44,7 +44,7 @@
             <div>
                 @if (Model.HasLogo) { <img src="@Url.Page("/Invoices/Settings", "Logo")" alt="" style="max-height: 90px; max-width: 260px" class="mb-2 d-block" /> }
                 <div class="fs-4 fw-bold">@(Model.Business?.LegalName ?? Model.Portfolio.Name)</div>
-                @if (Model.Business?.Abn is { Length: > 0 } abn) { <div>ABN @abn</div> }
+                @if (Model.Business?.Abn is { Length: > 0 } abn) { <div>@RegionSettings.Current.BusinessNumberLabel @abn</div> }
             </div>
             <div class="text-sm-end">
                 <div class="fs-3 fw-light text-uppercase">Statement</div>

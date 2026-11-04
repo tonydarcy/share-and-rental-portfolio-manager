@@ -1,4 +1,5 @@
 using PortfolioManager.Core.Clients;
+using PortfolioManager.Core.Regions;
 
 namespace PortfolioManager.Core.Statements;
 
@@ -50,15 +51,19 @@ public static class ReportPackBuilder
     }
 
     /// <summary>The lines under the client's name on the cover: ABN, ACN, trustee.</summary>
-    public static IReadOnlyList<string> CoverLines(ClientDetails c)
+    public static IReadOnlyList<string> CoverLines(ClientDetails c) => CoverLines(c, RegionSettings.Current);
+
+    /// <summary>The cover lines with the country's names for the numbers (ABN and ACN in Australia).</summary>
+    public static IReadOnlyList<string> CoverLines(ClientDetails c, RegionSettings region)
     {
+        var (abn, acn) = (region.BusinessNumberLabel, region.CompanyNumberLabel);
         var lines = new List<string>();
         if (c.HasTrustee && !string.IsNullOrWhiteSpace(c.TrusteeName))
-            lines.Add($"Trustee: {c.TrusteeName}" + (c.CorporateTrustee && !string.IsNullOrEmpty(c.TrusteeAcn) ? $" (ACN {c.TrusteeAcnDisplay})" : ""));
+            lines.Add($"Trustee: {c.TrusteeName}" + (c.CorporateTrustee && !string.IsNullOrEmpty(c.TrusteeAcn) ? $" ({acn} {c.TrusteeAcnDisplay})" : ""));
         if (!string.IsNullOrEmpty(c.Abn))
-            lines.Add($"ABN {c.AbnDisplay}");
+            lines.Add($"{abn} {c.AbnDisplay}");
         if (c.EntityType == ClientEntityTypes.Company && !string.IsNullOrEmpty(c.Acn))
-            lines.Add($"ACN {c.AcnDisplay}");
+            lines.Add($"{acn} {c.AcnDisplay}");
         return lines;
     }
 
@@ -142,8 +147,13 @@ public static class ReportPackBuilder
     }
 
     /// <summary>The compilation report in the form of APES 315 Compilation of Financial Information.</summary>
-    public static CompilationReport Compilation(FinancialStatements fs, PracticeDetails? practice)
+    public static CompilationReport Compilation(FinancialStatements fs, PracticeDetails? practice) =>
+        Compilation(fs, practice, RegionSettings.Current);
+
+    /// <summary>Outside Australia the APES 315 and APES 110 references are left out (other countries have their own standards).</summary>
+    public static CompilationReport Compilation(FinancialStatements fs, PracticeDetails? practice, RegionSettings region)
     {
+        var au = region.IsAustralia;
         var c = fs.Client;
         var basis = string.IsNullOrWhiteSpace(c.ReportingBasis) ? ClientDetails.DefaultReportingBasis : c.ReportingBasis.Trim();
         var statementsWord = basis.EndsWith("report", StringComparison.OrdinalIgnoreCase) ? basis[..^"report".Length].TrimEnd() + " statements" : "financial statements";
@@ -164,8 +174,8 @@ public static class ReportPackBuilder
             ]),
             new("Our responsibility",
             [
-                $"On the basis of information provided by {responsible}, we have compiled the accompanying {statementsWord} in accordance with the financial reporting framework described in Note 1 to the financial statements and APES 315 Compilation of Financial Information.",
-                "We have applied our expertise in accounting and financial reporting to compile these financial statements in accordance with the financial reporting framework described in Note 1 to the financial statements. We have complied with the relevant ethical requirements of APES 110 Code of Ethics for Professional Accountants (including Independence Standards).",
+                $"On the basis of information provided by {responsible}, we have compiled the accompanying {statementsWord} in accordance with the financial reporting framework described in Note 1 to the financial statements" + (au ? " and APES 315 Compilation of Financial Information." : "."),
+                "We have applied our expertise in accounting and financial reporting to compile these financial statements in accordance with the financial reporting framework described in Note 1 to the financial statements. We have complied with the relevant ethical requirements" + (au ? " of APES 110 Code of Ethics for Professional Accountants (including Independence Standards)." : "."),
             ]),
             new("Assurance disclaimer",
             [

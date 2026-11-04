@@ -51,12 +51,12 @@
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label asp-for="Input.Abn" class="form-label">ABN</label>
-                    <input asp-for="Input.Abn" class="form-control" maxlength="14" inputmode="numeric" placeholder="e.g. 51 824 753 556" />
+                    <label asp-for="Input.Abn" class="form-label">@RegionSettings.Current.BusinessNumberLabel</label>
+                    <input asp-for="Input.Abn" class="form-control" maxlength="24" inputmode="@(RegionSettings.Current.IsAustralia ? "numeric" : null)" placeholder="@(RegionSettings.Current.IsAustralia ? "e.g. 51 824 753 556" : null)" />
                 </div>
                 <div class="col-md-4" data-show-for="Company">
-                    <label asp-for="Input.Acn" class="form-label">ACN</label>
-                    <input asp-for="Input.Acn" class="form-control" maxlength="11" inputmode="numeric" placeholder="e.g. 000 000 019" />
+                    <label asp-for="Input.Acn" class="form-label">@RegionSettings.Current.CompanyNumberLabel</label>
+                    <input asp-for="Input.Acn" class="form-control" maxlength="24" inputmode="@(RegionSettings.Current.IsAustralia ? "numeric" : null)" placeholder="@(RegionSettings.Current.IsAustralia ? "e.g. 000 000 019" : null)" />
                 </div>
             </div>
         </div>
@@ -81,8 +81,8 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label asp-for="Input.TrusteeAcn" class="form-label">Trustee company ACN</label>
-                    <input asp-for="Input.TrusteeAcn" class="form-control" maxlength="11" inputmode="numeric" />
+                    <label asp-for="Input.TrusteeAcn" class="form-label">Trustee company @RegionSettings.Current.CompanyNumberLabel</label>
+                    <input asp-for="Input.TrusteeAcn" class="form-control" maxlength="24" inputmode="@(RegionSettings.Current.IsAustralia ? "numeric" : null)" />
                     <div class="form-text">Corporate trustee only.</div>
                 </div>
             </div>
