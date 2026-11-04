@@ -215,6 +215,21 @@ public sealed class PortfolioService(IDbConnectionFactory db)
         return ProcResult.From(result, "Settings Saved");
     }
 
+    /// <summary>
+    /// The settings a new portfolio starts with for the country picked when it was made: that country's usual year,
+    /// currency and format. Null for Australia (or an unknown code), which is what a new portfolio already has.
+    /// </summary>
+    public static RegionSettings? NewPortfolioRegion(string? countryCode) =>
+        RegionSettings.FindCountry(countryCode) is { } c && c.Code != RegionSettings.AustraliaCode
+            ? RegionSettings.From(c.Code, null, null, null, null)
+            : null;
+
+    /// <summary>Gives a just-made portfolio the picked country's settings (nothing to do for Australia).</summary>
+    public async Task<ProcResult> SetNewPortfolioCountryAsync(int userId, int portfolioId, string? countryCode) =>
+        NewPortfolioRegion(countryCode) is { } settings
+            ? await SaveRegionAsync(userId, portfolioId, settings)
+            : ProcResult.Success();
+
     public static object RegionParameters(int userId, int portfolioId, RegionSettings s) => new
     {
         iUserId = userId,

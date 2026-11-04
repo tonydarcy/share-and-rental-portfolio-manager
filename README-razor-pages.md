@@ -15,6 +15,9 @@ over a SQL Server database whose stored procedures post the double-entry journal
 
 - **Log in / log out.** Passwords are stored as PBKDF2 hashes (compatible with the older Web Forms site's accounts),
   and attempts are still recorded with `uspRecordLoginAttempt`.
+- **Country on sign-up and new portfolios**: Create an account and Manage portfolios both ask for the country
+  (Australia preselected). Any other country gets that country's usual financial year, currency and format
+  (`PortfolioService.NewPortfolioRegion`), saved with `uspSavePortfolioRegion`; Portfolio settings can change them later.
 - **Portfolio picker** in the navbar, using `uspGetAccessiblePortfolios`. The choice is checked
   against that list on every request.
 - **Back up or restore** (account menu, `Pages/Portfolio/Backup`, `Core/Backup`): an owner downloads the portfolio as
