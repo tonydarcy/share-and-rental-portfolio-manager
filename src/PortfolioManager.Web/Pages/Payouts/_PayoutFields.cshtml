@@ -123,3 +123,22 @@
     <input asp-for="Confirmed" class="form-check-input" />
     <label asp-for="Confirmed" class="form-check-label">Payment received (confirmed)</label>
 </div>
+<script>
+    // Cash received fills itself in as income less tax withheld, until it is typed over
+    (function () {
+        const form = document.currentScript.closest('form');
+        if (!form) return;
+        const field = n => form.querySelector('[name$=".' + n + '"]:not([type=hidden])');
+        const total = field('Total');
+        if (!total || total.readOnly) return;
+        const income = ['Franked', 'Unfranked', 'Interest', 'Other', 'TrustIncome'], tax = ['TaxWithheld', 'ForeignTax'];
+        const value = n => parseFloat(field(n)?.value) || 0;
+        let typed = (parseFloat(total.value) || 0) !== 0;
+        total.addEventListener('input', () => typed = total.value !== '');
+        income.concat(tax).forEach(n => field(n)?.addEventListener('input', () => {
+            if (typed) return;
+            const cash = income.reduce((s, n) => s + value(n), 0) - tax.reduce((s, n) => s + value(n), 0);
+            total.value = cash > 0 ? cash.toFixed(2) : 0;
+        }));
+    })();
+</script>

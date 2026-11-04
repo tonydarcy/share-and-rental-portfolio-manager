@@ -30,7 +30,7 @@
     </script>
 </head>
 <body class="bg-body-tertiary">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <nav class="navbar navbar-expand-xl navbar-dark bg-dark mb-4">
         <div class="container-fluid">
             <a class="navbar-brand" asp-page="/Index">
                 @if (!string.IsNullOrWhiteSpace(Site.LogoUrl))
@@ -46,7 +46,7 @@
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="mainNav">
-                    <ul class="navbar-nav me-auto">
+                    <ul class="navbar-nav me-auto flex-wrap">
                         <li class="nav-item"><a class="nav-link" asp-page="/Index">Dashboard</a></li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Holdings</a>
@@ -239,7 +239,7 @@
                     </ul>
                     @if (portfolios.Count > 1)
                     {
-                        <form method="post" asp-page="/Portfolio/Select" class="d-flex me-lg-3 my-2 my-lg-0">
+                        <form method="post" asp-page="/Portfolio/Select" class="d-flex me-xl-3 my-2 my-xl-0">
                             <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)" />
                             <label for="portfolioId" class="visually-hidden">Portfolio</label>
                             <select id="portfolioId" name="portfolioId" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -253,11 +253,11 @@
                     }
                     else if (selected is not null)
                     {
-                        <span class="navbar-text me-lg-3">@selected.Name</span>
+                        <span class="navbar-text text-nowrap me-xl-3">@selected.Name</span>
                     }
                     @if (selected is { CanEdit: false })
                     {
-                        <span class="badge text-bg-warning me-lg-3" title="You can look at this portfolio but not change it">View only</span>
+                        <span class="badge text-bg-warning me-xl-3" title="You can look at this portfolio but not change it">View only</span>
                     }
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">

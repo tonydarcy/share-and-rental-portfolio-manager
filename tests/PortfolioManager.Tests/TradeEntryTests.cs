@@ -295,4 +295,20 @@ public class TradeEntryTests
         Assert.Null(TradeEntry.CheckSettlementAccount(t with { Cash = t.Cash! with { BankAccount = "New account" } }, "AUD", accounts));
         Assert.Null(TradeEntry.CheckSettlementAccount(t with { Cash = t.Cash! with { BankAccount = null } }, "AUD", accounts));
     }
+
+    private static NewTrade Sale(decimal units) =>
+        new(new DateOnly(2025, 3, 11), TradeType.Sell, "ASX", "ZZT", null, units, 15m, 9.95m, "AUD", 1m, "", null);
+
+    [Fact]
+    public void Selling_more_than_held_is_refused_unless_ticked()
+    {
+        var error = TradeEntry.CheckOversell(Sale(500), 60, confirmed: false);
+        Assert.NotNull(error);
+        Assert.Equal(nameof(TradeForm.Quantity), error.Field);
+        Assert.Contains("only 60", error.Message);
+        Assert.Contains("no ZZT", TradeEntry.CheckOversell(Sale(1), 0, false)!.Message);
+        Assert.Null(TradeEntry.CheckOversell(Sale(500), 60, confirmed: true));
+        Assert.Null(TradeEntry.CheckOversell(Sale(60), 60, confirmed: false));
+        Assert.Null(TradeEntry.CheckOversell(Sale(500) with { Type = TradeType.Buy }, 0, false));
+    }
 }

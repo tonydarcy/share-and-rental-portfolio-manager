@@ -28,6 +28,9 @@ public sealed class TradeForm
     public string? BankAccount { get; set; }
     public DateOnly? SettlementDate { get; set; }
     public string? CashComment { get; set; }
+
+    /// <summary>Ticked after the site warns that a sale is for more units than are held on that date.</summary>
+    public bool SellMoreThanHeld { get; set; }
 }
 
 /// <summary>Bank details for the cash side of a trade. Nulls let the proc pick its defaults.</summary>
@@ -187,6 +190,19 @@ public static class TradeEntry
             return null;
         return new(nameof(TradeForm.BankAccount),
             $"Trade settlements are recorded in {portfolioCurrency}, but {name} is a {string.Join("/", currencies)} account. Pick a {portfolioCurrency} account, or untick the cash option and add the cash transaction separately.");
+    }
+
+    /// <summary>
+    /// A sale of more units than the portfolio holds on that date is almost always a typo or a missing buy,
+    /// and leaves a negative holding. It is refused unless the user ticks that they mean it.
+    /// </summary>
+    public static FieldError? CheckOversell(NewTrade trade, decimal unitsHeld, bool confirmed)
+    {
+        if (trade.Type != TradeType.Sell || confirmed || trade.Quantity <= unitsHeld)
+            return null;
+        var held = unitsHeld <= 0 ? "no" : $"only {unitsHeld:#,##0.########}";
+        return new(nameof(TradeForm.Quantity),
+            $"You hold {held} {trade.Code} units on {trade.Date:d MMM yyyy}. Check the units, add the missing buy first, or tick the box below to record it anyway.");
     }
 
     /// <summary>Parameters for uspAddShareTrade (trade only, no bank entry).</summary>

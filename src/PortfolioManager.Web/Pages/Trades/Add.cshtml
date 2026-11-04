@@ -67,16 +67,21 @@
                     </div>
                     <div class="col-12">
                         <label asp-for="Input.Name" class="form-label">Stock name <span class="text-muted small">(optional)</span></label>
-                        <input asp-for="Input.Name" class="form-control" maxlength="500" />
-                        <div class="form-text">Left blank, the name already on file for this code is used.</div>
+                        <input asp-for="Input.Name" class="form-control" maxlength="500" placeholder="Uses the name on file if blank" />
                         <span asp-validation-for="Input.Name" class="text-danger small"></span>
                     </div>
 
                     <div class="col-sm-4">
                         <label asp-for="Input.Quantity" class="form-label">Units</label>
                         <input asp-for="Input.Quantity" type="number" min="0" step="any" class="form-control" required />
-                        <div class="form-text">Part units are fine (up to 8 decimal places).</div>
                         <span asp-validation-for="Input.Quantity" class="text-danger small"></span>
+                        @if (Model.ShowSellAnyway)
+                        {
+                            <div class="form-check mt-1">
+                                <input asp-for="Input.SellMoreThanHeld" class="form-check-input" />
+                                <label asp-for="Input.SellMoreThanHeld" class="form-check-label small">Record it anyway</label>
+                            </div>
+                        }
                     </div>
                     <div class="col-sm-4">
                         <label asp-for="Input.Price" class="form-label">Price per unit</label>
@@ -106,8 +111,7 @@
                     <div class="col-sm-8">
                         <label asp-for="Input.ExchangeRate" class="form-label">Exchange rate</label>
                         <input asp-for="Input.ExchangeRate" type="number" min="0" step="any" class="form-control" />
-                        <div class="form-text">Units of trade currency per 1 @Model.PortfolioCurrency, e.g. 0.65 for a USD trade. Use 1 for @Model.PortfolioCurrency trades.
-                            Leave it blank (or 1) on a foreign trade to use the FX close on file for the trade date.</div>
+                        <div class="form-text">Trade currency per 1 @Model.PortfolioCurrency (e.g. 0.65 for USD). Blank uses that day's rate.</div>
                         <span asp-validation-for="Input.ExchangeRate" class="text-danger small"></span>
                     </div>
 
@@ -128,7 +132,6 @@
                             <input asp-for="Input.RecordCash" class="form-check-input" />
                             <label asp-for="Input.RecordCash" class="form-check-label">Also add the matching cash transaction</label>
                         </div>
-                        <div class="form-text">The bank withdrawal for a buy, or deposit for a sale, in @Model.PortfolioCurrency.</div>
                     </div>
                 </div>
 
@@ -146,8 +149,7 @@
                     </div>
                     <div class="col-sm-5">
                         <label asp-for="Input.SettlementDate" class="form-label">Settlement date</label>
-                        <input asp-for="Input.SettlementDate" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" />
-                        <div class="form-text">Blank means two days after the trade.</div>
+                        <input asp-for="Input.SettlementDate" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" title="Blank means two days after the trade" />
                         <span asp-validation-for="Input.SettlementDate" class="text-danger small"></span>
                     </div>
                     <div class="col-12">

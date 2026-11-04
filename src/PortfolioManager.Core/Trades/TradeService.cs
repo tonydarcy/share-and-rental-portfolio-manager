@@ -22,6 +22,20 @@ public sealed class TradeService(IDbConnectionFactory db)
         await tx.CommitAsync();
     }
 
+    /// <summary>Units held of one code at the end of a day (buys less sells; splits are already applied to the trades).</summary>
+    public async Task<decimal> GetUnitsHeldAsync(int portfolioId, string market, string code, DateOnly date)
+    {
+        await using var con = db.Create();
+        var units = await con.ExecuteScalarAsync<double?>(
+            """
+            SELECT SUM(CASE UPPER(strType) WHEN 'BUY' THEN iQuantity WHEN 'SELL' THEN -iQuantity ELSE 0 END)
+            FROM tblShareTrades
+            WHERE iUserId = @portfolioId AND strStockExchangeCode = @market AND strStockCode = @code AND dtmDateOfTransaction <= @date
+            """,
+            new { portfolioId, market = AnsiText.Of(market), code = AnsiText.Of(code), date = date.ToDateTime(TimeOnly.MinValue) });
+        return (decimal)Math.Round(units ?? 0, 8);
+    }
+
     /// <summary>Records the trade inside the caller's transaction, then any securities transaction tax (India) against it.</summary>
     public static async Task AddAsync(IDbConnection con, IDbTransaction tx, int portfolioId, NewTrade trade)
     {
