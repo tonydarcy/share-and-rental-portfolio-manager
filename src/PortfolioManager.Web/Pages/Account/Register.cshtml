@@ -25,6 +25,16 @@
                         <input asp-for="PortfolioName" class="form-control" maxlength="100" required />
                     </div>
                     <div class="mb-3">
+                        <label asp-for="CountryCode" class="form-label">Country</label>
+                        <select asp-for="CountryCode" class="form-select">
+                            @foreach (var c in RegionSettings.Countries)
+                            {
+                                <option value="@c.Code">@c.Name</option>
+                            }
+                        </select>
+                        <div class="form-text">Sets the financial year, currency and tax reports. You can change it later in Portfolio settings.</div>
+                    </div>
+                    <div class="mb-3">
                         <label asp-for="Password" class="form-label"></label>
                         <input asp-for="Password" class="form-control" autocomplete="new-password" minlength="@AccountService.MinPasswordLength" required />
                         <div class="form-text">At least @AccountService.MinPasswordLength characters. A short phrase is easier to remember.</div>

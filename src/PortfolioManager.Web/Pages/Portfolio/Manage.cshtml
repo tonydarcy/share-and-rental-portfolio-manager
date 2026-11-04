@@ -73,6 +73,16 @@
                         <label asp-for="EntityType" class="form-label">Entity type</label>
                         <select asp-for="EntityType" asp-items="@(new SelectList(PortfolioService.EntityTypes))" class="form-select"></select>
                     </div>
+                    <div class="mb-3">
+                        <label asp-for="CountryCode" class="form-label">Country</label>
+                        <select asp-for="CountryCode" class="form-select">
+                            @foreach (var c in RegionSettings.Countries)
+                            {
+                                <option value="@c.Code">@c.Name</option>
+                            }
+                        </select>
+                        <div class="form-text">Sets the financial year, currency and tax reports. You can change it later in Portfolio settings.</div>
+                    </div>
                     <button type="submit" class="btn btn-success">Create portfolio</button>
                 </form>
                 <p class="small text-muted mt-3 mb-0">

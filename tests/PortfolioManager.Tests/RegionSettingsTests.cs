@@ -154,4 +154,22 @@ public class RegionSettingsTests
         Assert.Equal(0m, summary.Discount);
         Assert.Equal(2000m, summary.NetCapitalGain);
     }
+
+    [Fact]
+    public void NewPortfolioRegion_UsesTheCountrysUsualSettings()
+    {
+        var uk = PortfolioService.NewPortfolioRegion("GB")!;
+        Assert.Equal("GB", uk.CountryCode);
+        Assert.Equal(new YearStart(4, 6), uk.YearStart);
+        Assert.Equal("GBP", uk.Currency);
+        Assert.Equal("en-GB", uk.Format);
+        Assert.Equal("INR", PortfolioService.NewPortfolioRegion("in")!.Currency);
+    }
+
+    [Theory]
+    [InlineData("AU")]
+    [InlineData("ZZ")]
+    [InlineData(null)]
+    public void NewPortfolioRegion_NothingToChangeForAustraliaOrUnknown(string? code) =>
+        Assert.Null(PortfolioService.NewPortfolioRegion(code));
 }

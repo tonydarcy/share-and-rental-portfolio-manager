@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.RateLimiting;
 using PortfolioManager.Core.Accounts;
 using PortfolioManager.Core.Email;
+using PortfolioManager.Core.Portfolios;
+using PortfolioManager.Core.Regions;
 using PortfolioManager.Web.Services;
 
 namespace PortfolioManager.Web.Pages.Account;
@@ -13,7 +15,7 @@ namespace PortfolioManager.Web.Pages.Account;
 [AllowViewOnly]
 [EnableRateLimiting(SignInFlow.RateLimit)]
 public class RegisterModel(AccountService accounts, AccountTokens tokens, IEmailSender email, Captcha captcha, SiteBranding site,
-    ILogger<RegisterModel> logger, LegalSettings legal, TermsFilter terms) : PageModel
+    ILogger<RegisterModel> logger, LegalSettings legal, TermsFilter terms, PortfolioService portfolios) : PageModel
 {
     // Filled in from an invitation email's link
     [BindProperty(SupportsGet = true), Display(Name = "Email")]
@@ -24,6 +26,9 @@ public class RegisterModel(AccountService accounts, AccountTokens tokens, IEmail
 
     [BindProperty, Display(Name = "Portfolio name")]
     public string? PortfolioName { get; set; } = "My Portfolio";
+
+    [BindProperty]
+    public string CountryCode { get; set; } = RegionSettings.AustraliaCode;
 
     [BindProperty, DataType(DataType.Password)]
     public string? Password { get; set; }
@@ -48,6 +53,8 @@ public class RegisterModel(AccountService accounts, AccountTokens tokens, IEmail
             ModelState.AddModelError(string.Empty, "Enter a portfolio name (up to 100 characters).");
         if ((ContactName?.Length ?? 0) > 100)
             ModelState.AddModelError(string.Empty, "Your name can be at most 100 characters.");
+        if (RegionSettings.FindCountry(CountryCode) is null)
+            ModelState.AddModelError(string.Empty, "Choose a country.");
         if (legal.Enabled && !AgreeToTerms)
             ModelState.AddModelError(string.Empty, "Please tick the box to agree to the terms of use and privacy policy.");
         if (!ModelState.IsValid)
@@ -64,9 +71,17 @@ public class RegisterModel(AccountService accounts, AccountTokens tokens, IEmail
             return Page();
         }
 
-        // Keep a record of which terms they agreed to, and when
-        if (legal.Enabled && await accounts.FindByEmailAsync(Email!) is { } created)
-            await terms.AcceptAsync(created.UserId, HttpContext.Connection.RemoteIpAddress?.ToString());
+        if (await accounts.FindByEmailAsync(Email!) is { } created)
+        {
+            // A login's first portfolio has the login's own id
+            var region = await portfolios.SetNewPortfolioCountryAsync(created.UserId, created.UserId, CountryCode);
+            if (!region.Ok)
+                logger.LogWarning("Couldn't set the country for new login {UserId}: {Error}", created.UserId, region.Error);
+
+            // Keep a record of which terms they agreed to, and when
+            if (legal.Enabled)
+                await terms.AcceptAsync(created.UserId, HttpContext.Connection.RemoteIpAddress?.ToString());
+        }
 
         // With email settings, the new login can't be used until the person follows the emailed link
         if (email.IsConfigured && await accounts.FindByEmailAsync(Email!) is { EmailConfirmed: false } user)

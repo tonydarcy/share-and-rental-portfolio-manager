@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using PortfolioManager.Core.Portfolios;
+using PortfolioManager.Core.Regions;
 using PortfolioManager.Web.Services;
 
 namespace PortfolioManager.Web.Pages.Portfolio;
@@ -15,6 +16,9 @@ public class ManageModel(CurrentPortfolio current, PortfolioService portfolios) 
     [BindProperty]
     public string EntityType { get; set; } = PortfolioService.EntityTypes[0];
 
+    [BindProperty]
+    public string CountryCode { get; set; } = RegionSettings.AustraliaCode;
+
     public IReadOnlyList<PortfolioSummary> Portfolios { get; private set; } = [];
     public PortfolioSummary? Selected { get; private set; }
 
@@ -24,6 +28,8 @@ public class ManageModel(CurrentPortfolio current, PortfolioService portfolios) 
     {
         foreach (var error in PortfolioService.ValidateNew(Name, EntityType))
             ModelState.AddModelError(string.Empty, error);
+        if (RegionSettings.FindCountry(CountryCode) is null)
+            ModelState.AddModelError(string.Empty, "Choose a country.");
         if (!ModelState.IsValid)
         {
             await LoadAsync();
@@ -38,7 +44,10 @@ public class ManageModel(CurrentPortfolio current, PortfolioService portfolios) 
         var added = (await current.GetAccessibleAsync()).Where(p => !before.Contains(p.PortfolioId)).ToList();
         // Switch to the new portfolio when it can be told apart
         if (added.Count == 1)
+        {
+            await portfolios.SetNewPortfolioCountryAsync(CurrentPortfolio.UserId(User), added[0].PortfolioId, CountryCode);
             await current.TrySelectAsync(added[0].PortfolioId);
+        }
 
         TempData["Message"] = $"Created the portfolio \"{Name!.Trim()}\"" + (added.Count == 1 ? " and switched to it." : ".");
         return RedirectToPage();
