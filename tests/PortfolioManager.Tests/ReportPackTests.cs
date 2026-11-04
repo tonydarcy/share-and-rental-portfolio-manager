@@ -1,4 +1,5 @@
 using PortfolioManager.Core.Clients;
+using PortfolioManager.Core.Regions;
 using PortfolioManager.Core.Statements;
 
 namespace PortfolioManager.Tests;
@@ -126,5 +127,44 @@ public class ReportPackTests
         var c = Client(ClientEntityTypes.Trust, TrusteeTypes.Individual);
         var text = string.Join(" ", ReportPackBuilder.Compilation(Statements(c), Practice).Sections.SelectMany(s => s.Paragraphs));
         Assert.Contains("The trustee of Smith Holdings is solely responsible", text);
+    }
+
+    [Fact]
+    public void Outside_australia_the_numbers_use_local_names_and_no_apes()
+    {
+        var uk = RegionSettings.From("GB", null, null, null, null);
+        var c = Client(ClientEntityTypes.Company);
+        Assert.Equal(["VAT number 51 824 753 556", "Company number 000 000 019"], ReportPackBuilder.CoverLines(c, uk));
+        var text = string.Join(" ", ReportPackBuilder.Compilation(Statements(c), Practice, uk).Sections.SelectMany(s => s.Paragraphs));
+        Assert.DoesNotContain("APES", text);
+        Assert.Contains("We have complied with the relevant ethical requirements.", text);
+        var au = string.Join(" ", ReportPackBuilder.Compilation(Statements(c), Practice, RegionSettings.Australia).Sections.SelectMany(s => s.Paragraphs));
+        Assert.Contains("APES 315", au);
+    }
+
+    [Theory]
+    [InlineData("AU", "ABN", "ACN")]
+    [InlineData("IN", "GSTIN", "CIN")]
+    [InlineData("US", "EIN", "Company number")]
+    [InlineData("XX", "Tax number", "Company number")]
+    public void Business_number_labels(string country, string business, string company)
+    {
+        Assert.Equal(business, RegionSettings.BusinessNumberLabelFor(country));
+        Assert.Equal(company, RegionSettings.CompanyNumberLabelFor(country));
+    }
+
+    [Fact]
+    public void Overseas_numbers_skip_the_abn_check_digits()
+    {
+        var input = new ClientDetailsInput { LegalName = "Acme Ltd", EntityType = ClientEntityTypes.Company, Abn = "GB123456789", Acn = "01234567" };
+        var before = RegionSettings.Current;
+        try
+        {
+            RegionSettings.Current = RegionSettings.From("GB", null, null, null, null);
+            Assert.DoesNotContain(input.Validate(), e => e.Contains("ABN") || e.Contains("ACN"));
+            RegionSettings.Current = RegionSettings.Australia;
+            Assert.Contains(input.Validate(), e => e.Contains("ABN"));
+        }
+        finally { RegionSettings.Current = before; }
     }
 }

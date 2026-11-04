@@ -81,10 +81,33 @@
                 {
                     <tr class="fw-bold"><td>Net capital loss carried forward</td><td class="text-end text-danger">@c.LossCarriedForward.ToString("C")</td></tr>
                 }
+                @if (Model.Allowance is { } a)
+                {
+                    <tr><td class="fw-normal">@a.Label</td><td class="text-end fw-normal">@a.Amount.ToString("C")</td></tr>
+                    <tr class="fw-bold"><td>@a.ResultLabel</td><td class="text-end">@a.Result.ToString("C")</td></tr>
+                }
             </tfoot>
         </table>
     </div>
+    @if (Model.Repurchases.Count > 0)
+    {
+        <div class="alert alert-warning">
+            <div class="fw-bold mb-1">Possible @Model.RepurchaseRule rule</div>
+            These losses had the same share bought within @CountryCgt.RepurchaseWindowDays days before or after the sale, so all or
+            part of the loss may not be allowed and is added to the new shares' cost instead. The figures above still include the full loss.
+            <ul class="mb-0 mt-1">
+                @foreach (var w in Model.Repurchases)
+                {
+                    <li>@w.StockCode (@w.ExchangeCode): sold @w.Sold.ToString("d MMM yyyy") at a loss of @w.Loss.ToString("C"); @w.UnitsBought.ToString("#,0.####") bought @w.Bought.ToString("d MMM yyyy")</li>
+                }
+            </ul>
+        </div>
+    }
     <p class="text-muted small">
+        @if (Model.Allowance is { } note)
+        {
+            <text>@note.Note </text>
+        }
         @if (c.Rate.Kind == CgtEntityKind.Individual)
         {
             <text>On an individual return these are item 18: total current year capital gains (H) is the gross capital gains, net capital gain is A, and a loss carried forward is V. </text>

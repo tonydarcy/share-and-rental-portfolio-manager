@@ -184,10 +184,17 @@ public sealed class ClientDetailsInput
         if (!ClientEntityTypes.All.Contains(EntityType))
             errors.Add("Choose the entity type.");
 
-        if (CleanAbn is { } abn && !BusinessNumbers.IsValidAbn(abn))
+        // ABN and ACN check digits are Australian; other countries' numbers are taken as entered
+        var au = Regions.RegionSettings.Current.IsAustralia;
+        if (CleanAbn is { Length: > 20 })
+            errors.Add("The business number can be at most 20 characters.");
+        if ((CleanAcn?.Length ?? 0) > 20 || (CleanTrusteeAcn?.Length ?? 0) > 20)
+            errors.Add("A company number can be at most 20 characters.");
+
+        if (au && CleanAbn is { } abn && !BusinessNumbers.IsValidAbn(abn))
             errors.Add("The ABN isn't valid. It has 11 digits and its check digits must add up (check it on ABN Lookup).");
 
-        if (CleanAcn is { } acn)
+        if (au && CleanAcn is { } acn)
         {
             if (!BusinessNumbers.IsValidAcn(acn))
                 errors.Add("The ACN isn't valid. It has 9 digits and its last digit is a check digit.");
@@ -201,7 +208,7 @@ public sealed class ClientDetailsInput
                 errors.Add("Choose whether the trustee is an individual or a company.");
             if ((CleanTrusteeName?.Length ?? 0) > 500)
                 errors.Add("The trustee's name can be at most 500 characters.");
-            if (CleanTrusteeAcn is { } tacn && !BusinessNumbers.IsValidAcn(tacn))
+            if (au && CleanTrusteeAcn is { } tacn && !BusinessNumbers.IsValidAcn(tacn))
                 errors.Add("The trustee company's ACN isn't valid.");
         }
 

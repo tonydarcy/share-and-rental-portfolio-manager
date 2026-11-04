@@ -60,7 +60,7 @@
         <div class="d-flex justify-content-between flex-wrap gap-3 mb-4">
             <div>
                 <div class="fs-4 fw-bold">@Model.BusinessName</div>
-                @if (Model.Business?.Abn is { Length: > 0 } abn) { <div class="small">ABN @abn</div> }
+                @if (Model.Business?.Abn is { Length: > 0 } abn) { <div class="small">@RegionSettings.Current.BusinessNumberLabel @abn</div> }
             </div>
             <div class="text-end">
                 <div class="fs-4 text-uppercase">@label</div>

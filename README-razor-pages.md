@@ -18,6 +18,14 @@ over a SQL Server database whose stored procedures post the double-entry journal
 - **Country on sign-up and new portfolios**: Create an account and Manage portfolios both ask for the country
   (Australia preselected). Any other country gets that country's usual financial year, currency and format
   (`PortfolioService.NewPortfolioRegion`), saved with `uspSavePortfolioRegion`; Portfolio settings can change them later.
+- **Outside Australia** (`Core/Tax/CountryCgt.cs`): the realised capital gains report adds the UK annual exempt
+  amount (£3,000, trusts £1,500), Canada's 50% inclusion rate and India's ₹1.25 lakh long-term exemption under the
+  net capital gain, and for the US and Canada lists losses with the same share bought within 30 days either side
+  (possible wash sale / superficial loss; a warning only). London prices and dividends EODHD gives in pence are stored
+  in pounds (the LSE symbol list says which codes are in pence). Invoices, statements and the accounts pack call the
+  ABN and ACN by the country's names (`RegionSettings.BusinessNumberLabel`), ABN/ACN check digits only apply in
+  Australia, and the compilation report leaves out APES 315 and APES 110 elsewhere. India's STT on a trade is left
+  out of the capital gains cost and proceeds.
 - **Portfolio picker** in the navbar, using `uspGetAccessiblePortfolios`. The choice is checked
   against that list on every request.
 - **Back up or restore** (account menu, `Pages/Portfolio/Backup`, `Core/Backup`): an owner downloads the portfolio as
@@ -676,6 +684,11 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   checks in CI that a switched portfolio's ledger matches one that was double entry from the start.
 - `2026-10-29-switch-on-delete-all.sql` (after `2026-10-29-delete-sync-records.sql`): **Delete data > Everything** also
   switches a single-entry portfolio to double entry, since nothing is left to post. Changes `uspDeletePortfolioData` only.
+- `2026-11-04-securities-transaction-tax.sql`: India's securities transaction tax on a trade (Add trade, "of which STT",
+  shown for portfolios in India). Adds `tblTradeSecuritiesTax`, `uspSetLatestTradeSecuritiesTax` and
+  `uspGetTradeSecuritiesTax`. **Run before deploying**: the capital gains pages of portfolios set to India read it.
+- `2026-11-04-02-overseas-business-numbers.sql`: client business and company numbers up to 20 characters (VAT number,
+  GSTIN, EIN and so on), widening three `tblClientDetails` columns and `uspSaveClientDetails`.
 
 ## API and MCP server
 

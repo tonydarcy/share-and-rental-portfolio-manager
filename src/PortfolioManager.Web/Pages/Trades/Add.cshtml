@@ -88,6 +88,15 @@
                         <input asp-for="Input.Brokerage" type="number" min="0" step="0.01" class="form-control" />
                         <span asp-validation-for="Input.Brokerage" class="text-danger small"></span>
                     </div>
+                    @if (RegionSettings.Current.CountryCode == "IN")
+                    {
+                        <div class="col-sm-4">
+                            <label asp-for="Input.SecuritiesTax" class="form-label">of which STT</label>
+                            <input asp-for="Input.SecuritiesTax" type="number" min="0" step="0.01" class="form-control" />
+                            <div class="form-text">Securities transaction tax included in the brokerage. It's paid, but left out of the capital gains cost.</div>
+                            <span asp-validation-for="Input.SecuritiesTax" class="text-danger small"></span>
+                        </div>
+                    }
 
                     <div class="col-sm-4">
                         <label asp-for="Input.Currency" class="form-label">Trade currency</label>

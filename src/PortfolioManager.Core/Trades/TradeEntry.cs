@@ -16,6 +16,9 @@ public sealed class TradeForm
     public decimal? Quantity { get; set; }
     public decimal? Price { get; set; }
     public decimal? Brokerage { get; set; }
+
+    /// <summary>India: the securities transaction tax (STT) included in the brokerage, kept out of the capital gains cost.</summary>
+    public decimal? SecuritiesTax { get; set; }
     public string? Currency { get; set; }
     public decimal? ExchangeRate { get; set; }
     public string? Comment { get; set; }
@@ -42,7 +45,8 @@ public sealed record NewTrade(
     string Currency,
     decimal ExchangeRate,
     string Comment,
-    CashSettlement? Cash)
+    CashSettlement? Cash,
+    decimal SecuritiesTax = 0m)
 {
     /// <summary>Value of the trade in its own currency, as uspAddShareTrade works it out.</summary>
     public decimal OrderTotal => TradeEntry.OrderTotal(Type, Quantity, Price, Brokerage);
@@ -110,6 +114,11 @@ public static class TradeEntry
         var brokerage = f.Brokerage ?? 0m;
         if (brokerage < 0)
             errors.Add(new(nameof(f.Brokerage), "Brokerage can't be negative."));
+        var securitiesTax = f.SecuritiesTax ?? 0m;
+        if (securitiesTax < 0)
+            errors.Add(new(nameof(f.SecuritiesTax), "Securities transaction tax can't be negative."));
+        else if (securitiesTax > brokerage)
+            errors.Add(new(nameof(f.SecuritiesTax), "Securities transaction tax is part of the brokerage, so it can't be more than the brokerage."));
 
         var currency = FormRules.Clean(f.Currency)?.ToUpperInvariant();
         if (currency is null)
@@ -158,7 +167,7 @@ public static class TradeEntry
             return new(null, errors);
 
         return new(new NewTrade(f.Date!.Value, type!.Value, market!, code!, name, quantity, f.Price!.Value, brokerage,
-            currency!, f.ExchangeRate!.Value, comment, cash), errors);
+            currency!, f.ExchangeRate!.Value, comment, cash, securitiesTax), errors);
     }
 
     /// <summary>

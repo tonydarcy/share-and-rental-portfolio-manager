@@ -151,8 +151,8 @@ or checked by someone who works with that country's tax.
 - No tax-free or retirement account types (ISA, SIPP, IRA, 401(k), Roth, TFSA, RRSP, PPF and so on). An account can be
   set up as a separate portfolio, but nothing treats its gains or income as tax free or deferred.
 - Withholding tax on foreign dividends can be entered, but there is no foreign tax credit calculation or treaty rates.
-- Financial statements, entity types (SMSF, family trust, company) and the compilation report follow Australian
-  practice and wording (ABN, ACN, APES 315). Other countries' statutory account formats are not built.
+- Financial statements and entity types (SMSF, family trust, company) follow Australian practice (the ABN/ACN labels
+  and APES references already change by country). Client addresses still expect an Australian state and postcode. Other countries' statutory account formats are not built.
 - Broker import formats are Australian apart from Interactive Brokers. Other overseas brokers' CSV exports would need
   mapping (or a saved layout).
 - No lodgment anywhere: the site can't submit returns to HMRC, the IRS, the CRA or the Income Tax Department.
@@ -165,11 +165,10 @@ or checked by someone who works with that country's tax.
 - Share matching rules: a sale must be matched first with shares bought the same day, then within the next 30 days
   ("bed and breakfast"), then against the Section 104 pool at average cost. The site's first in, first out gains are
   wrong for most UK investors who have bought the same share more than once.
-- No annual exempt amount (£3,000), no split of gains between the basic and higher CGT rates, and no dividend allowance
-  (£500) or dividend tax bands. There is no franking equivalent, so that part simply does not apply.
-- London prices: EODHD and most UK data sources quote LSE shares in pence (GBX), not pounds. Until the price loader
-  converts pence to pounds, UK holdings priced from the daily feed will be shown 100 times too high. Prices entered by
-  hand in pounds are fine.
+- The annual exempt amount is shown, but there is no split of gains between the basic and higher CGT rates, and no
+  dividend allowance (£500) or dividend tax bands. There is no franking equivalent, so that part simply does not apply.
+- London prices already loaded in pence before the daily feed started converting them (November 2026) stay 100
+  times too high until they are reloaded.
 - No Self Assessment pages (SA100, SA108 capital gains summary) and no excess reportable income from offshore reporting
   funds or notional distributions from accumulation units.
 - Making Tax Digital: VAT returns must be filed through HMRC-recognised software over HMRC's API. The VAT report gives
@@ -182,8 +181,8 @@ or checked by someone who works with that country's tax.
 
 - No short-term and long-term split: gains on assets held more than a year are taxed at lower rates, but the site
   shows only one total. (The Australian 12-month CGT discount logic is the starting point for this.)
-- No wash sale rule: a loss is disallowed and added to the cost of shares bought within 30 days before or after the
-  sale. This is the biggest gap for active US traders.
+- Wash sale rule: losses with a buy within 30 days either side are flagged, but the loss isn't disallowed or added to
+  the new shares' cost. This is the biggest gap for active US traders.
 - Cost basis methods: first in, first out and a picked parcel (specific identification) are there, but average cost
   for mutual funds is not.
 - No Form 8949 or Schedule D, no 1099-B, 1099-DIV or 1099-INT import, and no split of qualified and ordinary dividends.
@@ -197,7 +196,8 @@ or checked by someone who works with that country's tax.
 
 - Adjusted cost base: Canada requires the average cost of all identical shares a person owns (across all their
   taxable accounts), not first in, first out, so every gain shown is likely to be wrong for repeat purchases.
-- No 50% inclusion rate, and no superficial loss rule (a loss denied when the same share is bought within 30 days).
+- The 50% inclusion rate is shown and superficial losses are flagged, but a flagged loss isn't denied or added to the
+  new shares' adjusted cost base.
 - Dividends: no gross-up and dividend tax credit for eligible and non-eligible dividends (Canada's version of
   franking), which the franking code could be adapted for.
 - ETF and fund distributions: return of capital and reinvested ("phantom") capital gains distributions change the
@@ -212,13 +212,14 @@ or checked by someone who works with that country's tax.
 **India** (financial year 1 April to 31 March and lakh/crore number format, set up already)
 
 - Capital gains rates and periods: listed shares and equity funds are short term up to 12 months (taxed at 20%) and
-  long term after (12.5% above a ₹1.25 lakh yearly exemption). Other assets use 24 months. None of this is worked out.
+  long term after (12.5% above a ₹1.25 lakh yearly exemption). Other assets use 24 months. The exemption is shown;
+  the rates and the 24-month period are not worked out.
 - Grandfathering: for listed shares bought before 1 February 2018, the cost is the higher of actual cost and the
   31 January 2018 market price (capped at the sale price). Not built.
 - First in, first out matches what India requires for shares held in a demat account, so parcel matching itself is
   right.
-- Transaction costs: securities transaction tax (STT), stamp duty, exchange charges and GST on brokerage have to be
-  entered as brokerage. STT is not deductible from capital gains, so mixing it into brokerage overstates the cost.
+- Transaction costs: STT can be entered on a trade (and is kept out of the gain), but stamp duty, exchange charges and
+  GST on brokerage go in brokerage. STT on trades edited or imported from a broker file isn't kept yet.
 - Dividends are taxed at the person's slab rate with TDS deducted. TDS can be recorded as withholding, but there is no
   Form 26AS or Annual Information Statement (AIS) import, though the ATO prefill page is a model for one.
 - No ITR-2 or ITR-3 schedules (Schedule CG and the share-by-share Schedule 112A), and no treatment of intraday

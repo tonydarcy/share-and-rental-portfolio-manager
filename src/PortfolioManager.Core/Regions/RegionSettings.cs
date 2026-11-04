@@ -84,6 +84,32 @@ public sealed record RegionSettings(string CountryCode, YearStart YearStart, str
     /// <summary>Franking credits, the CGT discount and the other Australian tax wording apply.</summary>
     public bool IsAustralia => CountryCode == AustraliaCode;
 
+    /// <summary>What the business or tax registration number is called on invoices and statements ("ABN" in Australia).</summary>
+    public string BusinessNumberLabel => BusinessNumberLabelFor(CountryCode);
+
+    /// <summary>What a company's registration number is called ("ACN" in Australia).</summary>
+    public string CompanyNumberLabel => CompanyNumberLabelFor(CountryCode);
+
+    public static string BusinessNumberLabelFor(string? countryCode) => countryCode?.Trim().ToUpperInvariant() switch
+    {
+        AustraliaCode => "ABN",
+        "NZ" => "GST number",
+        "GB" or "IE" or "ZA" => "VAT number",
+        "US" => "EIN",
+        "CA" => "Business number",
+        "SG" => "UEN",
+        "HK" => "BR number",
+        "IN" => "GSTIN",
+        _ => "Tax number",
+    };
+
+    public static string CompanyNumberLabelFor(string? countryCode) => countryCode?.Trim().ToUpperInvariant() switch
+    {
+        AustraliaCode => "ACN",
+        "IN" => "CIN",
+        _ => "Company number",
+    };
+
     public Country Country => FindCountry(CountryCode) ?? Countries[^1];
 
     public static Country? FindCountry(string? code) =>

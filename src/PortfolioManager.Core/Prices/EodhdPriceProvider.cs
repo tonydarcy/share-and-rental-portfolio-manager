@@ -82,8 +82,54 @@ public sealed partial class EodhdPriceProvider(HttpClient http, EodhdOptions opt
         if (error is not null)
             return error;
         var result = Parse(body!);
-        return result.IsOk ? result : result with { Message = $"{providerSymbol}: {result.Message}" };
+        if (!result.IsOk)
+            return result with { Message = $"{providerSymbol}: {result.Message}" };
+        // London shares are mostly quoted in pence (GBX): store pounds, like every other GBP amount
+        return IsLondon(providerSymbol!) && (await PenceCodesAsync(ct)).Contains(symbol.StockCode.Trim()) ? InPounds(result) : result;
     }
+
+    private Task<HashSet<string>>? penceCodes;
+
+    private static bool IsLondon(string providerSymbol) => providerSymbol.EndsWith(".LSE", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The London codes EODHD quotes in pence, from its LSE symbol list (one API call a run). Empty if the list
+    /// can't be read, so prices are then stored as EODHD gives them.
+    /// </summary>
+    private Task<HashSet<string>> PenceCodesAsync(CancellationToken ct) => penceCodes ??= LoadPenceCodesAsync(ct);
+
+    private async Task<HashSet<string>> LoadPenceCodesAsync(CancellationToken ct)
+    {
+        var (body, error) = await GetAsync("exchange-symbol-list", "LSE", "", ct);
+        return error is null ? ParsePenceCodes(body!) : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Reads EODHD's exchange symbol list ([{"Code":"VOD","Currency":"GBX",...}]) for the codes priced in pence.</summary>
+    public static HashSet<string> ParsePenceCodes(string json)
+    {
+        var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return codes;
+            foreach (var row in doc.RootElement.EnumerateArray())
+                if (row.ValueKind == JsonValueKind.Object && IsPence(Text(row, "Currency")) && Text(row, "Code") is { Length: > 0 } code)
+                    codes.Add(code.Trim());
+        }
+        catch (JsonException) { }
+        return codes;
+    }
+
+    /// <summary>GBX or GBp: pence sterling.</summary>
+    public static bool IsPence(string? currency) =>
+        string.Equals(currency?.Trim(), "GBX", StringComparison.OrdinalIgnoreCase) || currency?.Trim() == "GBp";
+
+    /// <summary>Prices quoted in pence, as pounds (volume unchanged).</summary>
+    public static PriceFetchResult InPounds(PriceFetchResult result) => result with
+    {
+        Prices = result.Prices.Select(p => p with { Open = p.Open / 100, High = p.High / 100, Low = p.Low / 100, Close = p.Close / 100 }).ToList(),
+    };
 
     /// <summary>
     /// Dividends with an ex-date on or after <paramref name="from"/>:
@@ -224,8 +270,13 @@ public sealed partial class EodhdPriceProvider(HttpClient http, EodhdOptions opt
             var amount = Number(row, "unadjustedValue") is > 0 and var u ? u : Number(row, "value");
             if (amount is not > 0)
                 return null;
+            // London dividends can be given in pence: store pounds
+            var currency = Text(row, "currency");
+            var perUnit = (decimal)amount.Value;
+            if (IsPence(currency))
+                (perUnit, currency) = (perUnit / 100, "GBP");
             return new AnnouncedDividend(exDate, DateField(row, "recordDate"), DateField(row, "paymentDate"),
-                DateField(row, "declarationDate"), (decimal)amount.Value, Text(row, "currency")?.ToUpperInvariant(), Text(row, "period"));
+                DateField(row, "declarationDate"), perUnit, currency?.ToUpperInvariant(), Text(row, "period"));
         }, d => d.ExDate);
 
     /// <summary>Reads EODHD's splits: [{"date":"2020-08-31","split":"4.000000/1.000000"}, ...], new units / old units.</summary>

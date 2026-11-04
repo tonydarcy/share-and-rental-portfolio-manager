@@ -4,7 +4,7 @@
     <div class="fw-bold">@Model.Fs.Client.LegalName</div>
     @if (!string.IsNullOrEmpty(Model.Fs.Client.Abn))
     {
-        <div class="small">ABN @Model.Fs.Client.AbnDisplay</div>
+        <div class="small">@RegionSettings.Current.BusinessNumberLabel @Model.Fs.Client.AbnDisplay</div>
     }
     <h2 class="h4 mt-2 mb-0">@Model.Title</h2>
     <div class="small text-muted">@Model.Period</div>
