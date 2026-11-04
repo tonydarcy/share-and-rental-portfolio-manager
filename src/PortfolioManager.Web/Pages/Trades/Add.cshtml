@@ -66,7 +66,7 @@
                         <span asp-validation-for="Input.Code" class="text-danger small"></span>
                     </div>
                     <div class="col-12">
-                        <label asp-for="Input.Name" class="form-label">Stock name <span class="text-muted small">(optional)</span></label>
+                        <label asp-for="Input.Name" class="form-label">Stock name</label>
                         <input asp-for="Input.Name" class="form-control" maxlength="500" placeholder="Uses the name on file if blank" />
                         <span asp-validation-for="Input.Name" class="text-danger small"></span>
                     </div>
@@ -103,22 +103,36 @@
                         </div>
                     }
 
-                    <div class="col-sm-4">
-                        <label asp-for="Input.Currency" class="form-label">Trade currency</label>
-                        <input asp-for="Input.Currency" class="form-control text-uppercase" maxlength="3" required />
-                        <span asp-validation-for="Input.Currency" class="text-danger small"></span>
-                    </div>
-                    <div class="col-sm-8">
-                        <label asp-for="Input.ExchangeRate" class="form-label">Exchange rate</label>
-                        <input asp-for="Input.ExchangeRate" type="number" min="0" step="any" class="form-control" />
-                        <div class="form-text">Trade currency per 1 @Model.PortfolioCurrency (e.g. 0.65 for USD). Blank uses that day's rate.</div>
-                        <span asp-validation-for="Input.ExchangeRate" class="text-danger small"></span>
-                    </div>
-
+                    @{
+                        // Open when it holds anything other than the defaults, or has an error to show
+                        var tradeMore = !string.Equals(Model.Input.Currency, Model.PortfolioCurrency, StringComparison.OrdinalIgnoreCase)
+                            || Model.Input.ExchangeRate is not (null or 1m) || !string.IsNullOrWhiteSpace(Model.Input.Comment)
+                            || ModelState["Input.Currency"]?.Errors.Count > 0 || ModelState["Input.ExchangeRate"]?.Errors.Count > 0;
+                    }
                     <div class="col-12">
-                        <label asp-for="Input.Comment" class="form-label">Comment <span class="text-muted small">(optional)</span></label>
-                        <textarea asp-for="Input.Comment" class="form-control" rows="2" maxlength="500"></textarea>
-                        <span asp-validation-for="Input.Comment" class="text-danger small"></span>
+                        <details open="@tradeMore">
+                            <summary class="small text-body-secondary">Foreign currency, comment</summary>
+                            <div class="row g-3 mt-0">
+                            <div class="col-sm-4">
+                                <label asp-for="Input.Currency" class="form-label">Trade currency</label>
+                                <input asp-for="Input.Currency" class="form-control text-uppercase" maxlength="3" required />
+                                <span asp-validation-for="Input.Currency" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-8">
+                                <label asp-for="Input.ExchangeRate" class="form-label">Exchange rate</label>
+                                <input asp-for="Input.ExchangeRate" type="number" min="0" step="any" class="form-control" />
+                                <div class="form-text">Trade currency per 1 @Model.PortfolioCurrency (e.g. 0.65 for USD). Blank uses that day's rate.</div>
+                                <span asp-validation-for="Input.ExchangeRate" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-12">
+                                <label asp-for="Input.Comment" class="form-label">Comment</label>
+                                <textarea asp-for="Input.Comment" class="form-control" rows="2" maxlength="500"></textarea>
+                                <span asp-validation-for="Input.Comment" class="text-danger small"></span>
+                            </div>
+
+                            </div>
+                        </details>
                     </div>
 
                     <div class="col-12">
@@ -153,7 +167,7 @@
                         <span asp-validation-for="Input.SettlementDate" class="text-danger small"></span>
                     </div>
                     <div class="col-12">
-                        <label asp-for="Input.CashComment" class="form-label">Cash description <span class="text-muted small">(optional)</span></label>
+                        <label asp-for="Input.CashComment" class="form-label">Cash description</label>
                         <input asp-for="Input.CashComment" class="form-control" maxlength="500" placeholder="e.g. Buy Settlement: 100 CBA" />
                         <span asp-validation-for="Input.CashComment" class="text-danger small"></span>
                     </div>
