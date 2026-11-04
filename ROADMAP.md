@@ -8,7 +8,7 @@ one tool can cover every entity a client has.
 
 This page lists only what is **not built yet**. Everything already in the site is described in the
 [README](README.md#what-it-does). Items are ordered by value to users and accountants against effort. Anything marked
-**good first issue** is a self-contained job for a new contributor. Last reviewed 28 October 2026.
+**good first issue** is a self-contained job for a new contributor. Last reviewed 4 November 2026.
 
 ## Next: investor features
 
@@ -66,6 +66,72 @@ This page lists only what is **not built yet**. Everything already in the site i
     left (after checking each one's bank imports, which can double up with payouts), then take out the single-entry
     branches in the procs (`IF @strAccountingMode IN ('Hybrid', 'DoubleEntry')`), the `AccountingMode` checks and
     single-entry notices in the site, and finally the `strAccountingMode` column.
+
+## Next: phone apps
+
+11. **iOS and Android apps.** The site already works on a phone and can be added to the home screen (web app
+    manifest, service worker, phone-friendly tables), so the question is what a store app adds: a listing people can
+    find, push notifications, Face ID / fingerprint unlock, the camera for receipts, and an offline copy. The plan is
+    in three steps, each useful on its own.
+
+    **Choices considered.**
+    - *Better web app only (PWA).* Cheapest; no store fees or reviews. Push works on Android, and on iPhone since
+      iOS 16.4 once the site is added to the home screen. No store listing, and Apple limits what it can do.
+    - *The site wrapped in a store app* (Capacitor or a plain web view). Fast to make, but Apple rejects apps that are
+      only a website in a frame (App Review Guideline 4.2), so it would need real native features anyway.
+    - *.NET MAUI app over the existing API* (recommended). One C# code base for iOS and Android, the same language and
+      tools as the site, MIT licensed, and it can share model classes with `PortfolioManager.Core`. Calls `/api/v1`.
+    - *React Native or Flutter.* Mature, but adds a second language and toolchain for little gain here.
+
+    **Step 1: web app extras (about 1 to 2 weeks).** Web push for the alerts in item 3 (a device table, VAPID keys,
+    a subscribe switch in Email alerts), an "Install app" prompt, and Face ID / fingerprint sign-in by passkey.
+    Useful for everyone straight away, including people running their own copy.
+
+    **Step 2: the API the app needs (about 2 weeks).** Builds on item 2.
+    - OpenAPI description and REST read paths for the dashboard, holdings, payouts, cash, alerts and documents.
+    - Sign-in: the app opens the site's own sign-in page in the system browser (OAuth with PKCE, already used by
+      `OAuthServer.cs` for Claude connectors), so 2FA and lockout keep working. The token goes in the phone's
+      Keychain / Keystore; tokens need an expiry, refresh, and a "Signed-in devices" list in the account menu to
+      revoke a lost phone. Check that a mobile redirect address (`app.shareportfoliomanager://...`) is allowed.
+    - A device token table and a sender for Apple (APNs) and Google (Firebase Cloud Messaging) push, called by
+      `AlertService`. Rate limits on the API.
+    - The app asks for the site address on first start (default app.shareportfoliomanager.com), so self-hosted copies
+      work too, as the Nextcloud and Home Assistant apps do.
+
+    **Step 3: the app (version 1 about 6 to 10 weeks).** `src/PortfolioManager.Mobile` (.NET MAUI).
+    - Mostly reading: portfolio picker, dashboard, holdings and prices, payouts and income calendar, CGT and
+      unrealised gains, alerts. Quick entries: add a trade, payout or cash line (through the same tools and procs as
+      the site), and a photo of a receipt or contract note attached to a bill or trade.
+    - Face ID / fingerprint to open; screens hidden in the app switcher.
+    - Offline: the last-loaded figures kept on the phone, encrypted, shown with an "offline copy" note. No offline
+      edits in version 1 (they would need conflict handling against the ledger).
+    - Anything else (tax returns, journals, the business books) opens the site in the in-app browser.
+    - Builds and signing in GitHub Actions (macOS runners are free for public repos), so no Mac is needed day to day;
+      signing keys kept in GitHub secrets.
+
+    **Store accounts and costs.** Apple Developer Program US$99 (about AUD 150) a year; Google Play US$25 once.
+    Enrol as an organisation (needs a free D-U-N-S number) so the store shows the business name, not Tony's own.
+    New personal Google accounts must run a closed test with 12 testers for 14 days before going public.
+
+    **Store review rules that apply.**
+    - A privacy policy link (Legal pages exist), Apple's privacy labels and Google's Data safety form.
+    - Deleting the account must be possible inside the app (Apple 5.1.1(v)); the site needs a "Delete my account"
+      page first.
+    - A demo sign-in for reviewers (a sample portfolio).
+    - Google Play's financial features declaration: the app tracks and reports, it doesn't trade, lend or give advice,
+      so no licence is needed; the disclaimer is shown in the app.
+    - While the site is free there's no in-app purchase issue. If a paid hosted plan comes later, Apple's
+      multiplatform rule (3.1.3(b)) lets people sign in to a plan bought on the website, but the app can't point to the
+      website to buy (outside the US) unless Apple's in-app purchase is also offered.
+    - If sign-in with Google or another social account is added to the app, Apple also wants a privacy-focused option
+      such as Sign in with Apple (4.8).
+
+    **Licence.** The App Store's terms clash with the AGPL for code written by others (VLC was pulled for this in
+    2011). Tony owns the code, so he can publish the app himself; outside contributions to the app would need a
+    contributor agreement or a store exception added to the licence. Settle this before accepting app pull requests.
+
+    **Awaiting Tony's check:** the costs and review rules above are as published in late 2026; check them when
+    enrolling.
 
 ## Using it outside Australia
 
