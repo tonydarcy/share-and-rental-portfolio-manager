@@ -207,3 +207,18 @@
 
 /* A page shown from the copy saved on this device while offline */
 .offline-copy { position: sticky; top: 0; z-index: 1050; background: #fff3cd; color: #664d03; border-bottom: 1px solid #ffe69c; padding: .4rem 1rem; font-size: .9rem; text-align: center; }
+
+/* Menu names stay on one line; the menu wraps to a second row rather than running off the screen */
+.navbar-nav .nav-link { white-space: nowrap; }
+
+/* Big menus show their sections side by side on a wide screen, and scroll rather than run off the bottom */
+@media (min-width: 1200px) {
+    .navbar .dropdown-menu { max-height: calc(100vh - 5rem); overflow-y: auto; }
+    .navbar .dropdown-menu.menu-cols { column-count: 2; column-gap: 0; min-width: 32rem; }
+    .navbar .dropdown-menu.menu-cols .dropdown-header { break-after: avoid; }
+    .navbar .dropdown-menu.menu-cols li { break-inside: avoid; }
+}
+@media (min-width: 1200px) and (max-width: 1399.98px) {
+    .navbar-expand-xl .navbar-nav .nav-link { padding-left: .35rem; padding-right: .35rem; }
+    .navbar-expand-xl .navbar-brand { font-size: 1.1rem; margin-right: .5rem; }
+}

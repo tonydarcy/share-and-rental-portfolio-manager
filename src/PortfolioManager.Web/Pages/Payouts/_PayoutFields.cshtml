@@ -10,8 +10,7 @@
 <div class="row g-3 mb-3">
     <div class="col-sm-4">
         <label asp-for="StockCode" class="form-label">Stock code</label>
-        <input asp-for="StockCode" class="form-control text-uppercase" placeholder="e.g. BHP" readonly="@locked" maxlength="50" />
-        <div class="form-text">For bank interest, use the account name.</div>
+        <input asp-for="StockCode" class="form-control text-uppercase" placeholder="e.g. BHP, or bank account" readonly="@locked" maxlength="50" />
     </div>
     <div class="col-sm-3">
         <label asp-for="StockExchangeCode" class="form-label">Exchange</label>
@@ -24,12 +23,11 @@
 </div>
 
 <fieldset disabled="@locked">
-    <legend class="h6">Income</legend>
     <div class="row g-3 mb-3">
         @if (au)
         {
             <div class="col-6 col-md-3">
-                <label asp-for="Franked" class="form-label">Franked amount</label>
+                <label asp-for="Franked" class="form-label">Franked</label>
                 <input asp-for="Franked" type="number" step="0.01" min="0" class="form-control" />
             </div>
         }
@@ -38,67 +36,68 @@
             <input asp-for="Franked" type="hidden" />
         }
         <div class="col-6 col-md-3">
-            <label asp-for="Unfranked" class="form-label">@(au ? "Unfranked amount" : "Dividend")</label>
+            <label asp-for="Unfranked" class="form-label">@(au ? "Unfranked" : "Dividend")</label>
             <input asp-for="Unfranked" type="number" step="0.01" min="0" class="form-control" />
-        </div>
-        <div class="col-6 col-md-3">
-            <label asp-for="Interest" class="form-label">Interest</label>
-            <input asp-for="Interest" type="number" step="0.01" min="0" class="form-control" />
-        </div>
-        <div class="col-6 col-md-3">
-            <label asp-for="Other" class="form-label">Other income</label>
-            <input asp-for="Other" type="number" step="0.01" min="0" class="form-control" />
-        </div>
-        <div class="col-6 col-md-3">
-            <label asp-for="TrustIncome" class="form-label">Trust income</label>
-            <input asp-for="TrustIncome" type="number" step="0.01" min="0" class="form-control" />
         </div>
         @if (au)
         {
             <div class="col-6 col-md-3">
                 <label asp-for="FrankingCredit" class="form-label">Franking credit</label>
-                <input asp-for="FrankingCredit" type="number" step="0.01" min="0" class="form-control" />
-                <div class="form-text">Not cash; from your statement.</div>
+                <input asp-for="FrankingCredit" type="number" step="0.01" min="0" class="form-control" title="Not cash; from your statement" />
             </div>
         }
         else
         {
             <input asp-for="FrankingCredit" type="hidden" />
         }
-    </div>
-
-    <legend class="h6">Tax withheld</legend>
-    <div class="row g-3 mb-3">
-        <div class="col-6 col-md-3">
-            <label asp-for="TaxWithheld" class="form-label">@(au ? "TFN withholding" : "Tax withheld")</label>
-            <input asp-for="TaxWithheld" type="number" step="0.01" min="0" class="form-control" />
-        </div>
-        <div class="col-6 col-md-3">
-            <label asp-for="ForeignTax" class="form-label">Foreign tax</label>
-            <input asp-for="ForeignTax" type="number" step="0.01" min="0" class="form-control" />
-        </div>
-    </div>
-
-    <div class="row g-3 mb-3">
         <div class="col-6 col-md-3">
             <label asp-for="Total" class="form-label fw-bold">Cash received</label>
-            <input asp-for="Total" type="number" step="0.01" min="0" class="form-control fw-bold" />
-            <div class="form-text">Income less tax withheld.</div>
+            <input asp-for="Total" type="number" step="0.01" min="0" class="form-control fw-bold" title="Income less tax withheld" />
         </div>
-        @if (!editing)
-        {
-            <div class="col-6 col-md-3">
-                <label asp-for="Currency" class="form-label">Currency <span class="text-muted small">(optional)</span></label>
-                <input asp-for="Currency" class="form-control text-uppercase" maxlength="3" placeholder="@RegionSettings.Current.Currency" />
-                <div class="form-text">For a foreign share's dividend, enter the amounts in its currency.</div>
-            </div>
-            <div class="col-6 col-md-3">
-                <label asp-for="ExchangeRate" class="form-label">Exchange rate <span class="text-muted small">(optional)</span></label>
-                <input asp-for="ExchangeRate" type="number" step="any" min="0" class="form-control" />
-                <div class="form-text">Units of that currency per 1 @RegionSettings.Current.Currency, as on trades. Blank uses the day's rate.</div>
-            </div>
-        }
     </div>
+
+    @{
+        // Open when any of the less common boxes already holds something, so nothing entered is hidden
+        var moreUsed = Model.Interest != 0 || Model.Other != 0 || Model.TrustIncome != 0 || Model.TaxWithheld != 0
+            || Model.ForeignTax != 0 || !string.IsNullOrWhiteSpace(Model.Currency) || Model.ExchangeRate is not null;
+    }
+    <details class="mb-3" open="@moreUsed">
+        <summary class="small text-body-secondary mb-2">Interest, other income, tax withheld@(editing ? "" : ", foreign currency")</summary>
+        <div class="row g-3">
+            <div class="col-6 col-md-3">
+                <label asp-for="Interest" class="form-label">Interest</label>
+                <input asp-for="Interest" type="number" step="0.01" min="0" class="form-control" />
+            </div>
+            <div class="col-6 col-md-3">
+                <label asp-for="Other" class="form-label">Other income</label>
+                <input asp-for="Other" type="number" step="0.01" min="0" class="form-control" />
+            </div>
+            <div class="col-6 col-md-3">
+                <label asp-for="TrustIncome" class="form-label">Trust income</label>
+                <input asp-for="TrustIncome" type="number" step="0.01" min="0" class="form-control" />
+            </div>
+            <div class="w-100 d-none d-md-block"></div>
+            <div class="col-6 col-md-3">
+                <label asp-for="TaxWithheld" class="form-label">@(au ? "TFN withholding" : "Tax withheld")</label>
+                <input asp-for="TaxWithheld" type="number" step="0.01" min="0" class="form-control" />
+            </div>
+            <div class="col-6 col-md-3">
+                <label asp-for="ForeignTax" class="form-label">Foreign tax</label>
+                <input asp-for="ForeignTax" type="number" step="0.01" min="0" class="form-control" />
+            </div>
+            @if (!editing)
+            {
+                <div class="col-6 col-md-3">
+                    <label asp-for="Currency" class="form-label">Currency</label>
+                    <input asp-for="Currency" class="form-control text-uppercase" maxlength="3" placeholder="@RegionSettings.Current.Currency" title="For a foreign share's dividend, enter the amounts in its currency" />
+                </div>
+                <div class="col-6 col-md-3">
+                    <label asp-for="ExchangeRate" class="form-label">Exchange rate</label>
+                    <input asp-for="ExchangeRate" type="number" step="any" min="0" class="form-control" placeholder="Day's rate" title="Units of that currency per 1 @RegionSettings.Current.Currency, as on trades" />
+                </div>
+            }
+        </div>
+    </details>
 </fieldset>
 
 @if (editing)
@@ -123,3 +122,22 @@
     <input asp-for="Confirmed" class="form-check-input" />
     <label asp-for="Confirmed" class="form-check-label">Payment received (confirmed)</label>
 </div>
+<script>
+    // Cash received fills itself in as income less tax withheld, until it is typed over
+    (function () {
+        const form = document.currentScript.closest('form');
+        if (!form) return;
+        const field = n => form.querySelector('[name$=".' + n + '"]:not([type=hidden])');
+        const total = field('Total');
+        if (!total || total.readOnly) return;
+        const income = ['Franked', 'Unfranked', 'Interest', 'Other', 'TrustIncome'], tax = ['TaxWithheld', 'ForeignTax'];
+        const value = n => parseFloat(field(n)?.value) || 0;
+        let typed = (parseFloat(total.value) || 0) !== 0;
+        total.addEventListener('input', () => typed = total.value !== '');
+        income.concat(tax).forEach(n => field(n)?.addEventListener('input', () => {
+            if (typed) return;
+            const cash = income.reduce((s, n) => s + value(n), 0) - tax.reduce((s, n) => s + value(n), 0);
+            total.value = cash > 0 ? cash.toFixed(2) : 0;
+        }));
+    })();
+</script>

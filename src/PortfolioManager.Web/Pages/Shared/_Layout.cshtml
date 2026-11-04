@@ -30,7 +30,7 @@
     </script>
 </head>
 <body class="bg-body-tertiary">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <nav class="navbar navbar-expand-xl navbar-dark bg-dark mb-4">
         <div class="container-fluid">
             <a class="navbar-brand" asp-page="/Index">
                 @if (!string.IsNullOrWhiteSpace(Site.LogoUrl))
@@ -46,50 +46,61 @@
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="mainNav">
-                    <ul class="navbar-nav me-auto">
+                    <ul class="navbar-nav me-auto flex-wrap">
                         <li class="nav-item"><a class="nav-link" asp-page="/Index">Dashboard</a></li>
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Holdings</a>
-                            <ul class="dropdown-menu">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Investments</a>
+                            <ul class="dropdown-menu menu-cols">
+                                <li><h6 class="dropdown-header">Holdings</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Holdings">Holdings</a></li>
                                 <li><a class="dropdown-item" asp-page="/Groups/Index">Groups</a></li>
                                 <li><a class="dropdown-item" asp-page="/Debt/FixedIncome">Term deposits and bonds</a></li>
                                 <li><a class="dropdown-item" asp-page="/Debt/Loans">Margin and investment loans</a></li>
-                            </ul>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Transactions</a>
-                            <ul class="dropdown-menu">
+                                <li><h6 class="dropdown-header">Transactions</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Trades/Index">Share trades</a></li>
                                 <li><a class="dropdown-item" asp-page="/Cash/Index">Cash transactions</a></li>
+                                <li><a class="dropdown-item" asp-page="/Payouts/Index">Payouts</a></li>
                                 <li><a class="dropdown-item" asp-page="/Trades/FxCheck">Foreign currency trades</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" asp-page="/Trades/Add">Add a trade</a></li>
-                                <li><a class="dropdown-item" asp-page="/Trades/CryptoSwap">Record a crypto swap</a></li>
-                                <li><a class="dropdown-item" asp-page="/Cash/Add">Add a cash transaction</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Corporate actions</h6></li>
                                 <li><a class="dropdown-item" asp-page="/CorporateActions/Index">Corporate actions</a></li>
                                 <li><a class="dropdown-item" asp-page="/CorporateActions/Announced">Announced dividends and splits</a></li>
-                                <li><a class="dropdown-item" asp-page="/CorporateActions/AddSplit">Record a split or consolidation</a></li>
-                                <li><a class="dropdown-item" asp-page="/CorporateActions/AddReturnOfCapital">Record a return of capital</a></li>
-                                <li><a class="dropdown-item" asp-page="/CorporateActions/AddTransfer">Record a demerger, takeover or option exercise</a></li>
-                            </ul>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Income</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" asp-page="/Payouts/Index">Payouts</a></li>
-                                <li><a class="dropdown-item" asp-page="/Payouts/Add">Add a payout</a></li>
-                                <li><a class="dropdown-item" asp-page="/Payouts/AddRental">Add a rental payout</a></li>
-                                <li><a class="dropdown-item" asp-page="/Payouts/AddDrp">Add a DRP</a></li>
-                                <li><a class="dropdown-item" asp-page="/Payouts/AddCryptoReward">Add a crypto reward</a></li>
+                                <li><h6 class="dropdown-header">Statements</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Payouts/FundStatements">Fund tax statements (AMMA)</a></li>
                                 <li><a class="dropdown-item" asp-page="/Payouts/EmployeeShares">Employee share schemes</a></li>
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Invoices</a>
-                            <ul class="dropdown-menu">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Add</a>
+                            <ul class="dropdown-menu menu-cols">
+                                <li><a class="dropdown-item" asp-page="/Trades/Add">Trade</a></li>
+                                <li><a class="dropdown-item" asp-page="/Payouts/Add">Payout</a></li>
+                                <li><a class="dropdown-item" asp-page="/Payouts/AddDrp">DRP</a></li>
+                                <li><a class="dropdown-item" asp-page="/Cash/Add">Cash transaction</a></li>
+                                <li><a class="dropdown-item" asp-page="/Payouts/AddRental">Rental payout</a></li>
+                                <li><h6 class="dropdown-header">Crypto</h6></li>
+                                <li><a class="dropdown-item" asp-page="/Trades/CryptoSwap">Crypto swap</a></li>
+                                <li><a class="dropdown-item" asp-page="/Payouts/AddCryptoReward">Crypto reward</a></li>
+                                <li><h6 class="dropdown-header">Corporate action</h6></li>
+                                <li><a class="dropdown-item" asp-page="/CorporateActions/AddSplit">Split or consolidation</a></li>
+                                <li><a class="dropdown-item" asp-page="/CorporateActions/AddReturnOfCapital">Return of capital</a></li>
+                                <li><a class="dropdown-item" asp-page="/CorporateActions/AddTransfer">Demerger, takeover or option exercise</a></li>
+                                <li><h6 class="dropdown-header">Import a file</h6></li>
+                                <li><a class="dropdown-item" asp-page="/Import/Trades">Share trades (CSV)</a></li>
+                                <li><a class="dropdown-item" asp-page="/Import/Crypto">Crypto exchange files (CSV)</a></li>
+                                <li><a class="dropdown-item" asp-page="/Import/NavexaSync">Navexa sync (API)</a></li>
+                                <li><a class="dropdown-item" asp-page="/Import/Navexa">Navexa files (CSV)</a></li>
+                                <li><a class="dropdown-item" asp-page="/Accounting/BankImport">Bank statement</a></li>
+                                @if (Admin.IsAdmin(User))
+                                {
+                                    <li><a class="dropdown-item" asp-page="/Import/Prices">Share prices (CSV)</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Import/DividendDetails">Dividend details (CSV)</a></li>
+                                }
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Business</a>
+                            <ul class="dropdown-menu menu-cols">
+                                <li><h6 class="dropdown-header">Sales</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Invoices/Index">Invoices</a></li>
                                 <li><a class="dropdown-item" asp-page="/Invoices/Edit">New invoice</a></li>
                                 <li><a class="dropdown-item" asp-page="/Invoices/Customers">Customers</a></li>
@@ -98,21 +109,16 @@
                                 <li><a class="dropdown-item" asp-page="/Invoices/Aged">Aged receivables</a></li>
                                 <li><a class="dropdown-item" asp-page="/Invoices/Statement">Customer statement</a></li>
                                 <li><a class="dropdown-item" asp-page="/Invoices/Settings">Invoice settings</a></li>
-                            </ul>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Business</a>
-                            <ul class="dropdown-menu">
+                                <li><h6 class="dropdown-header">Purchases</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Bills/Index">Bills</a></li>
                                 <li><a class="dropdown-item" asp-page="/Bills/Edit">New bill</a></li>
                                 <li><a class="dropdown-item" asp-page="/Bills/Suppliers">Suppliers</a></li>
                                 <li><a class="dropdown-item" asp-page="/Bills/Repeating">Repeating bills</a></li>
                                 <li><a class="dropdown-item" asp-page="/Bills/Aged">Aged payables</a></li>
                                 <li><a class="dropdown-item" asp-page="/Orders/Index" asp-route-kind="PurchaseOrder">Purchase orders</a></li>
-                                <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-page="/Reading/Index">Read a receipt or bill</a></li>
                                 <li><a class="dropdown-item" asp-page="/Claims/Index">Expense claims</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Stock and assets</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Inventory/Index">Inventory</a></li>
                                 <li><a class="dropdown-item" asp-page="/Inventory/Stocktake">Stocktake</a></li>
                                 <li><a class="dropdown-item" asp-page="/Assets/Index">Fixed assets</a></li>
@@ -124,7 +130,7 @@
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" asp-page="/Rentals/Index">Properties</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Rental">Yearly figures and assets</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Reports</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Rentals/Schedule">Rental schedule</a></li>
                                 <li><a class="dropdown-item" asp-page="/Rentals/Statement">Income and expenses</a></li>
                                 <li><a class="dropdown-item" asp-page="/Rentals/Compare">Year on year</a></li>
@@ -134,19 +140,20 @@
                         </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Reports</a>
-                            <ul class="dropdown-menu">
+                            <ul class="dropdown-menu menu-cols">
+                                <li><h6 class="dropdown-header">Performance</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Reports/Performance">Performance</a></li>
                                 <li><a class="dropdown-item" asp-page="/Reports/Contribution">Contribution</a></li>
                                 <li><a class="dropdown-item" asp-page="/Reports/Consolidated">Consolidated (family group)</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" asp-page="/Reports/Diversity">Diversity</a></li>
+                                <li><a class="dropdown-item" asp-page="/Reports/IncomeCalendar">Income calendar</a></li>
+                                <li><h6 class="dropdown-header">Tax</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Reports/CapitalGains">Realised capital gains</a></li>
                                 <li><a class="dropdown-item" asp-page="/Reports/UnrealisedGains">Unrealised capital gains</a></li>
                                 <li><a class="dropdown-item" asp-page="/Reports/WhatIf">What-if sale</a></li>
                                 <li><a class="dropdown-item" asp-page="/Reports/TaxLoss">Tax-loss selling</a></li>
                                 <li><a class="dropdown-item" asp-page="/Reports/TaxableIncome">Taxable income</a></li>
-                                <li><a class="dropdown-item" asp-page="/Reports/IncomeCalendar">Income calendar</a></li>
-                                <li><a class="dropdown-item" asp-page="/Reports/Diversity">Diversity</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Prices</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Prices/Quote">Share quote</a></li>
                                 <li><a class="dropdown-item" asp-page="/Prices/Trends">Share trends</a></li>
                                 <li><a class="dropdown-item" asp-page="/Prices/Manual">Manual prices (funds, unlisted, property)</a></li>
@@ -155,33 +162,34 @@
                         </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Accounting</a>
-                            <ul class="dropdown-menu">
+                            <ul class="dropdown-menu dropdown-menu-end menu-cols">
+                                <li><h6 class="dropdown-header">Ledger</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Accounts">Chart of accounts</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Journals">Journals</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/JournalEntry">New journal entry</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Repeating">Repeating journals</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" asp-page="/Attachments/Index">Attachments</a></li>
+                                <li><h6 class="dropdown-header">Bank</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/BankImport">Import bank statement</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/ImportHistory">Import history</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Unallocated">Unallocated transactions</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Rules">Allocation rules</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Reconcile">Bank reconciliation</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Reports</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/TrialBalance">Trial balance</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/ProfitLoss">Profit &amp; loss</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/BalanceSheet">Balance sheet</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/CashMovement">Cash movement</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" asp-page="/Accounting/Revaluation">Market value revaluation</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Statements">Financial statements</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/ReportPack">Report pack (print)</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Tracking and currency</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Tracking">Tracking categories</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/TrackingReport">Profit &amp; loss by tracking</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Budgets">Budgets</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Currency">Foreign currency accounts</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/FxRevaluation">Foreign exchange revaluation</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" asp-page="/Accounting/Revaluation">Market value revaluation</a></li>
+                                <li><h6 class="dropdown-header">Year end</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Lock">Lock periods</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/AuditTrail">Audit trail</a></li>
                                 <li><a class="dropdown-item" asp-page="/Accounting/Export">Export to Xero or MYOB</a></li>
@@ -189,57 +197,39 @@
                         </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Tax</a>
-                            <ul class="dropdown-menu">
+                            <ul class="dropdown-menu dropdown-menu-end menu-cols">
+                                <li><h6 class="dropdown-header">Individuals</h6></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Reconciliation">Income tax reconciliation</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/ReturnLabels">Tax return labels</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/PaperReturn">Paper tax return (print)</a></li>
-                                <li><a class="dropdown-item" asp-page="/TaxWork/TradingStock">Shares as trading stock</a></li>
-                                <li><a class="dropdown-item" asp-page="/TaxWork/Workpapers">Workpapers and year-end checklist</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Prefill">ATO prefill</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Planning">Tax planning</a></li>
-                                <li><a class="dropdown-item" asp-page="/TaxWork/EssReport">ESS annual report (employers)</a></li>
+                                <li><a class="dropdown-item" asp-page="/TaxWork/Workpapers">Workpapers and year-end checklist</a></li>
+                                <li><a class="dropdown-item" asp-page="/TaxWork/TradingStock">Shares as trading stock</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Rental">Rental properties</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" asp-page="/TaxWork/EssReport">ESS annual report (employers)</a></li>
+                                <li><h6 class="dropdown-header">Trusts, SMSFs and companies</h6></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Distribution">Trust distribution</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Smsf">SMSF members</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/SmsfExtras">SMSF TBAR, ECPI and strategy</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/SmsfAudit">SMSF audit pack</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/CompanyTax">Company tax and franking</a></li>
                                 <li><a class="dropdown-item" asp-page="/TaxWork/Div7a">Division 7A calculator</a></li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">@salesTaxName</h6></li>
                                 <li><a class="dropdown-item" asp-page="/SalesTax/Index">@salesTaxName report</a></li>
                                 <li><a class="dropdown-item" asp-page="/SalesTax/Codes">@salesTaxName codes</a></li>
-                            </ul>
-                        </li>
-                        <li class="nav-item"><a class="nav-link" asp-page="/Assistant/Index"><i class="bi bi-chat-dots"></i> Assistant</a></li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Import</a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" asp-page="/Import/Trades">Share trades (CSV)</a></li>
-                                <li><a class="dropdown-item" asp-page="/Import/Crypto">Crypto exchange files (CSV)</a></li>
-                                <li><a class="dropdown-item" asp-page="/Import/NavexaSync">Navexa sync (API)</a></li>
-                                <li><a class="dropdown-item" asp-page="/Import/Navexa">Navexa files (CSV)</a></li>
-                                @if (Admin.IsAdmin(User))
-                                {
-                                    <li><a class="dropdown-item" asp-page="/Import/Prices">Share prices (CSV)</a></li>
-                                    <li><a class="dropdown-item" asp-page="/Import/DividendDetails">Dividend details (CSV)</a></li>
-                                }
-                            </ul>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Clients</a>
-                            <ul class="dropdown-menu">
+                                <li><h6 class="dropdown-header">Clients</h6></li>
                                 <li><a class="dropdown-item" asp-page="/Clients/Index">Client list</a></li>
                                 <li><a class="dropdown-item" asp-page="/Clients/Dashboard">Practice dashboard</a></li>
                                 <li><a class="dropdown-item" asp-page="/Clients/Queries">Client queries</a></li>
                                 <li><a class="dropdown-item" asp-page="/Clients/Onboarding">Onboarding new clients</a></li>
-                                <li><a class="dropdown-item" asp-page="/Attachments/Index">Attachments</a></li>
                             </ul>
                         </li>
+                        <li class="nav-item"><a class="nav-link" asp-page="/Assistant/Index" title="Assistant"><i class="bi bi-chat-dots"></i><span class="d-xl-none"> Assistant</span></a></li>
                     </ul>
                     @if (portfolios.Count > 1)
                     {
-                        <form method="post" asp-page="/Portfolio/Select" class="d-flex me-lg-3 my-2 my-lg-0">
+                        <form method="post" asp-page="/Portfolio/Select" class="d-flex me-xl-3 my-2 my-xl-0">
                             <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)" />
                             <label for="portfolioId" class="visually-hidden">Portfolio</label>
                             <select id="portfolioId" name="portfolioId" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -253,11 +243,11 @@
                     }
                     else if (selected is not null)
                     {
-                        <span class="navbar-text me-lg-3">@selected.Name</span>
+                        <span class="navbar-text text-nowrap me-xl-3">@selected.Name</span>
                     }
                     @if (selected is { CanEdit: false })
                     {
-                        <span class="badge text-bg-warning me-lg-3" title="You can look at this portfolio but not change it">View only</span>
+                        <span class="badge text-bg-warning me-xl-3" title="You can look at this portfolio but not change it">View only</span>
                     }
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">

@@ -41,6 +41,9 @@ public class AddModel(CurrentPortfolio current, TradeService trades, CashService
         };
     }
 
+    /// <summary>Shows the "record it anyway" box after a sale for more units than held.</summary>
+    public bool ShowSellAnyway { get; private set; }
+
     public async Task<IActionResult> OnPostAsync()
     {
         if (!await LoadAsync())
@@ -61,6 +64,12 @@ public class AddModel(CurrentPortfolio current, TradeService trades, CashService
         var errors = result.Errors.ToList();
         if (result.Value is { } t && TradeEntry.CheckSettlementAccount(t, PortfolioCurrency, BankAccounts) is { } accountError)
             errors.Add(accountError);
+        if (result.Value is { Type: TradeType.Sell } sale && TradeEntry.CheckOversell(sale,
+                await trades.GetUnitsHeldAsync(Portfolio!.PortfolioId, sale.Market, sale.Code, sale.Date), Input.SellMoreThanHeld) is { } oversell)
+        {
+            errors.Add(oversell);
+            ShowSellAnyway = true;
+        }
 
         foreach (var e in errors)
         {

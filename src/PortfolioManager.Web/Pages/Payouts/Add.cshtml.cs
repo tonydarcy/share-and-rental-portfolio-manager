@@ -32,6 +32,8 @@ public class AddModel(CurrentPortfolio current, PayoutService payouts, Announced
             return Forbid();
 
         var portfolioCurrency = RegionSettings.Current.Currency;
+        // The payout's own check below says what to enter; drop the binder's "The StockCode field is required."
+        ModelState.Remove($"{nameof(Input)}.{nameof(Input.StockCode)}");
         foreach (var error in Input.Validate().Concat(Input.ValidateCurrency(portfolioCurrency)))
             ModelState.AddModelError(string.Empty, error);
         if (!ModelState.IsValid)
