@@ -88,25 +88,19 @@ public class LoansModel(CurrentPortfolio current, LoanService loans, HoldingsSer
         if (!ModelState.IsValid)
             return Page();
         // The procs check the loan and the accounts belong to the selected portfolio
-        var saved = await loans.SaveAsync(Portfolio!.PortfolioId, loan);
-        if (!saved.Ok || saved.Id is not { } id)
-            return Done(saved, "");
-        var old = Report.Loans.FirstOrDefault(l => l.Loan.Id == id)?.Loan;
-        if (old is not null && old.AccountId == i.AccountId && old.InterestAccountId == i.InterestAccountId)
-            return Done(saved, $"{loan.Name} is saved.");
-        if (old is null && i.AccountId is null && i.InterestAccountId is null)
-            return Done(saved, $"{loan.Name} is saved.");
+        var old = Report.Loans.FirstOrDefault(l => l.Loan.Id == loan.Id)?.Loan;
+        var withAccounts = old is null
+            ? i.AccountId is not null || i.InterestAccountId is not null
+            : old.AccountId != i.AccountId || old.InterestAccountId != i.InterestAccountId;
         try
         {
-            var linked = await loans.SetAccountsAsync(Portfolio.PortfolioId, id, i.AccountId, i.InterestAccountId);
-            // A new loan whose accounts were refused is taken out again, so trying again doesn't leave a copy behind
-            if (!linked.Ok && old is null)
-                await loans.DeleteAsync(Portfolio.PortfolioId, id);
-            return Done(linked, $"{loan.Name} is saved." + (i.AccountId is null ? "" : " Its balance now comes from the ledger."));
+            var saved = await loans.SaveAsync(Portfolio!.PortfolioId, loan with { AccountId = i.AccountId, InterestAccountId = i.InterestAccountId }, withAccounts);
+            return Done(saved, $"{loan.Name} is saved." + (withAccounts && i.AccountId is not null ? " Its balance now comes from the ledger." : ""));
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 2812)
         {
-            Message = $"{loan.Name} is saved, but the ledger accounts weren't: run the 2026-11-07-loan-ledger-accounts.sql migration first.";
+            // The ledger accounts need 2026-11-07-loan-ledger-accounts.sql; nothing was saved
+            Message = "The ledger accounts need the 2026-11-07-loan-ledger-accounts.sql migration first. Nothing was saved.";
             return RedirectToPage(new { fy = Fy });
         }
     }

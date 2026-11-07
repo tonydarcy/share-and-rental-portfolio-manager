@@ -250,42 +250,40 @@ public sealed class LoanService(IDbConnectionFactory db)
     }
 
     /// <summary>
-    /// Sets the account the loan's balance is read from and its interest account, then re-posts the loan's own entries so
-    /// they move to that account, in one transaction.
+    /// Saves the loan. With withAccounts it also sets the account its balance is read from and its interest account
+    /// (uspSetLoanAccounts), in the same transaction, so a refused account leaves the loan as it was. A new liability
+    /// account re-posts the loan's own entries to it.
     /// </summary>
-    public async Task<ProcResult> SetAccountsAsync(int portfolioId, int loanId, int? accountId, int? interestAccountId)
+    public async Task<ProcResult> SaveAsync(int portfolioId, Loan l, bool withAccounts = false)
     {
         await using var con = db.Create();
         await con.OpenAsync();
         await using var tx = await con.BeginTransactionAsync();
-        var oldAccountId = await con.ExecuteScalarAsync<int?>("SELECT iAccountID FROM tblLoans WITH (UPDLOCK, HOLDLOCK) WHERE iLoanID = @loanId AND iUserID = @portfolioId",
-            new { loanId, portfolioId }, tx);
-        var result = ProcResult.From(await con.ExecuteScalarAsync<string>("uspSetLoanAccounts",
-            new { iUserID = portfolioId, iLoanID = loanId, iAccountID = accountId, iInterestAccountID = interestAccountId }, tx,
-            commandType: CommandType.StoredProcedure), "Success");
-        if (!result.Ok)
-            return result;
-        // Only a new liability account moves the entries' journals (an interest account change leaves locked periods alone)
-        if (oldAccountId != accountId)
-        {
-            var entryIds = await con.QueryAsync<int>("SELECT iLoanEntryID FROM tblLoanEntries WHERE iLoanID = @loanId", new { loanId }, tx);
-            foreach (var id in entryIds)
-                await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iLoanEntryID = id }, tx);
-        }
-        await tx.CommitAsync();
-        return result;
-    }
-
-    public async Task<ProcResult> SaveAsync(int portfolioId, Loan l)
-    {
-        await using var con = db.Create();
         var row = await con.QuerySingleAsync<(string Result, int? Id)>("uspSaveLoan", new
         {
             iUserID = portfolioId, iLoanID = l.Id, strName = l.Name.Trim(), strLender = Clean(l.Lender), strKind = l.Kind,
             dblRatePercent = (double)l.RatePercent, dblDeductiblePercent = (double)l.DeductiblePercent, dblLimit = (double?)l.Limit,
             dtmOpened = l.Opened.ToDateTime(TimeOnly.MinValue), strComment = Clean(l.Comment),
-        }, commandType: CommandType.StoredProcedure);
-        return ProcResult.From(row.Result, "Success", row.Id);
+        }, tx, commandType: CommandType.StoredProcedure);
+        var result = ProcResult.From(row.Result, "Success", row.Id);
+        if (!result.Ok || row.Id is not { } loanId)
+            return result;
+        if (withAccounts)
+        {
+            var oldAccountId = await con.ExecuteScalarAsync<int?>(
+                "SELECT iAccountID FROM tblLoans WITH (UPDLOCK, HOLDLOCK) WHERE iLoanID = @loanId AND iUserID = @portfolioId", new { loanId, portfolioId }, tx);
+            var linked = ProcResult.From(await con.ExecuteScalarAsync<string>("uspSetLoanAccounts",
+                new { iUserID = portfolioId, iLoanID = loanId, iAccountID = l.AccountId, iInterestAccountID = l.InterestAccountId }, tx,
+                commandType: CommandType.StoredProcedure), "Success");
+            if (!linked.Ok)
+                return linked;
+            // Only a new liability account moves the entries' journals (an interest account change leaves locked periods alone)
+            if (oldAccountId != l.AccountId)
+                foreach (var id in await con.QueryAsync<int>("SELECT iLoanEntryID FROM tblLoanEntries WHERE iLoanID = @loanId", new { loanId }, tx))
+                    await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iLoanEntryID = id }, tx);
+        }
+        await tx.CommitAsync();
+        return result;
     }
 
     // (Re)posts or removes a loan entry's ledger journal, once 2026-10-26-07-loans-in-ledger.sql has been run
