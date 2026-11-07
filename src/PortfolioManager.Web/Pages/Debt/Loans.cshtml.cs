@@ -99,6 +99,9 @@ public class LoansModel(CurrentPortfolio current, LoanService loans, HoldingsSer
         try
         {
             var linked = await loans.SetAccountsAsync(Portfolio.PortfolioId, id, i.AccountId, i.InterestAccountId);
+            // A new loan whose accounts were refused is taken out again, so trying again doesn't leave a copy behind
+            if (!linked.Ok && old is null)
+                await loans.DeleteAsync(Portfolio.PortfolioId, id);
             return Done(linked, $"{loan.Name} is saved." + (i.AccountId is null ? "" : " Its balance now comes from the ledger."));
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 2812)

@@ -258,7 +258,7 @@ public sealed class LoanService(IDbConnectionFactory db)
         await using var con = db.Create();
         await con.OpenAsync();
         await using var tx = await con.BeginTransactionAsync();
-        var oldAccountId = await con.ExecuteScalarAsync<int?>("SELECT iAccountID FROM tblLoans WHERE iLoanID = @loanId AND iUserID = @portfolioId",
+        var oldAccountId = await con.ExecuteScalarAsync<int?>("SELECT iAccountID FROM tblLoans WITH (UPDLOCK, HOLDLOCK) WHERE iLoanID = @loanId AND iUserID = @portfolioId",
             new { loanId, portfolioId }, tx);
         var result = ProcResult.From(await con.ExecuteScalarAsync<string>("uspSetLoanAccounts",
             new { iUserID = portfolioId, iLoanID = loanId, iAccountID = accountId, iInterestAccountID = interestAccountId }, tx,
