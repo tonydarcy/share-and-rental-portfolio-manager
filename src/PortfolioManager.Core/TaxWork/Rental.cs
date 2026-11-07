@@ -495,7 +495,8 @@ public sealed class RentalService(IDbConnectionFactory db)
         var (loans, entries) = await new Debt.LoanService(db).GetAsync(portfolioId);
         var from = FinancialYear.StartDate(year);
         var to = FinancialYear.EndDate(year);
-        return loans.Where(l => links.ContainsKey(l.Id))
+        // A loan with no interest recorded (e.g. one read from the ledger without an interest account) leaves the property's own interest alone
+        return loans.Where(l => links.ContainsKey(l.Id) && (l.InterestAccountId is not null || entries.Any(e => e.LoanId == l.Id && Debt.LoanEntryKinds.IsInterest(e.Kind))))
             .GroupBy(l => links[l.Id])
             .ToDictionary(g => g.Key, g => g.Sum(l => Debt.LoanCalc.Year(l, entries, from, to).Deductible));
     }
