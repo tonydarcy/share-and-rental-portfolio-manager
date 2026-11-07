@@ -29,6 +29,27 @@
     an account of its own, drawdowns and repayments go through the bank account, and interest and fees to Investment Loan Interest. The tax
     workpapers claim the deductible part as a dividend deduction (D8), or in the rental schedule for a loan linked to a rental property.
     Interest owed at the year end but not yet charged can be accrued on <a asp-page="/Debt/FixedIncome">Fixed income</a>.</p>
+<p class="text-muted">A loan you already keep in the ledger (journals or bank transactions coded to a liability account) doesn't need entries here:
+    pick its <strong>ledger account</strong> and the balance is read from the ledger. Pick an <strong>interest account</strong> too (one used only
+    for this loan) and its interest is read from there. Link the loan to a rental property on the property's page.</p>
+@if (Model.Unlinked.Count > 0)
+{
+    <div class="card shadow-sm mb-3 no-print">
+        <div class="card-body">
+            <h2 class="h6">Found in your ledger</h2>
+            <p class="small text-muted mb-2">These liability accounts have a balance but no loan reads from them yet. If one is a loan, add it as a loan.</p>
+            <ul class="list-unstyled mb-0">
+                @foreach (var a in Model.Unlinked)
+                {
+                    <li class="d-flex justify-content-between align-items-center border-top py-1">
+                        <span>@a.Display <span class="text-muted">@a.Balance.ToString("C")</span></span>
+                        <a class="btn btn-sm btn-outline-primary" asp-route-fromaccount="@a.Id" asp-route-fy="@Model.Year" asp-fragment="loan-form">Add as a loan</a>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+}
 
 @if (Model.Today.Loans.Count > 0)
 {
@@ -62,7 +83,11 @@
                 @foreach (var l in Model.Report.Loans)
                 {
                     <tr>
-                        <td><span class="fw-bold">@l.Loan.Name</span> <span class="small text-muted">@LoanKinds.Text(l.Loan.Kind)@(l.Loan.Lender is null ? "" : ", " + l.Loan.Lender)</span></td>
+                        <td><span class="fw-bold">@l.Loan.Name</span> <span class="small text-muted">@LoanKinds.Text(l.Loan.Kind)@(l.Loan.Lender is null ? "" : ", " + l.Loan.Lender)</span>
+                            @if (l.Loan.AccountId is { } acc && Model.AccountName(acc) is { Length: > 0 } accName)
+                            {
+                                <div class="small text-muted">Ledger: @accName@(l.Loan.InterestAccountId is { } ia ? ", interest: " + Model.AccountName(ia) : "")</div>
+                            }</td>
                         <td class="text-end">@l.Loan.RatePercent.ToString("0.##")%</td>
                         <td class="text-end">@l.OpeningBalance.ToString("C")</td>
                         <td class="text-end">@l.Drawdowns.ToString("C")</td>
@@ -114,10 +139,10 @@
                         <tr>
                             <td>@e.Date.ToString("d MMM yyyy")</td>
                             <td>@Model.Report.Loans.FirstOrDefault(l => l.Loan.Id == e.LoanId)?.Loan.Name</td>
-                            <td>@LoanEntryKinds.Text(e.Kind)</td>
+                            <td>@LoanEntryKinds.Text(e.Kind)@if (e.FromLedger) { <span class="badge text-bg-light ms-1">ledger</span> }</td>
                             <td class="text-end">@e.Amount.ToString("C")</td>
                             <td class="small text-muted">@e.Comment</td>
-                            <td class="text-end no-print"><form method="post" asp-page-handler="DeleteEntry" asp-route-id="@e.Id" class="d-inline"><button class="btn btn-sm btn-outline-danger">Delete</button></form></td>
+                            <td class="text-end no-print">@if (!e.FromLedger) { <form method="post" asp-page-handler="DeleteEntry" asp-route-id="@e.Id" class="d-inline"><button class="btn btn-sm btn-outline-danger">Delete</button></form> }</td>
                         </tr>
                     }
                 </tbody>
@@ -126,7 +151,7 @@
     </div>
 }
 
-<form method="post" asp-page-handler="Save" asp-route-fy="@Model.Year" class="card shadow-sm no-print">
+<form method="post" asp-page-handler="Save" asp-route-fy="@Model.Year" class="card shadow-sm no-print" id="loan-form">
     <div class="card-body">
         <h2 class="h6">@(i.Id == 0 ? "Add a loan" : "Change the loan")</h2>
         <input type="hidden" asp-for="Input.Id" />
@@ -139,6 +164,12 @@
             <div class="col-sm-6 col-md-3"><label class="form-label small mb-0" asp-for="Input.DeductiblePercent">Deductible part, %</label><input class="form-control" asp-for="Input.DeductiblePercent" type="number" step="any" min="0" max="100" /></div>
             <div class="col-sm-6 col-md-3"><label class="form-label small mb-0" asp-for="Input.Limit">Limit <span class="text-muted">(optional)</span></label><input class="form-control" asp-for="Input.Limit" type="number" step="0.01" min="0" /></div>
             <div class="col-sm-6 col-md-3"><label class="form-label small mb-0" asp-for="Input.Opened">Opened</label><input class="form-control" asp-for="Input.Opened" type="date" asp-format="{0:yyyy-MM-dd}" /></div>
+            <div class="col-sm-6"><label class="form-label small mb-0" asp-for="Input.AccountId">Ledger account <span class="text-muted">(optional)</span></label>
+                <select class="form-select" asp-for="Input.AccountId"><option value="">None: use the entries on this page</option>
+                    @foreach (var a in Model.Accounts.Where(a => a.Type == "Liability")) { <option value="@a.Id">@a.Display (@a.Balance.ToString("C"))</option> }</select></div>
+            <div class="col-sm-6"><label class="form-label small mb-0" asp-for="Input.InterestAccountId">Interest account <span class="text-muted">(optional)</span></label>
+                <select class="form-select" asp-for="Input.InterestAccountId"><option value="">None</option>
+                    @foreach (var a in Model.Accounts.Where(a => a.Type == "Expense")) { <option value="@a.Id">@a.Display</option> }</select></div>
             <div class="col-12"><label class="form-label small mb-0" asp-for="Input.Comment">Note</label><input class="form-control" asp-for="Input.Comment" maxlength="500" /></div>
         </div>
         <button class="btn btn-primary mt-3">Save</button>

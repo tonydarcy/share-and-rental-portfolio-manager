@@ -134,7 +134,8 @@ public sealed record LoanInterestYear(decimal Charged, decimal Deductible, decim
     {
         var from = FinancialYear.StartDate(year);
         var to = FinancialYear.EndDate(year);
-        var list = entries.ToList();
+        // Entries read from the ledger are already in the ledger's own expense accounts, so only the Loans page's own count here
+        var list = entries.Where(e => !e.FromLedger).ToList();
         var years = loans.Select(l => Debt.LoanCalc.Year(l, list, from, to)).ToList();
         return new LoanInterestYear(years.Sum(y => y.Interest + y.Fees),
             years.Where(y => !rentalLinks.ContainsKey(y.Loan.Id)).Sum(y => y.Deductible),

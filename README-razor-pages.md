@@ -689,6 +689,9 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
   `uspGetTradeSecuritiesTax`. **Run before deploying**: the capital gains pages of portfolios set to India read it.
 - `2026-11-04-02-overseas-business-numbers.sql`: client business and company numbers up to 20 characters (VAT number,
   GSTIN, EIN and so on), widening three `tblClientDetails` columns and `uspSaveClientDetails`.
+- `2026-11-07-loan-ledger-accounts.sql`: a loan on Debt > Loans can take its balance from a ledger account (and its
+  interest from an expense account), so loans kept in the ledger reach the property pages and the dashboard. Adds
+  `tblLoans.iInterestAccountID` and `uspSetLoanAccounts`. Until it is run the Loans page works as before.
 
 ## API and MCP server
 
