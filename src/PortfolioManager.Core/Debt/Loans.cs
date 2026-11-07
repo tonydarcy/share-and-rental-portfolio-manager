@@ -238,10 +238,10 @@ public sealed class LoanService(IDbConnectionFactory db)
         await using var con = db.Create();
         return (await con.QueryAsync<LoanLedgerAccount>("""
             SELECT A.iAccountID AS Id, A.iAccountNumber AS Number, A.strAccountName AS Name, A.strAccountType AS Type,
-                   CAST(ISNULL((SELECT SUM(CASE WHEN A.strAccountType = 'Liability' THEN ISNULL(JL.dblCredit, 0) - ISNULL(JL.dblDebit, 0)
-                                                ELSE ISNULL(JL.dblDebit, 0) - ISNULL(JL.dblCredit, 0) END)
-                                FROM tblJournalLines JL JOIN tblJournal J ON J.iJournalID = JL.iJournalID
-                                WHERE JL.iAccountID = A.iAccountID AND J.iUserID = @portfolioId), 0) AS DECIMAL(19,2)) AS Balance
+                   CAST((CASE WHEN A.strAccountType = 'Liability' THEN -1 ELSE 1 END)
+                        * ISNULL((SELECT SUM(ISNULL(JL.dblDebit, 0) - ISNULL(JL.dblCredit, 0))
+                                  FROM tblJournalLines JL JOIN tblJournal J ON J.iJournalID = JL.iJournalID
+                                  WHERE JL.iAccountID = A.iAccountID AND J.iUserID = @portfolioId), 0) AS DECIMAL(19,2)) AS Balance
             FROM tblChartOfAccounts A
             WHERE ISNULL(A.bIsPostable, 1) = 1
               AND ((A.strAccountType = 'Liability' AND A.iUserID = @portfolioId) OR (A.strAccountType = 'Expense' AND A.iUserID IN (@portfolioId, 0)))
