@@ -51,16 +51,17 @@ BEGIN
         SELECT 'Error: Choose an expense account for the loan''s interest.' AS Result;
         RETURN;
     END
-    IF @iAccountID IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.tblLoans WHERE iUserID = @iUserID AND iLoanID <> @iLoanID AND iAccountID = @iAccountID)
+    IF @iAccountID IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.tblLoans WITH (UPDLOCK, HOLDLOCK) WHERE iUserID = @iUserID AND iLoanID <> @iLoanID AND iAccountID = @iAccountID)
     BEGIN
         SELECT 'Error: Another loan already uses that ledger account.' AS Result;
         RETURN;
     END
-    IF @iInterestAccountID IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.tblLoans WHERE iUserID = @iUserID AND iLoanID <> @iLoanID AND iInterestAccountID = @iInterestAccountID)
+    IF @iInterestAccountID IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.tblLoans WITH (UPDLOCK, HOLDLOCK) WHERE iUserID = @iUserID AND iLoanID <> @iLoanID AND iInterestAccountID = @iInterestAccountID)
     BEGIN
         SELECT 'Error: Another loan already uses that interest account. Give each loan an interest account of its own.' AS Result;
         RETURN;
     END
+    -- The checks above hold their locks until the caller (LoanService.SetAccountsAsync) commits, so two edits can't both link one account
     UPDATE dbo.tblLoans SET iAccountID = @iAccountID, iInterestAccountID = @iInterestAccountID WHERE iLoanID = @iLoanID AND iUserID = @iUserID;
     SELECT 'Success' AS Result;
 END

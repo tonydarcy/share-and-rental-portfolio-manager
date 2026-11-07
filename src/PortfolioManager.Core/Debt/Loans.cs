@@ -258,14 +258,20 @@ public sealed class LoanService(IDbConnectionFactory db)
         await using var con = db.Create();
         await con.OpenAsync();
         await using var tx = await con.BeginTransactionAsync();
+        var oldAccountId = await con.ExecuteScalarAsync<int?>("SELECT iAccountID FROM tblLoans WHERE iLoanID = @loanId AND iUserID = @portfolioId",
+            new { loanId, portfolioId }, tx);
         var result = ProcResult.From(await con.ExecuteScalarAsync<string>("uspSetLoanAccounts",
             new { iUserID = portfolioId, iLoanID = loanId, iAccountID = accountId, iInterestAccountID = interestAccountId }, tx,
             commandType: CommandType.StoredProcedure), "Success");
         if (!result.Ok)
             return result;
-        var entryIds = await con.QueryAsync<int>("SELECT iLoanEntryID FROM tblLoanEntries WHERE iLoanID = @loanId", new { loanId }, tx);
-        foreach (var id in entryIds)
-            await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iLoanEntryID = id }, tx);
+        // Only a new liability account moves the entries' journals (an interest account change leaves locked periods alone)
+        if (oldAccountId != accountId)
+        {
+            var entryIds = await con.QueryAsync<int>("SELECT iLoanEntryID FROM tblLoanEntries WHERE iLoanID = @loanId", new { loanId }, tx);
+            foreach (var id in entryIds)
+                await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iLoanEntryID = id }, tx);
+        }
         await tx.CommitAsync();
         return result;
     }
