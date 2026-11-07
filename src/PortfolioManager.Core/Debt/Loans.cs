@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using Dapper;
 using PortfolioManager.Core.Data;
 
@@ -16,8 +17,15 @@ public static class LoanEntryKinds
     public const string Drawdown = "Drawdown", Repayment = "Repayment", Interest = "Interest", Fee = "Fee", Redraw = "Redraw";
     public static readonly string[] All = [Drawdown, Repayment, Interest, Fee, Redraw];
 
-    /// <summary>+1 when the entry adds to what's owed (interest and fees charged to the loan).</summary>
-    public static int Sign(string k) => k == Repayment ? -1 : 1;
+    /// <summary>
+    /// Interest paid from elsewhere (e.g. the bank) that doesn't change what's owed. Only made from the ledger, never entered.
+    /// </summary>
+    public const string InterestPaid = "InterestPaid";
+
+    /// <summary>+1 when the entry adds to what's owed (interest and fees charged to the loan), nil for interest paid from elsewhere.</summary>
+    public static int Sign(string k) => k switch { Repayment => -1, InterestPaid => 0, _ => 1 };
+
+    public static bool IsInterest(string k) => k is Interest or InterestPaid;
 
     public static string Text(string k) => k switch
     {
@@ -25,15 +33,21 @@ public static class LoanEntryKinds
         Repayment => "Repayment",
         Interest => "Interest charged",
         Redraw => "Private redraw (not deductible)",
+        InterestPaid => "Interest paid",
         _ => "Fee charged",
     };
 }
 
-/// <summary>A margin or investment loan (tblLoans). DeductiblePercent is the part used for income-producing investments.</summary>
+/// <summary>
+/// A margin or investment loan (tblLoans). DeductiblePercent is the part used for income-producing investments.
+/// AccountId is the liability account its entries post to and its balance is read from; InterestAccountId, when set,
+/// is the expense account its interest is read from.
+/// </summary>
 public sealed record Loan(int Id, string Name, string? Lender, string Kind, decimal RatePercent, decimal DeductiblePercent, decimal? Limit,
-    DateOnly Opened, string? Comment);
+    DateOnly Opened, string? Comment, int? AccountId = null, int? InterestAccountId = null);
 
-public sealed record LoanEntry(int Id, int LoanId, DateOnly Date, string Kind, decimal Amount, string? Comment)
+/// <summary>An entry on a loan. FromLedger marks one read from the ledger (a journal or bank allocation), not entered on the Loans page.</summary>
+public sealed record LoanEntry(int Id, int LoanId, DateOnly Date, string Kind, decimal Amount, string? Comment, bool FromLedger = false)
 {
     public decimal Signed => LoanEntryKinds.Sign(Kind) * Amount;
 }
@@ -77,7 +91,8 @@ public static class LoanCalc
         var opening = mine.Where(e => e.Date < from).Sum(e => e.Signed);
         var year = mine.Where(e => e.Date >= from && e.Date <= to).ToList();
         decimal Sum(string kind) => year.Where(e => e.Kind == kind).Sum(e => e.Amount);
-        return new LoanYear(loan, opening, Sum(LoanEntryKinds.Drawdown) + Sum(LoanEntryKinds.Redraw), Sum(LoanEntryKinds.Repayment), Sum(LoanEntryKinds.Interest),
+        return new LoanYear(loan, opening, Sum(LoanEntryKinds.Drawdown) + Sum(LoanEntryKinds.Redraw), Sum(LoanEntryKinds.Repayment),
+            Sum(LoanEntryKinds.Interest) + Sum(LoanEntryKinds.InterestPaid),
             Sum(LoanEntryKinds.Fee), opening + year.Sum(e => e.Signed), mine.Where(e => e.Kind == LoanEntryKinds.Redraw && e.Date <= to).Sum(e => e.Amount));
     }
 
@@ -91,7 +106,7 @@ public static class LoanCalc
         var balance = mine.Sum(e => e.Signed);
         if (balance <= 0 || loan.RatePercent <= 0)
             return 0;
-        var since = mine.Where(e => e.Kind == LoanEntryKinds.Interest).Select(e => (DateOnly?)e.Date).Max() ?? loan.Opened;
+        var since = mine.Where(e => LoanEntryKinds.IsInterest(e.Kind)).Select(e => (DateOnly?)e.Date).Max() ?? loan.Opened;
         var days = date.DayNumber - since.DayNumber;
         return days <= 0 ? 0 : Math.Round(balance * loan.RatePercent / 100m * days / 365m, 2, MidpointRounding.AwayFromZero);
     }
@@ -105,6 +120,44 @@ public static class LoanCalc
         if (l.DeductiblePercent is < 0 or > 100) errors.Add("The deductible part is a percentage from 0 to 100.");
         if (l.Limit is < 0) errors.Add("The limit can't be negative.");
         return errors;
+    }
+}
+
+/// <summary>
+/// One ledger journal's effect on a loan: what it added to the loan's liability account (credits less debits) and what
+/// it charged to the loan's interest account (debits less credits).
+/// </summary>
+public sealed record LedgerLoanMove(int LoanId, int JournalId, DateOnly Date, string? Description, decimal LoanCredit, decimal Interest);
+
+/// <summary>A liability or expense account a loan can be read from, with its balance (liabilities: what's owed).</summary>
+public sealed record LoanLedgerAccount(int Id, int Number, string Name, string Type, decimal Balance)
+{
+    public string Display => $"{Number} {Name}";
+}
+
+public static class LedgerLoanEntries
+{
+    /// <summary>
+    /// Turns ledger journals into loan entries. Interest charged to the loan in the same journal is interest; the rest of
+    /// what the loan went up by is a drawdown, and what it went down by a repayment. Interest paid from elsewhere (the
+    /// bank or an offset account) is interest that leaves the balance alone.
+    /// </summary>
+    public static IReadOnlyList<LoanEntry> From(IEnumerable<LedgerLoanMove> moves)
+    {
+        var list = new List<LoanEntry>();
+        foreach (var m in moves)
+        {
+            var onLoan = m.LoanCredit > 0 && m.Interest > 0 ? Math.Min(m.LoanCredit, m.Interest) : 0;
+            void Add(string kind, decimal amount)
+            {
+                if (amount != 0)
+                    list.Add(new LoanEntry(-m.JournalId, m.LoanId, m.Date, kind, amount, m.Description, FromLedger: true));
+            }
+            Add(LoanEntryKinds.Interest, onLoan);
+            Add(m.LoanCredit > 0 ? LoanEntryKinds.Drawdown : LoanEntryKinds.Repayment, Math.Abs(m.LoanCredit) - onLoan);
+            Add(LoanEntryKinds.InterestPaid, m.Interest - onLoan);
+        }
+        return list;
     }
 }
 
@@ -130,7 +183,12 @@ public sealed class LoanService(IDbConnectionFactory db)
             var loans = (await grid.ReadAsync<LoanRow>()).Select(r => new Loan(r.Id, r.Name, r.Lender, r.Kind, M(r.RatePercent), M(r.DeductiblePercent),
                 r.Limit is { } lim ? M(lim) : null, DateOnly.FromDateTime(r.Opened), r.Comment)).ToList();
             var entries = (await grid.ReadAsync<EntryRow>()).Select(r => new LoanEntry(r.Id, r.LoanId, DateOnly.FromDateTime(r.Date), r.Kind, M(r.Amount), r.Comment)).ToList();
-            return (loans, entries);
+            if (loans.Count == 0)
+                return (loans, entries);
+            var (linked, moves) = await LedgerAsync(con, portfolioId);
+            loans = loans.Select(l => linked.TryGetValue(l.Id, out var a) ? l with { AccountId = a.AccountId, InterestAccountId = a.InterestAccountId } : l).ToList();
+            entries.AddRange(LedgerLoanEntries.From(moves));
+            return (loans, entries.OrderBy(e => e.Date).ThenBy(e => e.FromLedger).ThenBy(e => e.Id).ToList());
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 208)
         {
@@ -138,16 +196,94 @@ public sealed class LoanService(IDbConnectionFactory db)
         }
     }
 
-    public async Task<ProcResult> SaveAsync(int portfolioId, Loan l)
+    private sealed record LinkRow(int LoanId, int? AccountId, int? InterestAccountId);
+    private sealed record MoveRow(int LoanId, int JournalId, DateTime Date, string? Description, decimal LoanCredit, decimal Interest);
+
+    /// <summary>
+    /// Each loan's accounts, and the ledger journals in them other than the loan's own entries (already in tblLoanEntries)
+    /// and year-end interest accruals. Nothing until 2026-11-07-loan-ledger-accounts.sql has been run.
+    /// </summary>
+    private static async Task<(Dictionary<int, LinkRow> Links, IReadOnlyList<LedgerLoanMove> Moves)> LedgerAsync(DbConnection con, int portfolioId)
+    {
+        try
+        {
+            using var grid = await con.QueryMultipleAsync("""
+                SELECT iLoanID AS LoanId, iAccountID AS AccountId, iInterestAccountID AS InterestAccountId FROM tblLoans WHERE iUserID = @portfolioId;
+                SELECT L.iLoanID AS LoanId, J.iJournalID AS JournalId, CAST(J.dtmTransactionDate AS datetime) AS Date, J.strDescription AS Description,
+                       CAST(SUM(CASE WHEN JL.iAccountID = L.iAccountID THEN ISNULL(JL.dblCredit, 0) - ISNULL(JL.dblDebit, 0) ELSE 0 END) AS DECIMAL(19,2)) AS LoanCredit,
+                       CAST(SUM(CASE WHEN JL.iAccountID = L.iInterestAccountID THEN ISNULL(JL.dblDebit, 0) - ISNULL(JL.dblCredit, 0) ELSE 0 END) AS DECIMAL(19,2)) AS Interest
+                FROM tblLoans L
+                JOIN tblJournalLines JL ON JL.iAccountID = L.iAccountID OR JL.iAccountID = L.iInterestAccountID
+                JOIN tblJournal J ON J.iJournalID = JL.iJournalID AND J.iUserID = L.iUserID
+                WHERE L.iUserID = @portfolioId AND ISNULL(J.strSourceModule, '') NOT IN ('LoanEntry', 'InterestAccrual')
+                GROUP BY L.iLoanID, J.iJournalID, J.dtmTransactionDate, J.strDescription;
+                """, new { portfolioId });
+            var links = (await grid.ReadAsync<LinkRow>()).ToDictionary(l => l.LoanId);
+            var moves = (await grid.ReadAsync<MoveRow>())
+                .Select(m => new LedgerLoanMove(m.LoanId, m.JournalId, DateOnly.FromDateTime(m.Date), m.Description?.Trim(), m.LoanCredit, m.Interest)).ToList();
+            return (links, moves);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 207 or 208)
+        {
+            return ([], []);
+        }
+    }
+
+    /// <summary>
+    /// The portfolio's own postable liability accounts and the postable expense accounts it can use, with balances, for
+    /// picking a loan's accounts.
+    /// </summary>
+    public async Task<IReadOnlyList<LoanLedgerAccount>> GetLedgerAccountsAsync(int portfolioId)
     {
         await using var con = db.Create();
+        return (await con.QueryAsync<LoanLedgerAccount>("""
+            SELECT A.iAccountID AS Id, A.iAccountNumber AS Number, A.strAccountName AS Name, A.strAccountType AS Type,
+                   CAST((CASE WHEN A.strAccountType = 'Liability' THEN -1 ELSE 1 END)
+                        * ISNULL((SELECT SUM(ISNULL(JL.dblDebit, 0) - ISNULL(JL.dblCredit, 0))
+                                  FROM tblJournalLines JL JOIN tblJournal J ON J.iJournalID = JL.iJournalID
+                                  WHERE JL.iAccountID = A.iAccountID AND J.iUserID = @portfolioId), 0) AS DECIMAL(19,2)) AS Balance
+            FROM tblChartOfAccounts A
+            WHERE ISNULL(A.bIsPostable, 1) = 1
+              AND ((A.strAccountType = 'Liability' AND A.iUserID = @portfolioId) OR (A.strAccountType = 'Expense' AND A.iUserID IN (@portfolioId, 0)))
+            ORDER BY A.iAccountNumber, A.strAccountName
+            """, new { portfolioId })).ToList();
+    }
+
+    /// <summary>
+    /// Saves the loan. With withAccounts it also sets the account its balance is read from and its interest account
+    /// (uspSetLoanAccounts), in the same transaction, so a refused account leaves the loan as it was. A new liability
+    /// account re-posts the loan's own entries to it.
+    /// </summary>
+    public async Task<ProcResult> SaveAsync(int portfolioId, Loan l, bool withAccounts = false)
+    {
+        await using var con = db.Create();
+        await con.OpenAsync();
+        await using var tx = await con.BeginTransactionAsync();
         var row = await con.QuerySingleAsync<(string Result, int? Id)>("uspSaveLoan", new
         {
             iUserID = portfolioId, iLoanID = l.Id, strName = l.Name.Trim(), strLender = Clean(l.Lender), strKind = l.Kind,
             dblRatePercent = (double)l.RatePercent, dblDeductiblePercent = (double)l.DeductiblePercent, dblLimit = (double?)l.Limit,
             dtmOpened = l.Opened.ToDateTime(TimeOnly.MinValue), strComment = Clean(l.Comment),
-        }, commandType: CommandType.StoredProcedure);
-        return ProcResult.From(row.Result, "Success", row.Id);
+        }, tx, commandType: CommandType.StoredProcedure);
+        var result = ProcResult.From(row.Result, "Success", row.Id);
+        if (!result.Ok || row.Id is not { } loanId)
+            return result;
+        if (withAccounts)
+        {
+            var oldAccountId = await con.ExecuteScalarAsync<int?>(
+                "SELECT iAccountID FROM tblLoans WITH (UPDLOCK, HOLDLOCK) WHERE iLoanID = @loanId AND iUserID = @portfolioId", new { loanId, portfolioId }, tx);
+            var linked = ProcResult.From(await con.ExecuteScalarAsync<string>("uspSetLoanAccounts",
+                new { iUserID = portfolioId, iLoanID = loanId, iAccountID = l.AccountId, iInterestAccountID = l.InterestAccountId }, tx,
+                commandType: CommandType.StoredProcedure), "Success");
+            if (!linked.Ok)
+                return linked;
+            // Only a new liability account moves the entries' journals (an interest account change leaves locked periods alone)
+            if (oldAccountId != l.AccountId)
+                foreach (var id in await con.QueryAsync<int>("SELECT iLoanEntryID FROM tblLoanEntries WHERE iLoanID = @loanId", new { loanId }, tx))
+                    await con.ExecuteAsync(PostJournal, new { iUserID = portfolioId, iLoanEntryID = id }, tx);
+        }
+        await tx.CommitAsync();
+        return result;
     }
 
     // (Re)posts or removes a loan entry's ledger journal, once 2026-10-26-07-loans-in-ledger.sql has been run

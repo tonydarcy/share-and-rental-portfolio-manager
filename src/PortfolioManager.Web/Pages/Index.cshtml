@@ -68,6 +68,11 @@
                     <div class="text-muted small"><a asp-page="/Rentals/Index" class="text-reset">Property equity</a></div>
                     <div class="kpi-value">@Model.PropertyEquity.ToString("C")</div>
                     <div class="small text-muted">@Model.Properties.Count propert@(Model.Properties.Count == 1 ? "y" : "ies"): your share of the value less linked loans</div>
+                    @{ var owedOnProperty = Model.Properties.Sum(p => p.Loans); }
+                    @if (owedOnProperty != 0)
+                    {
+                        <div class="small text-muted">Loans owed: <a asp-page="/Debt/Loans" class="text-reset">@owedOnProperty.ToString("C")</a></div>
+                    }
                 </div>
             </div>
         </div>
