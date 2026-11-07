@@ -11,7 +11,10 @@ SET QUOTED_IDENTIFIER ON;
 GO
 
 IF COL_LENGTH('dbo.tblLoans', 'iAccountID') IS NULL
+BEGIN
     RAISERROR('Stopped: run 2026-10-26-07-loans-in-ledger.sql first. Nothing was changed.', 16, 1);
+    SET NOEXEC ON;
+END
 GO
 
 IF COL_LENGTH('dbo.tblLoans', 'iInterestAccountID') IS NULL
@@ -61,4 +64,7 @@ BEGIN
     UPDATE dbo.tblLoans SET iAccountID = @iAccountID, iInterestAccountID = @iInterestAccountID WHERE iLoanID = @iLoanID AND iUserID = @iUserID;
     SELECT 'Success' AS Result;
 END
+GO
+
+SET NOEXEC OFF;
 GO
