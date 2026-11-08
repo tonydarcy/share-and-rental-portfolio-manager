@@ -9,15 +9,27 @@
         <div class="card shadow-sm">
             <div class="card-body p-4">
                 <h1 class="h4 mb-3">Enter your code</h1>
-                <p class="small">Open your authenticator app and enter the 6-digit code it shows for this site. Lost your phone? Enter one of your recovery codes instead.</p>
+                <p class="small">Enter the 6-digit code your authenticator app or password manager shows for this site.</p>
                 <form method="post">
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
                     <input type="hidden" asp-for="ReturnUrl" />
+                    @* Read-only, so password managers know which saved login's code to fill *@
                     <div class="mb-3">
-                        <label asp-for="Code" class="form-label"></label>
-                        <input asp-for="Code" class="form-control" autocomplete="one-time-code" inputmode="text" autofocus />
-                        <span asp-validation-for="Code" class="text-danger small"></span>
+                        <label for="username" class="form-label small text-muted mb-0">Logging in as</label>
+                        <input type="email" id="username" name="username" value="@Model.Email" autocomplete="username"
+                               readonly class="form-control-plaintext py-0" />
                     </div>
+                    <div class="mb-3">
+                        <label for="totp" class="form-label">6-digit code</label>
+                        @* name/id "totp" and one-time-code are what iCloud Keychain, Bitwarden, Proton Pass and 1Password look for *@
+                        <input type="text" id="totp" name="totp" class="form-control" autocomplete="one-time-code"
+                               inputmode="numeric" autocapitalize="off" spellcheck="false" maxlength="7" autofocus />
+                    </div>
+                    <details class="mb-3" @(string.IsNullOrEmpty(Model.RecoveryCode) ? "" : "open")>
+                        <summary class="small">Lost your phone? Use a recovery code</summary>
+                        <label asp-for="RecoveryCode" class="form-label mt-2"></label>
+                        <input asp-for="RecoveryCode" class="form-control" autocomplete="off" autocapitalize="off" spellcheck="false" />
+                    </details>
                     <button type="submit" class="btn btn-primary w-100">Log in</button>
                 </form>
                 <p class="text-center small mt-3 mb-0"><a asp-page="/Account/Login">Start again</a></p>

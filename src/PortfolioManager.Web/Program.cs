@@ -223,16 +223,21 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.OnRejected = (context, ct) => new ValueTask(context.HttpContext.Response.WriteAsync(
-        "Too many attempts from your address. Wait a minute, then go back and try again.", ct));
+    // A typed page: Safari on iPhone saves an untyped reply as a file instead of showing it
+    options.OnRejected = (context, ct) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        return new ValueTask(PlainErrorPages.WriteAsync(context.HttpContext, ct));
+    };
     options.AddPolicy(ApiEndpoints.RateLimit, context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1) }));
-    // 10 form posts a minute from each address to the login, sign-up and email pages, to slow password guessing
-    // and stop the site being used to send floods of email. Opening the pages isn't limited.
+    // 10 form posts a minute from each address to each of the login, code, sign-up and email pages, to slow password
+    // guessing and stop the site being used to send floods of email. Opening the pages isn't limited. Each page counts
+    // on its own, so tries at the password don't use up the posts for the code page that follows.
     options.AddPolicy(SignInFlow.RateLimit, context => HttpMethods.IsGet(context.Request.Method)
         ? RateLimitPartition.GetNoLimiter("")
-        : RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "",
+        : RateLimitPartition.GetFixedWindowLimiter(SignInFlow.RateLimitKey(context),
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
 });
 
@@ -263,6 +268,8 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
     app.UseHsts();
 }
+// A page for empty error replies (expired form, unknown address), so phones show it rather than save it as a file
+app.UsePlainErrorPages();
 
 app.UseHttpsRedirection();
 // Content-Security-Policy, no framing by other sites, and the rest (Services/SecurityHeaders.cs)
