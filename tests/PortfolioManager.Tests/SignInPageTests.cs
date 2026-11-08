@@ -63,6 +63,7 @@ public class SignInPageTests
         }
         Assert.NotEqual(SignInFlow.RateLimitKey(Post("/Account/Login")), SignInFlow.RateLimitKey(Post("/Account/LoginTwoFactor")));
         Assert.Equal(SignInFlow.RateLimitKey(Post("/Account/Login")), SignInFlow.RateLimitKey(Post("/account/login")));
+        Assert.Equal(SignInFlow.RateLimitKey(Post("/Account/Login")), SignInFlow.RateLimitKey(Post("/Account/Login/")));
     }
 
     [Theory]

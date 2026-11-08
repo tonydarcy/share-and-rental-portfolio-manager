@@ -68,6 +68,9 @@ public class LoginTwoFactorModel(AccountService accounts, AccountTokens tokens, 
                 var paused = await security.FailedAsync(HttpContext, SecurityEvents.TwoFactorCode, user.Email, user);
                 ModelState.AddModelError(string.Empty, paused ? AccountSecurity.PausedMessage
                     : "That code isn't right. Check the time on your phone is correct, and use the newest code.");
+                // Empty the recovery box, so a wrong recovery code isn't sent again with the next authenticator code
+                RecoveryCode = null;
+                ModelState.Remove(nameof(RecoveryCode));
                 return Page();
             }
             await accounts.SetTwoFactorAsync(user.UserId, user.TwoFactorSecret, remaining);

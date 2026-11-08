@@ -17,7 +17,7 @@ public sealed class SignInFlow(PortfolioService portfolios, AccountSecurity secu
 
     /// <summary>Who a sign-in page post counts against: the address it came from, on that page.</summary>
     public static string RateLimitKey(HttpContext context) =>
-        $"{context.Connection.RemoteIpAddress}|{context.Request.Path.Value?.ToLowerInvariant()}";
+        $"{context.Connection.RemoteIpAddress}|{context.Request.Path.Value?.TrimEnd('/').ToLowerInvariant()}";
 
     /// <summary>
     /// Signs in with the cookie and logs it (emailing the owner when the device is new, unless notifyNewDevice is false).
