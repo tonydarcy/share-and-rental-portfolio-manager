@@ -16,14 +16,28 @@ namespace PortfolioManager.Web.Pages.Account;
 public class LoginTwoFactorModel(AccountService accounts, AccountTokens tokens, SignInFlow signIn, TimeProvider clock,
     AccountSecurity security) : PageModel
 {
-    [BindProperty, Required, Display(Name = "Code from your authenticator app, or a recovery code")]
-    public string Code { get; set; } = "";
+    // Named "totp" and marked one-time-code in the page, so password managers (iCloud Keychain, Bitwarden,
+    // Proton Pass, 1Password) see it as the place for the authenticator code and offer to fill it.
+    [BindProperty(Name = "totp"), Display(Name = "6-digit code")]
+    public string? Totp { get; set; }
+
+    /// <summary>A one-off recovery code, typed in its own box because it has letters (the code box shows a number pad).</summary>
+    [BindProperty, Display(Name = "Recovery code")]
+    public string? RecoveryCode { get; set; }
+
+    /// <summary>The login's email, shown read-only so password managers know which saved login's code to fill.</summary>
+    public string Email { get; private set; } = "";
 
     [BindProperty(SupportsGet = true)]
     public string? ReturnUrl { get; set; }
 
-    public async Task<IActionResult> OnGetAsync() =>
-        await PendingAsync() is null ? RedirectToPage("/Account/Login", new { ReturnUrl }) : Page();
+    public async Task<IActionResult> OnGetAsync()
+    {
+        if (await PendingAsync() is not { } pending)
+            return RedirectToPage("/Account/Login", new { ReturnUrl });
+        Email = pending.User.Email;
+        return Page();
+    }
 
     public async Task<IActionResult> OnPostAsync()
     {
@@ -32,20 +46,24 @@ public class LoginTwoFactorModel(AccountService accounts, AccountTokens tokens, 
             TempData["Error"] = "That took too long. Please log in again.";
             return RedirectToPage("/Account/Login", new { ReturnUrl });
         }
+        var (user, rememberMe) = pending;
+        Email = user.Email;
+        var code = EnteredCode(Totp, RecoveryCode);
+        if (code is null)
+            ModelState.AddModelError(string.Empty, "Enter the 6-digit code from your authenticator app, or a recovery code.");
         if (!ModelState.IsValid)
             return Page();
 
-        var (user, rememberMe) = pending;
         if (await security.IsPausedAsync(user.Email))
         {
             ModelState.AddModelError(string.Empty, AccountSecurity.PausedMessage);
             return Page();
         }
         var secret = tokens.UnprotectSecret(user.TwoFactorSecret);
-        if (!TwoFactor.VerifyCode(secret, Code, clock.GetUtcNow()))
+        if (!TwoFactor.VerifyCode(secret, code, clock.GetUtcNow()))
         {
             // Not an authenticator code: maybe one of the one-off recovery codes
-            if (TwoFactor.UseRecoveryCode(user.RecoveryCodes, Code) is not { } remaining)
+            if (TwoFactor.UseRecoveryCode(user.RecoveryCodes, code) is not { } remaining)
             {
                 var paused = await security.FailedAsync(HttpContext, SecurityEvents.TwoFactorCode, user.Email, user);
                 ModelState.AddModelError(string.Empty, paused ? AccountSecurity.PausedMessage
@@ -60,6 +78,12 @@ public class LoginTwoFactorModel(AccountService accounts, AccountTokens tokens, 
             TempData["Message"] = message;
         return Url.IsLocalUrl(ReturnUrl) ? LocalRedirect(ReturnUrl) : RedirectToPage("/Index");
     }
+
+    /// <summary>The code typed: the recovery code box if it was used, otherwise the authenticator code box.</summary>
+    public static string? EnteredCode(string? totp, string? recoveryCode) =>
+        !string.IsNullOrWhiteSpace(recoveryCode) ? recoveryCode.Trim()
+        : !string.IsNullOrWhiteSpace(totp) ? totp.Trim()
+        : null;
 
     /// <summary>The login whose password was just checked, from the short-lived cookie the login page set.</summary>
     private async Task<(SignedInUser User, bool RememberMe)?> PendingAsync()

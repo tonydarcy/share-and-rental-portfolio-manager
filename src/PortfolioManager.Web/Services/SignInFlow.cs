@@ -15,6 +15,10 @@ public sealed class SignInFlow(PortfolioService portfolios, AccountSecurity secu
     /// <summary>The rate limit on the login, sign-up and email pages (see Program.cs).</summary>
     public const string RateLimit = "signin";
 
+    /// <summary>Who a sign-in page post counts against: the address it came from, on that page.</summary>
+    public static string RateLimitKey(HttpContext context) =>
+        $"{context.Connection.RemoteIpAddress}|{context.Request.Path.Value?.ToLowerInvariant()}";
+
     /// <summary>
     /// Signs in with the cookie and logs it (emailing the owner when the device is new, unless notifyNewDevice is false).
     /// Returns a message to show when shared portfolios were just added.
