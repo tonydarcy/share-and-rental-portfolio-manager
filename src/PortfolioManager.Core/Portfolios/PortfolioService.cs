@@ -276,4 +276,41 @@ public sealed class PortfolioService(IDbConnectionFactory db)
         accessible.FirstOrDefault(p => p.PortfolioId == requestedId)
         ?? accessible.FirstOrDefault(p => p.PortfolioId == userId)
         ?? accessible.FirstOrDefault();
+    private sealed record MenuUsageRow(bool HasBusiness, bool HasProperty, bool HasPracticeDetails, string? EntityType,
+        string? PortfolioChoices, string? LoginChoices);
+
+    /// <summary>
+    /// What the top menu needs for a login looking at a portfolio (uspGetMenuUsage). Every menu shows until the
+    /// menu migration has been run.
+    /// </summary>
+    public async Task<MenuUsage> GetMenuUsageAsync(int userId, int portfolioId, int portfolioCount, bool isAustralia)
+    {
+        await using var con = db.Create();
+        try
+        {
+            var row = await con.QueryFirstOrDefaultAsync<MenuUsageRow>("uspGetMenuUsage",
+                new { iUserId = userId, iPortfolioId = portfolioId }, commandType: CommandType.StoredProcedure);
+            return row is null
+                ? MenuUsage.Everything(portfolioCount, isAustralia)
+                : new MenuUsage(row.HasBusiness, row.HasProperty, row.HasPracticeDetails, row.EntityType?.Trim() ?? "",
+                    row.PortfolioChoices, row.LoginChoices, portfolioCount, isAustralia);
+        }
+        catch (SqlException ex) when (ex.Number == 2812) // stored procedure not found
+        {
+            return MenuUsage.Everything(portfolioCount, isAustralia);
+        }
+    }
+
+    /// <summary>
+    /// Saves menu choices on a tblUsers row: a portfolio's (full access needed) or the login's own.
+    /// <paramref name="choices"/> is the whole text, already merged with what was there.
+    /// </summary>
+    public async Task<ProcResult> SaveMenuAreasAsync(int userId, int targetId, string? choices)
+    {
+        await using var con = db.Create();
+        var result = await con.ExecuteScalarAsync<string>("uspSaveMenuAreas",
+            new { iUserId = userId, iPortfolioId = targetId, strMenuAreas = choices ?? "" },
+            commandType: CommandType.StoredProcedure);
+        return ProcResult.From(result, "Settings Saved");
+    }
 }

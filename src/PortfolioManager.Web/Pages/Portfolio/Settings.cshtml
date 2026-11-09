@@ -1,5 +1,6 @@
 @page
 @model PortfolioManager.Web.Pages.Portfolio.SettingsModel
+@using PortfolioManager.Core.Portfolios
 @{
     ViewData["Title"] = "Portfolio settings";
     var months = Enumerable.Range(1, 12).Select(m => (m, System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)));
@@ -83,6 +84,49 @@
                 <button type="submit" class="btn btn-primary">Save settings</button>
             </fieldset>
         </form>
+
+        @if (Model.MenuUsage is { } usage)
+        {
+            <form method="post" asp-page-handler="Menu" class="card shadow-sm mt-4" id="menu">
+                <div class="card-body">
+                    <h2 class="h5">Menu</h2>
+                    <p class="small text-body-secondary">
+                        Parts of the menu show only when you use them. Automatic shows them once there's something in
+                        them. Search in the menu still finds hidden pages.
+                    </p>
+                    @foreach (var area in MenuAreas.PortfolioAreas.Append(MenuArea.Practice))
+                    {
+                        var choice = MenuAreas.ChoiceFor(area, usage);
+                        var auto = MenuAreas.ShowsAutomatically(area, usage);
+                        var locked = area != MenuArea.Practice && Model.Portfolio?.CanEdit != true;
+                        <div class="row g-2 align-items-center mb-2">
+                            <label class="col-sm-7 col-form-label" for="menu-@area">
+                                @MenuAreas.Label(area)
+                                @if (area == MenuArea.Practice)
+                                {
+                                    <span class="d-block small text-body-secondary">For your login, in every portfolio.</span>
+                                }
+                            </label>
+                            <div class="col-sm-5">
+                                <select class="form-select" id="menu-@area" name="Menu[@area]" disabled="@locked">
+                                    <option value="Automatic" selected="@(choice == MenuChoice.Automatic)">Automatic (now @(auto ? "shown" : "hidden"))</option>
+                                    <option value="Show" selected="@(choice == MenuChoice.Show)">Always show</option>
+                                    <option value="Hide" selected="@(choice == MenuChoice.Hide)">Never show</option>
+                                </select>
+                            </div>
+                        </div>
+                    }
+                    @if (!usage.IsAustralia)
+                    {
+                        <p class="small text-body-secondary">
+                            The tax return pages follow Australian rules, so they're hidden for a portfolio in another country.
+                            The capital gains, taxable income and @PortfolioManager.Core.SalesTax.SalesTaxPresets.TaxName(Model.CountryCode) reports stay.
+                        </p>
+                    }
+                    <button type="submit" class="btn btn-outline-primary">Save menu</button>
+                </div>
+            </form>
+        }
 
         <div class="card shadow-sm mt-4">
             <div class="card-body">

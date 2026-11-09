@@ -36,9 +36,17 @@ public class SettingsModel(CurrentPortfolio current, PortfolioService portfolios
     /// <summary>The portfolio's strAccountingMode; an old single-entry one is offered the switch to double entry.</summary>
     public string AccountingMode { get; private set; } = "DoubleEntry";
 
+    /// <summary>The menu choices posted from the Menu card, by area name (Automatic, Show or Hide).</summary>
+    [BindProperty]
+    public Dictionary<string, MenuChoice> Menu { get; set; } = [];
+
+    /// <summary>What the menu shows now and why, for the Menu card.</summary>
+    public MenuUsage? MenuUsage { get; private set; }
+
     public async Task OnGetAsync()
     {
         Portfolio = await current.GetSelectedAsync();
+        MenuUsage = await current.GetMenuUsageAsync();
         var region = await current.GetRegionAsync();
         CountryCode = region.CountryCode;
         YearStartMonth = region.YearStart.Month;
@@ -50,9 +58,57 @@ public class SettingsModel(CurrentPortfolio current, PortfolioService portfolios
             AccountingMode = await chart.GetAccountingModeAsync(Portfolio.PortfolioId);
     }
 
+    /// <summary>Saves the Menu card: the portfolio's areas (needs edit access) and the login's own practice view.</summary>
+    public async Task<IActionResult> OnPostMenuAsync()
+    {
+        Portfolio = await current.GetSelectedAsync();
+        if (Portfolio is null)
+            return RedirectToPage();
+        var userId = CurrentPortfolio.UserId(User);
+        var accessible = await current.GetAccessibleAsync();
+        var region = await current.GetRegionAsync();
+        var usage = await portfolios.GetMenuUsageAsync(userId, Portfolio.PortfolioId, accessible.Count, region.IsAustralia);
+
+        var posted = Menu
+            .Select(m => (Ok: Enum.TryParse<MenuArea>(m.Key, out var area), Area: area, Choice: m.Value))
+            .Where(m => m.Ok)
+            .ToDictionary(m => m.Area, m => m.Choice);
+        var portfolioChanges = posted.Where(p => MenuAreas.PortfolioAreas.Contains(p.Key)).ToDictionary();
+        var loginText = usage.LoginChoices;
+
+        if (portfolioChanges.Count > 0 && Portfolio.CanEdit)
+        {
+            var text = MenuAreas.Merge(usage.PortfolioChoices, portfolioChanges);
+            var result = await portfolios.SaveMenuAreasAsync(userId, Portfolio.PortfolioId, text);
+            if (!result.Ok)
+            {
+                TempData["Error"] = result.Error;
+                return RedirectToPage();
+            }
+            if (Portfolio.PortfolioId == userId)
+                loginText = text; // the login's own portfolio keeps both on one row
+        }
+        if (posted.TryGetValue(MenuArea.Practice, out var practice))
+        {
+            var result = await portfolios.SaveMenuAreasAsync(userId, userId,
+                MenuAreas.Merge(loginText, new Dictionary<MenuArea, MenuChoice> { [MenuArea.Practice] = practice }));
+            if (!result.Ok)
+            {
+                TempData["Error"] = result.Error;
+                return RedirectToPage();
+            }
+        }
+
+        foreach (var p in accessible)
+            current.ForgetMenu(p.PortfolioId);
+        TempData["Message"] = "Menu saved.";
+        return RedirectToPage();
+    }
+
     public async Task<IActionResult> OnPostAsync()
     {
         Portfolio = await current.GetSelectedAsync();
+        MenuUsage = await current.GetMenuUsageAsync();
         SavedCurrency = (await current.GetRegionAsync()).Currency;
         if (Portfolio is null || !Portfolio.CanEdit)
             return RedirectToPage();
