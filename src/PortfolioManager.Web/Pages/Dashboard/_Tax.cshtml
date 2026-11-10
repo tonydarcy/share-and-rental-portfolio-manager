@@ -61,8 +61,8 @@
         @if (Model.Harvest is { } h)
         {
             <div class="alert alert-info small py-2 mb-2">
-                The year ends on @h.YearEnd.ToString("d MMMM"). @h.Holdings holding@(h.Holdings == 1 ? " is" : "s are") about @h.Losses.ToString("C0") below cost@(w.Cgt.NetCapitalGain > 0 ? ", which could offset this year's gains if sold" : "").
-                <a asp-page="/Reports/TaxLoss">See the tax loss report</a>. This isn't advice; check wash sale rules first.
+                The year ends on @h.YearEnd.ToString("d MMMM"). @h.Holdings holding@(h.Holdings == 1 ? " is" : "s are") about @h.Losses.ToString("C0") below cost@(w.Cgt.NetCapitalGain > 0 ? ", and this year has a net capital gain so far" : "").
+                <a asp-page="/Reports/TaxLoss">See the tax loss report</a>. This is general information, not advice.
             </div>
         }
         @if (w.Members is { Count: > 0 } members)

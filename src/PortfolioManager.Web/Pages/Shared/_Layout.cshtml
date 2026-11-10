@@ -53,6 +53,11 @@
         {
             <p class="small text-body-secondary border-start border-3 ps-2">@LegalSettings.AssistantNote</p>
         }
+        else if (Legal.Enabled && ViewContext.ActionDescriptor is Microsoft.AspNetCore.Mvc.RazorPages.CompiledPageActionDescriptor connector
+            && LegalSettings.ShowsConnectorNote(connector.ViewEnginePath))
+        {
+            <p class="small text-body-secondary border-start border-3 ps-2">@LegalSettings.ConnectorNote</p>
+        }
         @if (signedIn && ViewContext.ActionDescriptor is Microsoft.AspNetCore.Mvc.RazorPages.CompiledPageActionDescriptor { ViewEnginePath: "/Index" }
             && !AccountSecurity.HasTwoFactor(User)
             && (portfolios.Any(p => p.Access != PortfolioManager.Core.Portfolios.PortfolioAccess.Full) || portfolios.Count >= 3))

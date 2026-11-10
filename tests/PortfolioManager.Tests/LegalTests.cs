@@ -42,6 +42,10 @@ public class LegalTests
     [InlineData("/SalesTax/Index", true)]
     [InlineData("/Reports/CapitalGains", true)]
     [InlineData("/Reports/Consolidated", true)]
+    [InlineData("/Rentals/Schedule", true)]
+    [InlineData("/Claims/Index", true)]
+    [InlineData("/Assets/Depreciate", true)]
+    [InlineData("/Debt/Loans", true)]
     [InlineData("/Reports/Performance", false)]
     [InlineData("/Holdings", false)]
     [InlineData(null, false)]
@@ -54,6 +58,15 @@ public class LegalTests
         Assert.True(LegalSettings.ShowsAssistantNote("/Assistant/Index"));
         Assert.False(LegalSettings.ShowsAssistantNote("/Index"));
         Assert.Contains("Anthropic", LegalSettings.AssistantNote);
+        Assert.True(LegalSettings.ShowsAssistantNote("/Reading/Index"));
+    }
+
+    [Fact]
+    public void The_api_key_and_connector_pages_carry_the_connector_note()
+    {
+        Assert.True(LegalSettings.ShowsConnectorNote("/Account/ApiKeys"));
+        Assert.True(LegalSettings.ShowsConnectorNote("/Account/Connect"));
+        Assert.False(LegalSettings.ShowsConnectorNote("/Account/Delete"));
     }
 
     [Theory]
