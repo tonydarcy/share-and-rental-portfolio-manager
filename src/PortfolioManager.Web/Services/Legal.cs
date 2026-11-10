@@ -12,7 +12,7 @@ namespace PortfolioManager.Web.Services;
 public sealed class LegalSettings
 {
     /// <summary>The version of the built-in terms and privacy policy. Changing it asks everyone to agree again.</summary>
-    public const string BuiltInVersion = "2026-10-28";
+    public const string BuiltInVersion = "2026-11-10";
 
     public const string DefaultSourceCodeUrl = "https://github.com/tonydarcy/share-and-rental-portfolio-manager";
 
@@ -64,12 +64,16 @@ public sealed class LegalSettings
     public static bool ShowsFiguresNote(string? page) =>
         page is not null && (page.StartsWith("/TaxWork/", StringComparison.OrdinalIgnoreCase)
             || page.StartsWith("/SalesTax/", StringComparison.OrdinalIgnoreCase)
+            || FiguresAreas.Any(a => page.StartsWith(a, StringComparison.OrdinalIgnoreCase))
             || FiguresPages.Contains(page));
+
+    /// <summary>Areas whose pages all work out tax figures: rental schedules, deductions, depreciation.</summary>
+    private static readonly string[] FiguresAreas = ["/Rentals/", "/Claims/", "/Assets/"];
 
     private static readonly HashSet<string> FiguresPages = new(StringComparer.OrdinalIgnoreCase)
     {
         "/Reports/CapitalGains", "/Reports/TaxableIncome", "/Reports/UnrealisedGains", "/Reports/TaxLoss",
-        "/Reports/Consolidated", "/Reports/WhatIf",
+        "/Reports/Consolidated", "/Reports/WhatIf", "/Debt/Loans",
     };
 
     public const string FiguresNote = "These figures are worked out from the records entered and may contain errors. "
@@ -79,7 +83,16 @@ public sealed class LegalSettings
     public const string AssistantNote = "Answers come from an AI model and can be wrong, so check them before you rely on them. "
         + "Your questions and the records needed to answer them are sent to Anthropic in the United States.";
 
+    /// <summary>The AI note shows on the assistant page. Document reading says on its own page which reader gets the file.</summary>
     public static bool ShowsAssistantNote(string? page) => string.Equals(page, "/Assistant/Index", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The note on the API key and connector pages (Pages/Account/ApiKeys and Connect).</summary>
+    public const string ConnectorNote = "An API key or connector lets another program, such as your own AI assistant, read and change your records as you. "
+        + "That program's own terms and privacy policy apply to what it does with them, and its answers can be wrong. Check any change it makes.";
+
+    public static bool ShowsConnectorNote(string? page) =>
+        string.Equals(page, "/Account/ApiKeys", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(page, "/Account/Connect", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Pages a signed-in person can open before agreeing to the current terms: the legal pages themselves,
