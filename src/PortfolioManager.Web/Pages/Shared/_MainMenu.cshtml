@@ -1,0 +1,256 @@
+@using PortfolioManager.Core.Portfolios
+@inject CurrentPortfolio Current
+@inject SiteAdmin Admin
+@inject SiteBranding Site
+@*
+    The top menu, drawn from Services/MainMenu.cs: grouped wide menus on a computer, and on a phone a bar along the
+    bottom of the screen that opens a side panel. Both have a Go to search that also finds portfolios.
+*@
+@{
+    var signedIn = User.Identity?.IsAuthenticated == true;
+    var portfolios = signedIn ? await Current.GetAccessibleAsync() : [];
+    var selected = signedIn ? await Current.GetSelectedAsync() : null;
+    MenuContext? menu = null;
+    IReadOnlyList<MenuSection> sections = [];
+    IReadOnlyList<(MenuSection Section, MenuGroup Group, MenuItem Item)> turnedOff = [];
+    if (signedIn)
+    {
+        var usage = await Current.GetMenuUsageAsync();
+        menu = new MenuContext(usage, Admin.IsAdmin(User),
+            PortfolioManager.Core.SalesTax.SalesTaxPresets.TaxName(RegionSettings.Current.CountryCode));
+        sections = MainMenu.For(menu);
+        turnedOff = MainMenu.TurnedOff(menu);
+    }
+    var homeUrl = Url.Page(menu?.HomePage ?? "/Index");
+    var returnUrl = Context.Request.Path + Context.Request.QueryString;
+    string Link(MenuItem item) => item.Kind is null ? Url.Page(item.Page)! : Url.Page(item.Page, new { kind = item.Kind })!;
+    string SearchText(MenuSection s, MenuGroup g, MenuItem i) => $"{i.Label} {g.Heading} {s.Label} {i.Keywords}";
+}
+<nav class="navbar navbar-expand-xl navbar-dark bg-dark mb-4 pm-topbar" aria-label="Main menu">
+    <div class="container-fluid flex-nowrap">
+        <a class="navbar-brand text-truncate" href="@homeUrl">
+            @if (!string.IsNullOrWhiteSpace(Site.LogoUrl))
+            {
+                <img src="@Site.LogoUrl" alt="" height="28" class="d-inline-block align-text-top me-1" />
+            }
+            @Site.Name
+        </a>
+        @if (signedIn && menu is not null)
+        {
+            @* Computer: one row of grouped menus *@
+            <ul class="navbar-nav flex-row me-auto d-none d-xl-flex pm-desktop-menu">
+                <li class="nav-item"><a class="nav-link" asp-page="/Index" data-pm-link>Dashboard</a></li>
+                @foreach (var sec in sections)
+                {
+                    <li class="nav-item dropdown pm-mega-host">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">@sec.Label</a>
+                        <div class="dropdown-menu pm-mega" style="--pm-cols: @Math.Min(sec.Groups.Count, 4)">
+                            @foreach (var group in sec.Groups)
+                            {
+                                <div class="pm-mega-col">
+                                    <h6 class="dropdown-header">@group.Heading</h6>
+                                    @foreach (var item in group.Items)
+                                    {
+                                        <a class="dropdown-item" href="@Link(item)" data-pm-link>@item.Label</a>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </li>
+                }
+                <li class="nav-item"><a class="nav-link" asp-page="/Assistant/Index" title="Assistant" data-pm-link><i class="bi bi-chat-dots"></i><span class="visually-hidden">Assistant</span></a></li>
+            </ul>
+
+            <div class="pm-goto d-none d-xl-block me-3" role="search">
+                <label for="pmGoToTop" class="visually-hidden">Go to a page@(portfolios.Count > 1 ? " or portfolio" : "")</label>
+                <input id="pmGoToTop" type="search" class="form-control form-control-sm pm-goto-input" autocomplete="off"
+                       placeholder="Go to… (press /)" aria-controls="pmGoToTopResults" />
+                <div id="pmGoToTopResults" class="list-group pm-goto-results" role="listbox" hidden></div>
+            </div>
+
+            @if (portfolios.Count > 1)
+            {
+                <form method="post" asp-page="/Portfolio/Select" class="d-none d-xl-flex me-3">
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <label for="portfolioId" class="visually-hidden">Portfolio</label>
+                    <select id="portfolioId" name="portfolioId" class="form-select form-select-sm pm-portfolio-select" onchange="this.form.submit()">
+                        @foreach (var p in portfolios)
+                        {
+                            <option value="@p.PortfolioId" selected="@(p.PortfolioId == selected?.PortfolioId)">@p.Name</option>
+                        }
+                    </select>
+                    <noscript><button type="submit" class="btn btn-sm btn-outline-light ms-2">Go</button></noscript>
+                </form>
+            }
+            else if (selected is not null)
+            {
+                <span class="navbar-text text-nowrap me-3 d-none d-xl-inline">@selected.Name</span>
+            }
+
+            @* Phone: the portfolio's name (tap to switch or search) instead of the menus *@
+            <button type="button" class="btn btn-sm btn-outline-light text-truncate ms-auto me-2 d-xl-none pm-portfolio-chip"
+                    data-pm-open="" data-pm-focus="search" title="Switch portfolio or search">
+                <i class="bi bi-folder2-open"></i> @(selected?.Name ?? "Portfolio")
+            </button>
+
+            @if (selected is { CanEdit: false })
+            {
+                <span class="badge text-bg-warning me-2" title="You can look at this portfolio but not change it">View only</span>
+            }
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Your account">
+                    <i class="bi bi-person-circle"></i> <span class="small d-none d-xxl-inline">@User.Identity!.Name</span><span class="visually-hidden">Your account</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header text-truncate">@User.Identity!.Name</h6></li>
+                    <li><a class="dropdown-item" asp-page="/Portfolio/Manage">Manage portfolios</a></li>
+                    <li><a class="dropdown-item" asp-page="/Portfolio/Settings">Portfolio settings</a></li>
+                    <li><a class="dropdown-item" asp-page="/Portfolio/Backup">Back up or restore</a></li>
+                    @if (selected?.CanShare == true)
+                    {
+                        <li><a class="dropdown-item" asp-page="/Portfolio/Sharing">Share this portfolio</a></li>
+                        <li><a class="dropdown-item" asp-page="/Portfolio/Delete">Delete data</a></li>
+                    }
+                    @if (!menu.PracticeView)
+                    {
+                        <li><a class="dropdown-item" asp-page="/Clients/Practice">Practice details</a></li>
+                    }
+                    <li><a class="dropdown-item" asp-page="/Account/TwoFactor">Two-factor sign-in</a></li>
+                    <li><a class="dropdown-item" asp-page="/Account/Activity">Recent sign-ins</a></li>
+                    <li><a class="dropdown-item" asp-page="/Account/ApiKeys">API keys and AI assistants</a></li>
+                    <li><a class="dropdown-item" asp-page="/Account/Alerts">Email alerts</a></li>
+                    <li><a class="dropdown-item" href="#" id="offlineCopies" title="Save the main pages on this device as you open them, to look at with no connection">Offline copies on this device: <span data-state>off</span></a></li>
+                    @if (Admin.IsAdmin(User))
+                    {
+                        <li><a class="dropdown-item" asp-page="/Account/TestEmail">Check email settings</a></li>
+                    }
+                    <li><a class="dropdown-item" asp-page="/Account/Delete">Delete account</a></li>
+                    <li><hr class="dropdown-divider" /></li>
+                    <li>
+                        <form method="post" asp-page="/Account/Logout">
+                            <button type="submit" class="dropdown-item">Log out</button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        }
+    </div>
+</nav>
+
+@if (signedIn && menu is not null)
+{
+    @* Phone and tablet: the whole menu in a side panel, one fold-out section per menu *@
+    <div class="offcanvas offcanvas-start pm-panel" tabindex="-1" id="pmMenu" aria-labelledby="pmMenuTitle">
+        <div class="offcanvas-header border-bottom">
+            <h2 class="offcanvas-title h5" id="pmMenuTitle">Menu</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body pt-2">
+            @if (portfolios.Count > 1)
+            {
+                <form method="post" asp-page="/Portfolio/Select" class="mb-2">
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <label for="pmPanelPortfolio" class="form-label small text-body-secondary mb-1">Portfolio</label>
+                    <select id="pmPanelPortfolio" name="portfolioId" class="form-select" onchange="this.form.submit()">
+                        @foreach (var p in portfolios)
+                        {
+                            <option value="@p.PortfolioId" selected="@(p.PortfolioId == selected?.PortfolioId)">@p.Name</option>
+                        }
+                    </select>
+                </form>
+            }
+            <div class="pm-goto mb-3" role="search">
+                <label for="pmGoToPanel" class="visually-hidden">Go to a page@(portfolios.Count > 1 ? " or portfolio" : "")</label>
+                <input id="pmGoToPanel" type="search" class="form-control pm-goto-input" autocomplete="off"
+                       placeholder="@(portfolios.Count > 1 ? "Search pages and portfolios" : "Search pages")" aria-controls="pmGoToPanelResults" />
+                <div id="pmGoToPanelResults" class="list-group pm-goto-results" role="listbox" hidden></div>
+            </div>
+
+            <div class="list-group list-group-flush mb-2">
+                @if (menu.PracticeView)
+                {
+                    <a class="list-group-item list-group-item-action" asp-page="/Clients/Dashboard" data-pm-link><i class="bi bi-people me-2"></i>Practice dashboard</a>
+                }
+                <a class="list-group-item list-group-item-action" asp-page="/Index" data-pm-link><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
+                <a class="list-group-item list-group-item-action" asp-page="/Assistant/Index" data-pm-link><i class="bi bi-chat-dots me-2"></i>Assistant</a>
+            </div>
+
+            <div class="accordion accordion-flush" id="pmSections">
+                @foreach (var sec in sections)
+                {
+                    <div class="accordion-item" data-pm-section="@sec.Key">
+                        <h3 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#pmSec-@sec.Key" aria-expanded="false" aria-controls="pmSec-@sec.Key">
+                                <i class="bi @sec.Icon me-2"></i>@sec.Label
+                            </button>
+                        </h3>
+                        <div id="pmSec-@sec.Key" class="accordion-collapse collapse" data-bs-parent="#pmSections">
+                            <div class="accordion-body py-1">
+                                @foreach (var group in sec.Groups)
+                                {
+                                    @if (sec.Groups.Count > 1)
+                                    {
+                                        <div class="small text-body-secondary text-uppercase fw-semibold mt-2 mb-1">@group.Heading</div>
+                                    }
+                                    <div class="list-group list-group-flush">
+                                        @foreach (var item in group.Items)
+                                        {
+                                            <a class="list-group-item list-group-item-action py-2" href="@Link(item)" data-pm-link
+                                               data-pm-go="@SearchText(sec, group, item)" data-pm-where="@sec.Label">@item.Label</a>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (turnedOff.Count > 0)
+            {
+                @* Found by the search but not shown, so the first invoice or property can still be reached *@
+                <div hidden>
+                    @foreach (var (sec, group, item) in turnedOff)
+                    {
+                        <a href="@Link(item)" data-pm-go="@SearchText(sec, group, item)" data-pm-where="@sec.Label (not in your menu)">@item.Label</a>
+                    }
+                </div>
+                <p class="small text-body-secondary mt-3 mb-0">
+                    Some menus are hidden because this portfolio doesn't use them yet. Search still finds their pages,
+                    or turn them on in <a asp-page="/Portfolio/Settings" asp-fragment="menu">Portfolio settings</a>.
+                </p>
+            }
+            @if (portfolios.Count > 1)
+            {
+                <div hidden>
+                    @foreach (var p in portfolios.Where(p => p.PortfolioId != selected?.PortfolioId))
+                    {
+                        <a href="#" data-pm-portfolio="@p.PortfolioId" data-pm-go="@p.Name portfolio client" data-pm-where="Open portfolio">@p.Name</a>
+                    }
+                </div>
+                <form method="post" asp-page="/Portfolio/Select" id="pmPickPortfolio" hidden>
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <input type="hidden" name="portfolioId" />
+                </form>
+            }
+        </div>
+    </div>
+
+    @* Phone and tablet: the bar along the bottom of the screen *@
+    <nav class="pm-bottombar d-xl-none d-print-none" aria-label="Shortcuts">
+        @if (menu.PracticeView)
+        {
+            <a asp-page="/Clients/Dashboard" data-pm-link><i class="bi bi-people"></i><span>Clients</span></a>
+            <a asp-page="/Index" data-pm-link><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+        }
+        else
+        {
+            <a asp-page="/Index" data-pm-link><i class="bi bi-house-door"></i><span>Home</span></a>
+            <a asp-page="/Holdings" data-pm-link><i class="bi bi-pie-chart"></i><span>Holdings</span></a>
+        }
+        <button type="button" data-pm-open="add" class="pm-bottombar-add"><i class="bi bi-plus-circle-fill"></i><span>Add</span></button>
+        <button type="button" data-pm-open="reports"><i class="bi bi-bar-chart"></i><span>Reports</span></button>
+        <button type="button" data-pm-open=""><i class="bi bi-list"></i><span>Menu</span></button>
+    </nav>
+}

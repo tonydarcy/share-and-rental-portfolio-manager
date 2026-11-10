@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.Extensions.Caching.Memory;
 using PortfolioManager.Core.Portfolios;
 using PortfolioManager.Core.Regions;
 
@@ -9,7 +10,7 @@ namespace PortfolioManager.Web.Services;
 /// The choice is kept in a cookie but is always checked against the portfolios the user
 /// may open, so editing the cookie can't reveal someone else's portfolio.
 /// </summary>
-public sealed class CurrentPortfolio(IHttpContextAccessor http, PortfolioService portfolios)
+public sealed class CurrentPortfolio(IHttpContextAccessor http, PortfolioService portfolios, IMemoryCache cache)
 {
     public const string CookieName = "pm_portfolio";
 
@@ -44,6 +45,32 @@ public sealed class CurrentPortfolio(IHttpContextAccessor http, PortfolioService
         }
         return _region;
     }
+
+    /// <summary>
+    /// What the top menu needs for this login and portfolio. Kept for two minutes, as every page draws the menu;
+    /// saving the menu choices clears it (<see cref="ForgetMenu"/>).
+    /// </summary>
+    public async Task<MenuUsage> GetMenuUsageAsync()
+    {
+        var userId = UserId(Context.User);
+        var selected = await GetSelectedAsync();
+        var region = await GetRegionAsync();
+        var count = (await GetAccessibleAsync()).Count;
+        if (selected is null)
+            return MenuUsage.Everything(count, region.IsAustralia);
+        var usage = await cache.GetOrCreateAsync(MenuKey(userId, selected.PortfolioId), entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
+            return portfolios.GetMenuUsageAsync(userId, selected.PortfolioId, count, region.IsAustralia);
+        });
+        // The portfolio count and country can change between requests; the rest is what the cache saves
+        return usage! with { PortfolioCount = count, IsAustralia = region.IsAustralia };
+    }
+
+    /// <summary>Makes the next page read the menu choices again, after they or the portfolio's records change.</summary>
+    public void ForgetMenu(int portfolioId) => cache.Remove(MenuKey(UserId(Context.User), portfolioId));
+
+    private static string MenuKey(int userId, int portfolioId) => $"menu:{userId}:{portfolioId}";
 
     /// <summary>Switches portfolio. Returns false (and changes nothing) if the user may not open it.</summary>
     public async Task<bool> TrySelectAsync(int portfolioId)

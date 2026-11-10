@@ -28,6 +28,12 @@ over a SQL Server database whose stored procedures post the double-entry journal
   out of the capital gains cost and proceeds.
 - **Portfolio picker** in the navbar, using `uspGetAccessiblePortfolios`. The choice is checked
   against that list on every request.
+- **Top menu** (`Services/MainMenu.cs`, `Pages/Shared/_MainMenu.cshtml`, `wwwroot/js/menu.js`): one list of links drawn
+  as grouped wide menus on a computer and, on phones and tablets, a bar along the bottom (Home, Holdings, Add, Reports,
+  Menu) that opens a side panel. "Go to" search finds any page, including hidden ones, and other portfolios (press `/`).
+  Business, Property and the company/trust/SMSF tax pages show only once used (or by choice on Portfolio settings);
+  Australian tax pages hide for portfolios in other countries. A login with practice details or 3+ portfolios gets the
+  practice view: a Clients menu first, and home is the practice dashboard. Add a page to the menu in `MainMenu.cs`.
 - **Back up or restore** (account menu, `Pages/Portfolio/Backup`, `Core/Backup`): an owner downloads the portfolio as
   a `.pmbackup` file (gzip-compressed JSON: the portfolio's settings, then every table in `BackupPlan.Tables` with its
   rows and their old ids, plus the standard accounts and share names it uses). Restoring it adds a new portfolio for
@@ -692,6 +698,9 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-11-07-loan-ledger-accounts.sql`: a loan on Debt > Loans can take its balance from a ledger account (and its
   interest from an expense account), so loans kept in the ledger reach the property pages and the dashboard. Adds
   `tblLoans.iInterestAccountID` and `uspSetLoanAccounts`. Until it is run the Loans page works as before.
+- `2026-11-10-menu-areas.sql`: the top menu shows Business, Property and the company/trust/SMSF tax pages only when a
+  portfolio uses them, with Automatic/Always/Never choices on Portfolio settings. Adds `tblUsers.strMenuAreas`,
+  `uspGetMenuUsage` and `uspSaveMenuAreas`. Until it is run every menu shows, as before.
 
 ## API and MCP server
 
