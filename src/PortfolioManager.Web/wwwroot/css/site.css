@@ -211,12 +211,12 @@
 /* Menu names stay on one line; the menu wraps to a second row rather than running off the screen */
 .navbar-nav .nav-link { white-space: nowrap; }
 
-/* Computer: each menu opens as a wide panel under the bar, its groups side by side */
+/* Computer: each menu opens under its own name, its groups side by side (menu.js nudges it left if it would run off
+   the right of the screen) */
 @media (min-width: 1200px) {
-    .pm-topbar > .container-fluid { position: relative; }
-    .pm-topbar .pm-mega-host { position: static; }
+    .pm-topbar .pm-mega-host { position: relative; }
     .pm-topbar .dropdown-menu.pm-mega {
-        left: 1rem; top: 100%;
+        left: 0; top: 100%;
         display: none;
         grid-template-columns: repeat(var(--pm-cols, 2), minmax(13rem, 1fr));
         gap: 0 .5rem;

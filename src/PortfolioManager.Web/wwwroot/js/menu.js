@@ -19,6 +19,14 @@
         if (host) host.querySelector('.nav-link')?.classList.add('active');
     });
 
+    // A wide menu opens under its name, moved left only as far as it must to stay on the screen
+    document.querySelectorAll('.pm-mega-host').forEach(host => host.addEventListener('shown.bs.dropdown', () => {
+        const menu = host.querySelector('.pm-mega');
+        menu.style.left = '0px';
+        const over = menu.getBoundingClientRect().right - (document.documentElement.clientWidth - 16);
+        if (over > 0) menu.style.left = -Math.min(over, host.getBoundingClientRect().left - 16) + 'px';
+    }));
+
     const openSection = key => {
         panel.querySelectorAll('.accordion-collapse.show').forEach(c => {
             if (c.id !== 'pmSec-' + key) bootstrap.Collapse.getOrCreateInstance(c, { toggle: false }).hide();
