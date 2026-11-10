@@ -58,7 +58,6 @@ public class LegalTests
         Assert.True(LegalSettings.ShowsAssistantNote("/Assistant/Index"));
         Assert.False(LegalSettings.ShowsAssistantNote("/Index"));
         Assert.Contains("Anthropic", LegalSettings.AssistantNote);
-        Assert.True(LegalSettings.ShowsAssistantNote("/Reading/Index"));
     }
 
     [Fact]

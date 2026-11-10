@@ -83,10 +83,8 @@ public sealed class LegalSettings
     public const string AssistantNote = "Answers come from an AI model and can be wrong, so check them before you rely on them. "
         + "Your questions and the records needed to answer them are sent to Anthropic in the United States.";
 
-    /// <summary>The AI note shows on the assistant and on document reading, which both send records to Anthropic.</summary>
-    public static bool ShowsAssistantNote(string? page) =>
-        string.Equals(page, "/Assistant/Index", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(page, "/Reading/Index", StringComparison.OrdinalIgnoreCase);
+    /// <summary>The AI note shows on the assistant page. Document reading says on its own page which reader gets the file.</summary>
+    public static bool ShowsAssistantNote(string? page) => string.Equals(page, "/Assistant/Index", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The note on the API key and connector pages (Pages/Account/ApiKeys and Connect).</summary>
     public const string ConnectorNote = "An API key or connector lets another program, such as your own AI assistant, read and change your records as you. "
