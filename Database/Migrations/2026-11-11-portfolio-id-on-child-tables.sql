@@ -15,6 +15,7 @@
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET NOCOUNT ON;
+SET XACT_ABORT ON;  -- an error rolls back the table being worked on and stops the script
 GO
 
 DECLARE @Map TABLE (iOrder INT IDENTITY, strChild SYSNAME, strParentColumn SYSNAME, strParent SYSNAME, strParentKey SYSNAME);
