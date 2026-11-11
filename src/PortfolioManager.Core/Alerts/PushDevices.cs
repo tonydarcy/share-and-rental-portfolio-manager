@@ -69,7 +69,9 @@ public static class PushRules
 
 /// <summary>
 /// The phones each login has signed the app in on (tblPushDevices, 2026-11-11-push-devices.sql). A token is unique: when a
-/// phone changes hands or signs in as someone else, its row moves to the new login.
+/// phone changes hands or signs in as someone else, its row moves to the new login. The app must delete its Firebase token
+/// on signing out (unregister_push_device, then FirebaseMessaging.deleteToken), so the next person gets a new token and an
+/// old one someone kept can't pull the phone's alerts back to their login.
 /// </summary>
 public sealed class PushDeviceService(IDbConnectionFactory db)
 {

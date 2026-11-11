@@ -54,7 +54,8 @@ public sealed class FirebasePushSender : IPushSender
             for (var i = 0; i < response.Responses.Count; i++)
             {
                 var error = response.Responses[i].Exception;
-                if (error?.MessagingErrorCode is MessagingErrorCode.Unregistered or MessagingErrorCode.InvalidArgument)
+                // Only "unregistered" surely means the phone is gone; InvalidArgument can also mean a bad message, which would wipe every phone
+                if (error?.MessagingErrorCode is MessagingErrorCode.Unregistered)
                     gone.Add(batch[i]);
                 else if (error is not null)
                     // e.g. no Apple key in Firebase yet, so every iPhone alert fails: keep the phone, tell the operator
