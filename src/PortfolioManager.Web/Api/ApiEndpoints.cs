@@ -53,6 +53,16 @@ public static class ApiEndpoints
         Get(api, "/portfolios/{portfolioId:int}/reports/balance-sheet", "report_balance_sheet");
         Get(api, "/portfolios/{portfolioId:int}/reports/rental-schedule", "report_rental_schedule");
 
+        // For the phone app
+        Get(api, "/portfolios/{portfolioId:int}/dashboard", "get_dashboard");
+        Get(api, "/portfolios/{portfolioId:int}/prices/{exchange}/{stockCode}", "get_price_history");
+        Get(api, "/portfolios/{portfolioId:int}/securities", "search_securities");
+        Get(api, "/portfolios/{portfolioId:int}/attachments", "list_attachments");
+        Post(api, "/portfolios/{portfolioId:int}/attachments", "add_attachment");
+        Get(api, "/push-devices", "list_push_devices");
+        Post(api, "/push-devices", "register_push_device");
+        Delete(api, "/push-devices/{pushDeviceId:int}", "unregister_push_device");
+
         var mcp = app.MapGroup("/mcp").RequireAuthorization(Policy).RequireRateLimiting(RateLimit).DisableAntiforgery();
         mcp.MapPost("", async (HttpContext http, McpServer server) => await server.HandleAsync(http));
         // No server-to-client stream or sessions: every reply comes back on the POST

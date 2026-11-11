@@ -297,6 +297,7 @@ public static class BackupPlan
         ["tblAssistantSettings"] = "a login's Anthropic key (a secret)",
         ["tblAssistantChats"] = "a login's assistant chats",
         ["tblAlertSettings"] = "a login's email alerts",
+        ["tblPushDevices"] = "a login's phones, for alerts on one site",
         ["tblPriceAlerts"] = "a login's email alerts",
         ["tblRentalAlertsSent"] = "which alerts were emailed",
         ["tblAnnouncedActionDismissals"] = "points at the site's own announcements",

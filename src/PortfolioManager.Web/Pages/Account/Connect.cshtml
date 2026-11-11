@@ -23,7 +23,7 @@
                         (<strong>@User.Identity?.Name</strong>). It reaches the same portfolios you can, with the same role.
                     </p>
                     <p class="small text-muted">
-                        After you choose, you go back to <code>@redirect.Host</code>. Only allow apps you started connecting yourself.
+                        After you choose, you go back to <code>@(string.IsNullOrEmpty(redirect.Host) ? redirect.Scheme : redirect.Host)</code>. Only allow apps you started connecting yourself.
                     </p>
                     <form method="post">
                         @foreach (var f in Model.Carried)

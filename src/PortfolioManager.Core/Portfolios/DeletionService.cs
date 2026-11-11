@@ -140,6 +140,11 @@ public sealed class DeletionService(IDbConnectionFactory db)
         await using var con = db.Create();
         var row = await con.QuerySingleOrDefaultAsync<AccountResult>("uspDeleteLogin", new { iUserId = userId },
             commandType: CommandType.StoredProcedure, commandTimeout: LongTimeout);
-        return (ProcResult.From(row?.Result, "Account Deleted"), row?.Deleted ?? 0, row?.Kept ?? 0);
+        var result = ProcResult.From(row?.Result, "Account Deleted");
+        // The phones it signed the app in on stop getting alerts (the table comes with 2026-11-11-push-devices.sql)
+        if (result.Ok)
+            await con.ExecuteAsync("IF OBJECT_ID('dbo.tblPushDevices', 'U') IS NOT NULL DELETE FROM dbo.tblPushDevices WHERE iLoginID = @userId",
+                new { userId });
+        return (result, row?.Deleted ?? 0, row?.Kept ?? 0);
     }
 }

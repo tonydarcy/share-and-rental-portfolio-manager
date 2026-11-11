@@ -70,6 +70,8 @@ public class OAuthTests
     [InlineData("http://127.0.0.1:5000/cb", true)]
     [InlineData("http://evil.example.com/cb", false)]
     [InlineData("https://claude.ai/cb#frag", false)]
+    [InlineData("com.shareportfoliomanager.app:/oauth", true)]
+    [InlineData("com.other.app:/oauth", false)]
     [InlineData("javascript:alert(1)", false)]
     [InlineData("/relative", false)]
     public void Only_safe_return_addresses_are_accepted(string uri, bool ok) => Assert.Equal(ok, OAuthServer.AllowedRedirect(uri));

@@ -101,10 +101,12 @@ public class AssistantTests
     }
 
     [Fact]
-    public void Every_tool_but_list_portfolios_takes_the_portfolio()
+    public void Every_tool_but_list_portfolios_and_the_phone_tools_takes_the_portfolio()
     {
+        // The phone tools belong to the login, not a portfolio, so the site's assistant (portfolio tools only) never sees them
+        string[] noPortfolio = ["list_portfolios", "register_push_device", "list_push_devices", "unregister_push_device"];
         var tools = new AgentTools();
-        Assert.All(tools.All.Where(t => t.Name != "list_portfolios"), t => Assert.True(t.NeedsPortfolio, t.Name));
+        Assert.All(tools.All, t => Assert.Equal(!noPortfolio.Contains(t.Name), t.NeedsPortfolio));
         Assert.NotNull(tools.Find("report_rental_schedule"));
     }
 
