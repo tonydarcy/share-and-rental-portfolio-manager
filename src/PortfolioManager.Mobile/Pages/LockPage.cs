@@ -1,6 +1,9 @@
 namespace PortfolioManager.Mobile.Pages;
 
-/// <summary>Covers the app until the phone's fingerprint, face or PIN prompt is passed.</summary>
+/// <summary>
+/// Covers the app until the phone's fingerprint, face or PIN prompt is passed. The app asks once the screen is in front
+/// (<see cref="AskAsync"/>); the Unlock button asks again.
+/// </summary>
 public sealed class LockPage : ContentPage
 {
     private readonly Func<Task<bool>> unlock;
@@ -24,13 +27,7 @@ public sealed class LockPage : ContentPage
         };
     }
 
-    protected override async void OnAppearing()
-    {
-        base.OnAppearing();
-        await AskAsync();
-    }
-
-    private async Task AskAsync()
+    public async Task AskAsync()
     {
         if (asking)
             return;

@@ -18,6 +18,7 @@ public sealed class SharePage : ContentPage
     private readonly HorizontalStackLayout spanButtons = new() { Spacing = 8, HorizontalOptions = LayoutOptions.Center };
     private readonly VerticalStackLayout details = [];
     private int months = 12, request;
+    private bool offline;
 
     public SharePage(Session session, int portfolioId, string exchange, string code)
     {
@@ -42,7 +43,8 @@ public sealed class SharePage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        if (chart.Points.Count == 0)
+        // First visit, or try the site again if the offline copy is showing
+        if (chart.Points.Count == 0 || offline)
             await LoadAsync();
     }
 
@@ -79,13 +81,24 @@ public sealed class SharePage : ContentPage
                 details.Add(Ui.Line("Year's range", $"{low:#,##0.00##} to {high:#,##0.00##}"));
             if (h.Sector is { Length: > 0 } sector)
                 details.Add(Ui.Line("Sector", sector));
+            offline = api.OfflineCopySaved is not null;
             if (api.OfflineCopySaved is { } saved)
                 Show($"Offline copy from {saved.ToLocalTime():d MMM h:mm tt}.");
         }
-        catch (SiteException e)
+        catch (SiteException e) when (mine == request)
         {
-            if (mine == request)
-                Show(e.Message);
+            if (e.SignedOut)
+            {
+                await DisplayAlertAsync("Signed out", e.Message, "OK");
+                session.SignOut();
+                ((App)Application.Current!).ShowStart();
+                return;
+            }
+            Show(e.Message);
+        }
+        catch (SiteException)
+        {
+            // From a span no longer picked
         }
     }
 

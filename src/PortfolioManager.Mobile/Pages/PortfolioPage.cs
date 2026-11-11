@@ -19,7 +19,7 @@ public abstract class PortfolioPage : ContentPage
     protected readonly RefreshView Refresh = new();
     private List<PortfolioSummary> loaded = [];
     private int shownPortfolio, request;
-    private bool busy;
+    private bool busy, loadAgain;
 
     protected PortfolioPage(Session session, string title)
     {
@@ -43,6 +43,15 @@ public abstract class PortfolioPage : ContentPage
     /// <summary>Loads and shows the portfolio. Check <paramref name="stillWanted"/> before showing: false means another
     /// portfolio was picked while this one loaded.</summary>
     protected abstract Task ShowAsync(SiteApi api, PortfolioSummary portfolio, Func<bool> stillWanted);
+
+    /// <summary>Loads again, e.g. after a setting on the page changed. A change during a load queues one more load.</summary>
+    protected void Reload()
+    {
+        if (Refresh.IsRefreshing)
+            loadAgain = true;
+        else
+            Refresh.IsRefreshing = true; // runs the refresh command, which loads
+    }
 
     protected override void OnAppearing()
     {
@@ -84,7 +93,13 @@ public abstract class PortfolioPage : ContentPage
         finally
         {
             busy = false;
-            Refresh.IsRefreshing = false;
+            if (loadAgain)
+            {
+                loadAgain = false;
+                Dispatcher.Dispatch(async () => await LoadAsync());
+            }
+            else
+                Refresh.IsRefreshing = false;
         }
     }
 
@@ -104,9 +119,13 @@ public abstract class PortfolioPage : ContentPage
             if (api.OfflineCopySaved is { } saved)
                 offlineNote.Text = $"Offline copy from {saved.ToLocalTime():d MMM h:mm tt}. Pull down to try again.";
         }
-        catch (SiteException e)
+        catch (SiteException e) when (mine == request)
         {
             await Problem(e);
+        }
+        catch (SiteException)
+        {
+            // From a portfolio no longer picked
         }
     }
 
@@ -133,7 +152,7 @@ public abstract class PortfolioPage : ContentPage
         ((App)Application.Current!).ShowStart();
     }
 
-    /// <summary>Opens a share's page (price chart and quote).</summary>
+    /// <summary>Opens a share's page (price chart and quote), for the portfolio whose figures are on screen.</summary>
     protected Task OpenShareAsync(string exchange, string code) =>
-        Navigation.PushAsync(new SharePage(Session, Session.LastPortfolioId, exchange, code));
+        Navigation.PushAsync(new SharePage(Session, shownPortfolio, exchange, code));
 }

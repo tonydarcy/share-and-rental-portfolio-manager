@@ -23,6 +23,11 @@ public static partial class DeviceLock
         {
             try
             {
+                if (activity.IsFinishing || activity.SupportFragmentManager.IsStateSaved)
+                {
+                    done.TrySetResult(false); // not in front yet; asked again when it is, or by the Unlock button
+                    return;
+                }
                 var prompt = new BiometricPrompt(activity, ContextCompat.GetMainExecutor(activity)!, new Callback(done));
                 prompt.Authenticate(new BiometricPrompt.PromptInfo.Builder()
                     .SetTitle("Unlock Share Portfolio")

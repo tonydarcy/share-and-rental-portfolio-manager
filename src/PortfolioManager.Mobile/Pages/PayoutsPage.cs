@@ -14,16 +14,17 @@ public sealed class PayoutsPage : PortfolioPage
         body.Add(Header);
         body.Add(period);
         body.Add(figures);
-        period.SelectedIndexChanged += (_, _) => Refresh.IsRefreshing = true;
+        period.SelectedIndexChanged += (_, _) => Reload();
         Refresh.Content = new ScrollView { Content = body };
     }
 
     protected override async Task ShowAsync(SiteApi api, PortfolioSummary portfolio, Func<bool> stillWanted)
     {
-        var (from, to) = ReportPeriod.Range(period.SelectedIndex, DateOnly.FromDateTime(DateTime.Today));
+        var chosen = period.SelectedIndex;
+        var (from, to) = ReportPeriod.Range(chosen, DateOnly.FromDateTime(DateTime.Today));
         var list = await api.ListPayoutsAsync(portfolio.PortfolioId, from, to);
-        if (!stillWanted())
-            return;
+        if (!stillWanted() || chosen != period.SelectedIndex)
+            return; // another portfolio or period was picked meanwhile; its load follows
 
         figures.Clear();
         var t = list.Totals;

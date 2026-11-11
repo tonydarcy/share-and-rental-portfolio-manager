@@ -28,6 +28,9 @@ public sealed class MorePage : ContentPage
             DeviceLock.HideInRecents(e.Value);
         };
 
+        var hideRow = Setting("Hide in recent apps", "Blanks the app in the recent-apps list and blocks screenshots.", hideSwitch);
+        hideRow.IsVisible = DeviceInfo.Current.Platform == DevicePlatform.Android; // not built for iPhone yet
+
         Content = new ScrollView
         {
             Content = new VerticalStackLayout
@@ -38,7 +41,7 @@ public sealed class MorePage : ContentPage
                 {
                     Ui.Heading("SECURITY"),
                     Setting("Lock the app", "Ask for your fingerprint, face or phone PIN when the app opens or after a minute away.", lockSwitch),
-                    Setting("Hide in recent apps", "Blanks the app in the recent-apps list. On Android this also blocks screenshots.", hideSwitch),
+                    hideRow,
                     Ui.Heading("THE FULL SITE"),
                     new Label { Text = "Tax returns, journals, the business books and everything else are on the site.", FontSize = 13, TextColor = Colors.Gray },
                     new Button { Text = "Open the site", Command = new Command(async () => await OpenSiteAsync()) },

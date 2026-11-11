@@ -7,32 +7,18 @@ namespace PortfolioManager.Mobile;
 public sealed class App(IServiceProvider services, Session session) : Application
 {
     private static readonly TimeSpan Grace = TimeSpan.FromMinutes(1);
-    private DateTime? leftAt;
-    private bool locked, started;
 
     protected override Window CreateWindow(Microsoft.Maui.IActivationState? activationState)
     {
+        // Lock state lives with the window, so a window made again (Android recreating the app's screen) locks afresh
         var window = new Window(StartPage());
-        // First time on screen (the phone's prompt needs the app in front)
-        window.Activated += (_, _) =>
-        {
-            if (!started)
-            {
-                started = true;
-                Lock(window);
-            }
-        };
-        window.Stopped += (_, _) =>
-        {
-            if (!locked)
-                leftAt = DateTime.UtcNow;
-        };
-        window.Resumed += (_, _) =>
-        {
-            if (leftAt is { } left && DateTime.UtcNow - left >= Grace)
-                Lock(window);
-            leftAt = null;
-        };
+        var guard = new WindowLock(session, window);
+        window.Created += (_, _) => guard.Lock();
+        window.Stopped += (_, _) => guard.Left();
+        window.Resumed += (_, _) => guard.Back();
+        // Activated = in front and ready: only then can the phone's prompt be shown
+        window.Activated += (_, _) => guard.Ask();
+        window.Destroying += (_, _) => guard.Close();
         return window;
     }
 
@@ -47,20 +33,52 @@ public sealed class App(IServiceProvider services, Session session) : Applicatio
             window.Page = StartPage();
     }
 
-    private void Lock(Window window)
+    private sealed class WindowLock(Session session, Window window)
     {
-        if (locked || !session.IsSignedIn || !session.LockApp || !DeviceLock.IsAvailable())
-            return;
-        locked = true;
-        var behind = window.Page;
-        window.Page = new Pages.LockPage(async () =>
+        private DateTime? leftAt;
+        private Pages.LockPage? lockPage;
+        private Page? behind;
+        private bool closed;
+
+        public void Lock()
         {
-            if (!await DeviceLock.UnlockAsync("To see your portfolio"))
-                return false;
-            locked = false;
+            if (closed || lockPage is not null || !session.IsSignedIn || !session.LockApp || !DeviceLock.IsAvailable())
+                return;
+            behind = window.Page;
+            lockPage = new Pages.LockPage(UnlockAsync);
+            window.Page = lockPage;
+        }
+
+        public void Left()
+        {
+            if (lockPage is null)
+                leftAt = DateTime.UtcNow;
+        }
+
+        public void Back()
+        {
+            if (leftAt is { } left && DateTime.UtcNow - left >= Grace)
+                Lock();
             leftAt = null;
+        }
+
+        public void Ask()
+        {
+            if (lockPage is { } page)
+                _ = page.AskAsync();
+        }
+
+        public void Close() => closed = true;
+
+        private async Task<bool> UnlockAsync()
+        {
+            if (!await DeviceLock.UnlockAsync("To see your portfolio") || closed || lockPage is null)
+                return false;
             window.Page = behind;
+            lockPage = null;
+            behind = null;
+            leftAt = null;
             return true;
-        });
+        }
     }
 }
