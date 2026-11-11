@@ -40,6 +40,10 @@ public sealed class SiteApi(HttpClient http, string server, string key)
         {
             throw new SiteException("Can't reach the site. Check your internet connection.");
         }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new SiteException("The site took too long to reply. Please try again.");
+        }
         using (reply)
         {
             if (reply.StatusCode is HttpStatusCode.Unauthorized)

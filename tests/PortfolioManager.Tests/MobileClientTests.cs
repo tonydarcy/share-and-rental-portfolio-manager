@@ -134,6 +134,14 @@ public class MobileClientTests
         Assert.Equal("You can't see that portfolio.", e.Message);
     }
 
+    [Fact]
+    public async Task Slow_site_gives_a_plain_message()
+    {
+        var slow = new FakeSite(_ => throw new TaskCanceledException("timeout"));
+        var e = await Assert.ThrowsAsync<SiteException>(() => new SiteApi(new HttpClient(slow), "https://example.com", "k").ListPortfoliosAsync());
+        Assert.Contains("too long", e.Message);
+    }
+
     private sealed class FakeSite(Func<HttpRequestMessage, (HttpStatusCode Status, string Body)> reply) : HttpMessageHandler
     {
         public List<HttpRequestMessage> Requests { get; } = [];
