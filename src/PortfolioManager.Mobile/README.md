@@ -9,18 +9,36 @@ A .NET MAUI app for Android (iOS later, from the same code). Version 0.1 signs i
 
 ## Try it on an Android phone
 
-1. On GitHub, open **Actions**, then **Android app**, then the latest green run. Download **android-app** under
-   Artifacts and unzip it to get `com.shareportfoliomanager.app-Signed.apk`. (Or press **Run workflow** to make a fresh one.)
-2. Copy the APK to the phone (email it to yourself, or Google Drive) and open it. Android asks you to allow installs
-   from that app the first time ("Install unknown apps").
-3. Open **Share Portfolio**, check the site address, tap **Sign in** and sign in on the site's page as usual. The site
-   asks whether to let the app in; choose **Allow**.
+**With Obtainium (gets updates too):** in Obtainium tap **Add app**, paste
+`https://github.com/tonydarcy/share-and-rental-portfolio-manager` and add it. Obtainium installs the newest
+"Android app" release and offers each new one as an update.
+
+**By hand:** open the repository's **Releases** page, download the newest `share-portfolio-manager-<version>.apk`
+and open it on the phone. Android asks you to allow installs from that app the first time ("Install unknown apps").
+
+Then open **Share Portfolio**, check the site address, tap **Sign in** and sign in on the site's page as usual. The
+site asks whether to let the app in; choose **Allow**.
 
 The app's key appears on the site's **API keys** page as "Share Portfolio Manager phone app". **Sign out** in the app
 forgets the key on the phone; delete it on that page too if the phone is lost.
 
-The test APK is signed with a throwaway key, so each new build installs over the last only if Android accepts it;
-if it says "App not installed", uninstall the old one first.
+## Releases and the signing key
+
+The **Android app** workflow builds an APK for every change to the app. On `main` it also publishes a GitHub Release
+(tag `android-v0.1.<run number>`), but only when the signing key is set, because Android only installs an update
+signed with the same key as the app already on the phone. The key lives in two repository secrets
+(Settings > Secrets and variables > Actions):
+
+- `ANDROID_KEYSTORE_BASE64`: the keystore file (alias `spm`), base64 encoded.
+- `ANDROID_KEY_PASSWORD`: its password.
+
+Keep a private backup of the keystore and password: if they are lost, everyone has to uninstall and reinstall the
+app. Without the secrets, builds use a throwaway key and no Release is made. To make a new key:
+
+```
+keytool -genkeypair -keystore app.keystore -alias spm -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Share Portfolio Manager"
+base64 -w0 app.keystore
+```
 
 ## Build it yourself
 

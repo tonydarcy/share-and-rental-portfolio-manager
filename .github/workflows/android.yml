@@ -1,7 +1,10 @@
 name: Android app
 
 # Builds the phone app into an APK anyone can install by hand for testing. Runs when the app's code changes,
-# or from the Actions tab (Run workflow). The APK is attached to the run as "android-app".
+# or from the Actions tab (Run workflow). Each run attaches the APK as "android-app".
+# On main, it is also published as a GitHub Release (tag android-v0.1.<run>), which is what Obtainium and other
+# app updaters look for. Releases are signed with the app's own key (repository secrets ANDROID_KEYSTORE_BASE64
+# and ANDROID_KEY_PASSWORD; see src/PortfolioManager.Mobile/README.md) so each new version installs over the last.
 on:
   push:
     branches: [main]
@@ -10,10 +13,15 @@ on:
     paths: ['src/PortfolioManager.Mobile/**', 'src/PortfolioManager.Mobile.Client/**', '.github/workflows/android.yml']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      VERSION: 0.1.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -27,11 +35,37 @@ jobs:
         run: dotnet workload install maui-android
       - name: Install the Android SDK parts the app needs
         run: dotnet build src/PortfolioManager.Mobile -t:InstallAndroidDependencies -f net10.0-android -p:AndroidSdkDirectory="$ANDROID_HOME" -p:AcceptAndroidSDKLicenses=True -v q
+      - name: Get the signing key
+        id: key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE" ] && [ -n "$PASSWORD" ]; then
+            echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/app.keystore"
+            echo "args=-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$RUNNER_TEMP/app.keystore -p:AndroidSigningKeyAlias=spm -p:AndroidSigningKeyPass=env:ANDROID_KEY_PASSWORD -p:AndroidSigningStorePass=env:ANDROID_KEY_PASSWORD" >> "$GITHUB_OUTPUT"
+          else
+            echo "Signing secrets not both set: using a throwaway debug key (fine for testing, no Release made)"
+          fi
       - name: Build the APK
-        # Signed with a throwaway debug key: fine for testing, not for the Play Store
-        run: dotnet publish src/PortfolioManager.Mobile -f net10.0-android -c Release -p:AndroidSdkDirectory="$ANDROID_HOME" -o apk -v q
+        env:
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: >
+          dotnet publish src/PortfolioManager.Mobile -f net10.0-android -c Release -p:AndroidSdkDirectory="$ANDROID_HOME"
+          -p:ApplicationDisplayVersion=$VERSION -p:ApplicationVersion=${{ github.run_number }}
+          ${{ steps.key.outputs.args }} -o apk -v q
+      - name: Name the APK
+        run: cp apk/*-Signed.apk "share-portfolio-manager-$VERSION.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: android-app
-          path: apk/*-Signed.apk
+          path: share-portfolio-manager-*.apk
           if-no-files-found: error
+      - name: Publish a release for Obtainium
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.key.outputs.args != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "android-v$VERSION" "share-portfolio-manager-$VERSION.apk"
+          --target "$GITHUB_SHA" --title "Android app $VERSION"
+          --notes "Test build of the phone app. Install it with Obtainium, or download the APK below and open it on the phone."
