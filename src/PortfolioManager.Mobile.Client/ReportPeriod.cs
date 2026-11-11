@@ -16,4 +16,7 @@ public static class ReportPeriod
             _ => (today.AddYears(-1).AddDays(1), today),
         };
     }
+
+    /// <summary>The calendar year a financial year ends in: this one (0) or one before (1), the number the site's reports take.</summary>
+    public static int YearEnding(DateOnly today, int yearsBack = 0) => (today.Month >= 7 ? today.Year + 1 : today.Year) - yearsBack;
 }

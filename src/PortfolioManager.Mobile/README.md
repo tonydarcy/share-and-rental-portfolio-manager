@@ -1,15 +1,19 @@
 # Phone app
 
-A .NET MAUI app for Android (iOS later, from the same code). It signs in through the site and has four tabs:
+A .NET MAUI app for Android (iOS later, from the same code). It signs in through the site and has five tabs:
 
 - **Dashboard**: total value, the latest day's move, gain, the biggest holdings and payouts expected in the next 90 days.
 - **Holdings**: every holding with its value and gain. Tap one (here or on the dashboard) for its price chart (3 months,
   1 year or 5 years), units held, value and the year's range.
 - **Payouts**: dividends, distributions and interest for the last 12 months, this financial year or last, with franking
   credits. The financial year is 1 July to 30 June.
-- **Add** (top of the Dashboard, Holdings and Payouts tabs, for logins that can change the portfolio): a buy or sale
+- **Property**: each rental property's net rent for this financial year or last, and the tax return totals (gross
+  rent, interest, capital works, other deductions). Tap a property for its schedule (whole property and your share)
+  and the year's entries.
+- **Add** (top of the Dashboard, Holdings, Payouts and Property tabs, for logins that can change the portfolio): a buy or sale
   (with a photo of the contract note attached to it), a dividend or distribution (cash, franked part and franking
-  credit), or a bank deposit or withdrawal. Each is saved through the same stored procedures as the site, with its
+  credit), a bank deposit or withdrawal, or a rental property entry (rent received, agent fees and other expenses, e.g. from
+  the agent's monthly statement). Each is saved through the same stored procedures as the site, with its
   journals. Trades in another currency, and payouts with interest, trust or foreign income, are entered on the site.
 - **More**: lock and privacy settings, a button to open the full site, and sign out.
 

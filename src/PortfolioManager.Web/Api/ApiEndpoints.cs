@@ -59,6 +59,8 @@ public static class ApiEndpoints
         Get(api, "/portfolios/{portfolioId:int}/securities", "search_securities");
         Get(api, "/portfolios/{portfolioId:int}/attachments", "list_attachments");
         Post(api, "/portfolios/{portfolioId:int}/attachments", "add_attachment");
+        Get(api, "/portfolios/{portfolioId:int}/properties", "list_rental_properties");
+        Post(api, "/portfolios/{portfolioId:int}/rentals", "add_rental_entry");
         Get(api, "/push-devices", "list_push_devices");
         Post(api, "/push-devices", "register_push_device");
         Delete(api, "/push-devices/{pushDeviceId:int}", "unregister_push_device");

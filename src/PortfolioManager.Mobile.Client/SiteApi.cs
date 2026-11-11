@@ -38,7 +38,7 @@ public sealed record PriceHistory(
 public sealed record PayoutRow(
     int PayoutId, string StockExchangeCode, string StockCode, DateTime? Date, decimal Total, decimal Franked, decimal Unfranked,
     decimal FrankingCredit, decimal Interest, decimal TrustIncome, decimal TaxWithheld, decimal ForeignTax, decimal Other,
-    string? Comment);
+    string? Comment, decimal RentalIncome = 0, decimal RentalExpenses = 0);
 
 public sealed record PayoutTotals(
     decimal Total, decimal Franked, decimal Unfranked, decimal FrankingCredit, decimal Interest,
@@ -46,7 +46,7 @@ public sealed record PayoutTotals(
 
 public sealed record PayoutPage(int Total, int Returned, IReadOnlyList<PayoutRow> Rows);
 
-/// <summary>Payouts in a period, newest first, with the period's totals (the list_payouts tool).</summary>
+/// <summary>Payouts in a period, newest first, with the period's totals (the list_payouts tool; no totals for one code).</summary>
 public sealed record PayoutList(PayoutTotals? Totals, PayoutPage Payouts);
 
 /// <summary>
@@ -74,8 +74,16 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
         GetAsync<PriceHistory>($"/portfolios/{portfolioId}/prices/{Uri.EscapeDataString(exchange)}/{Uri.EscapeDataString(stockCode)}"
             + (from is { } f ? $"?from={f:yyyy-MM-dd}" : ""), ct);
 
-    public Task<PayoutList> ListPayoutsAsync(int portfolioId, DateOnly from, DateOnly to, int limit = 500, CancellationToken ct = default) =>
-        GetAsync<PayoutList>($"/portfolios/{portfolioId}/payouts?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}&limit={limit}", ct);
+    public Task<PayoutList> ListPayoutsAsync(int portfolioId, DateOnly from, DateOnly to, int limit = 500, CancellationToken ct = default, string? stockCode = null) =>
+        GetAsync<PayoutList>($"/portfolios/{portfolioId}/payouts?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}&limit={limit}"
+            + (stockCode is null ? "" : "&stockCode=" + Uri.EscapeDataString(stockCode)), ct);
+
+    public Task<List<RentalPropertySummary>> ListRentalPropertiesAsync(int portfolioId, CancellationToken ct = default) =>
+        GetAsync<List<RentalPropertySummary>>($"/portfolios/{portfolioId}/properties", ct);
+
+    /// <summary>Every property's schedule for the financial year ending in <paramref name="yearEnding"/>.</summary>
+    public Task<RentalSchedule> GetRentalScheduleAsync(int portfolioId, int yearEnding, CancellationToken ct = default) =>
+        GetAsync<RentalSchedule>($"/portfolios/{portfolioId}/reports/rental-schedule?financialYear={yearEnding}", ct);
 
     public Task<List<SecurityMatch>> SearchSecuritiesAsync(int portfolioId, string query, CancellationToken ct = default) =>
         GetAsync<List<SecurityMatch>>($"/portfolios/{portfolioId}/securities?query={Uri.EscapeDataString(query)}", ct);
@@ -90,6 +98,9 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
 
     public Task<SavedReply> AddCashAsync(int portfolioId, CashRequest cash, CancellationToken ct = default) =>
         PostAsync($"/portfolios/{portfolioId}/cash", cash, ct);
+
+    public Task<SavedReply> AddRentalAsync(int portfolioId, RentalRequest rental, CancellationToken ct = default) =>
+        PostAsync($"/portfolios/{portfolioId}/rentals", rental, ct);
 
     public Task<SavedReply> AddAttachmentAsync(int portfolioId, AttachmentRequest file, CancellationToken ct = default) =>
         PostAsync($"/portfolios/{portfolioId}/attachments", file, ct, needsMessage: false);

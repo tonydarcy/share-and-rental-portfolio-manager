@@ -55,6 +55,8 @@ public sealed partial class AgentTools
             p.FirstEarned,
             p.Active,
             p.Note,
+            p.Value,
+            p.Valued,
             CoOwners = p.Others.Select(o => new { o.Name, o.Pct }),
         }).ToList();
 

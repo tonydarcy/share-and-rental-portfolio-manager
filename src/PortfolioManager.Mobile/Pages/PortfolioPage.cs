@@ -168,7 +168,7 @@ public abstract class PortfolioPage : ContentPage
         ((App)Application.Current!).ShowStart();
     }
 
-    /// <summary>The Add button: a trade, a payout or a cash entry for the portfolio on screen.</summary>
+    /// <summary>The Add button: a trade, a payout, a cash entry or a rental entry for the portfolio on screen.</summary>
     private async Task AddAsync()
     {
         var portfolioId = shownPortfolio;
@@ -178,7 +178,7 @@ public abstract class PortfolioPage : ContentPage
             await DisplayAlertAsync("One moment", "Wait for the portfolio you picked to load, then tap Add again.", "OK");
             return;
         }
-        var choice = await DisplayActionSheetAsync("Add to this portfolio", "Cancel", null, "Trade", "Payout", "Cash");
+        var choice = await DisplayActionSheetAsync("Add to this portfolio", "Cancel", null, "Trade", "Payout", "Cash", "Rental property entry");
         try
         {
             var api = Session.Api;
@@ -187,6 +187,7 @@ public abstract class PortfolioPage : ContentPage
                 "Trade" => new AddTradePage(Session, portfolioId, (await api.GetDashboardAsync(portfolioId)).Currency ?? "AUD"),
                 "Payout" => new AddPayoutPage(Session, portfolioId, (await api.GetHoldingsAsync(portfolioId, openOnly: false)).Holdings),
                 "Cash" => new AddCashPage(Session, portfolioId),
+                "Rental property entry" => await RentalPageAsync(api, portfolioId),
                 _ => null,
             };
             if (page is not null)
@@ -196,6 +197,17 @@ public abstract class PortfolioPage : ContentPage
         {
             await Problem(e);
         }
+    }
+
+    private async Task<Page?> RentalPageAsync(SiteApi api, int portfolioId)
+    {
+        var properties = await api.ListRentalPropertiesAsync(portfolioId);
+        if (properties.Any(p => p.PayoutCode is { Length: > 0 }))
+            return new AddRentalPage(Session, portfolioId, properties);
+        await DisplayAlertAsync("No rental property to add to", properties.Count == 0
+            ? "Add the property on the site first (Property > Rental properties)."
+            : "Give the property a payout code on the site first (Property > Rental properties), so entries reach its schedule.", "OK");
+        return null;
     }
 
     /// <summary>Opens a share's page (price chart and quote), for the portfolio whose figures are on screen.</summary>
