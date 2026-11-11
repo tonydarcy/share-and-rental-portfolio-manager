@@ -701,6 +701,12 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-11-10-menu-areas.sql`: the top menu shows Business, Property and the company/trust/SMSF tax pages only when a
   portfolio uses them, with Automatic/Always/Never choices on Portfolio settings. Adds `tblUsers.strMenuAreas`,
   `uspGetMenuUsage` and `uspSaveMenuAreas`. Until it is run every menu shows, as before.
+- `2026-11-11-portfolio-id-on-child-tables.sql`: groundwork for row-level security. The 24 tables that only knew
+  their portfolio through a parent row (journal lines, invoice/bill lines and payments, quote/order lines, budget
+  lines, tracking options, loan and depreciation entries, trade groups, corporate action trades and the rental
+  tables) get their own `iUserID`, filled in from the parent, kept right by a `trg<table>Portfolio` trigger (so no
+  proc changed) and indexed. Takes seconds on a small database; the locked-period trigger on journal lines is
+  paused only while existing lines are filled in. Nothing on the site changes.
 - `2026-11-11-push-devices.sql`: phone alerts for the coming app. Adds `tblPushDevices` (the phones each login has
   signed the app in on). Needed by the API tools `register_push_device`, `list_push_devices` and
   `unregister_push_device`; until it is run they fail and email alerts carry on as before.
