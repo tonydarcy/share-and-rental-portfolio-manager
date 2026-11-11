@@ -65,8 +65,16 @@ public sealed class AlertScheduler(IServiceScopeFactory scopes, IEmailSender ema
                 var delivered = d.Items.Count == 0;
                 if (d.Items.Count > 0 && EmailOn)
                 {
-                    await email.SendAsync(AlertKinds.Email(d, site.Name, link), ct);
-                    delivered = true;
+                    try
+                    {
+                        await email.SendAsync(AlertKinds.Email(d, site.Name, link), ct);
+                        delivered = true;
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        // Still try the phones; if neither works the alerts stay waiting for next time
+                        logger.LogError(ex, "Couldn't email alerts to login {LoginId} for portfolio {PortfolioId}", d.LoginId, d.PortfolioId);
+                    }
                 }
                 if (d.Items.Count > 0 && push.IsConfigured && await PushAsync(devices, d, ct))
                     delivered = true;
