@@ -30,7 +30,15 @@ public sealed class Session(HttpClient http)
     /// <summary>Reads the key back from secure storage once the app starts.</summary>
     public async Task<bool> LoadAsync()
     {
-        key ??= await SecureStorage.Default.GetAsync(KeyName);
+        try
+        {
+            key ??= await SecureStorage.Default.GetAsync(KeyName);
+        }
+        catch (Exception)
+        {
+            // Unreadable (e.g. the phone's keystore was reset): forget it, so the app asks to sign in again
+            SecureStorage.Default.Remove(KeyName);
+        }
         return key is not null;
     }
 

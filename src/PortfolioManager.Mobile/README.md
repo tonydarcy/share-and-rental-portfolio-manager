@@ -31,3 +31,4 @@ dotnet build src/PortfolioManager.Mobile -f net10.0-android -t:Run     # with a 
 ```
 
 To test against a copy of the site on your PC from the Android emulator, use the site address `http://10.0.2.2:<port>`.
+Plain http only works in Debug builds; the Release APK (the one GitHub builds) is https only.
