@@ -95,6 +95,12 @@ public sealed class AddRentalPage : EntryForm
 
     protected override IReadOnlyList<string> Check()
     {
+        // Check each box before rows of the same kind are added together, so a typo or a minus can't slip through
+        var boxes = new[] { rent, agentFees }.Concat(expenseRows.Select(r => r.Amount)).ToList();
+        if (boxes.Any(b => !BlankOrNumber(b)))
+            return ["One of the amounts isn't a number. Check the amounts."];
+        if (boxes.Any(b => Number(b) < 0))
+            return ["Enter amounts as positive numbers; expenses are taken off the rent."];
         var errors = EntryChecks.Rental(Request(), Today).ToList();
         if (expenseRows.Any(r => r.Kind.SelectedIndex < 0 && Number(r.Amount) != 0))
             errors.Add("Pick what each other expense was for.");

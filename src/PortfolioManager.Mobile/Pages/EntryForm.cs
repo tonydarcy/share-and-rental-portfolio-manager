@@ -91,6 +91,12 @@ public abstract class EntryForm : ContentPage
         decimal.TryParse(entry.Text?.Trim(), NumberStyles.Number, CultureInfo.CurrentCulture, out var v)
         || decimal.TryParse(entry.Text?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out v) ? v : 0;
 
+    /// <summary>True when the box is blank or holds a number <see cref="Number"/> can read.</summary>
+    protected static bool BlankOrNumber(Entry entry) =>
+        string.IsNullOrWhiteSpace(entry.Text)
+        || decimal.TryParse(entry.Text.Trim(), NumberStyles.Number, CultureInfo.CurrentCulture, out _)
+        || decimal.TryParse(entry.Text.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out _);
+
     protected static DateOnly Day(DatePicker picker) => DateOnly.FromDateTime(picker.Date ?? DateTime.Today);
 
     protected static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
