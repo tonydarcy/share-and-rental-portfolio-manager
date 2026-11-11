@@ -49,7 +49,7 @@
 }
 
 .fs-table thead th {
-    border-bottom: 1px solid #adb5bd;
+    border-bottom: 1px solid var(--bs-border-color);
     vertical-align: bottom;
 }
 
@@ -78,7 +78,7 @@
 }
 
 .fs-table .fs-subtotal .fs-amt {
-    border-top: 1px solid #212529;
+    border-top: 1px solid var(--bs-emphasis-color);
 }
 
 .fs-table .fs-total td {
@@ -86,13 +86,13 @@
 }
 
 .fs-table .fs-total .fs-amt {
-    border-top: 1px solid #212529;
-    border-bottom: 3px double #212529;
+    border-top: 1px solid var(--bs-emphasis-color);
+    border-bottom: 3px double var(--bs-emphasis-color);
 }
 
 /* Report pack: A4 sheets on screen, one section per printed page */
 .pack-page {
-    background: #fff;
+    background: var(--bs-body-bg);
     max-width: 210mm;
     margin: 0 auto 1.5rem;
     padding: 16mm 15mm;
@@ -100,7 +100,7 @@
 }
 
 .pack-header {
-    border-bottom: 2px solid #212529;
+    border-bottom: 2px solid var(--bs-emphasis-color);
     padding-bottom: 0.5rem;
     margin-bottom: 1rem;
 }
@@ -116,7 +116,7 @@
 
 .pack-contents li {
     padding: 0.35rem 0;
-    border-bottom: 1px dotted #adb5bd;
+    border-bottom: 1px dotted var(--bs-border-color);
 }
 
 .pack-footer {
@@ -137,7 +137,7 @@
 }
 
 .pack-sign-line {
-    border-bottom: 1px solid #212529;
+    border-bottom: 1px solid var(--bs-emphasis-color);
     height: 2.5rem;
     margin-bottom: 0.25rem;
 }
@@ -206,7 +206,7 @@
 }
 
 /* A page shown from the copy saved on this device while offline */
-.offline-copy { position: sticky; top: 0; z-index: 1050; background: #fff3cd; color: #664d03; border-bottom: 1px solid #ffe69c; padding: .4rem 1rem; font-size: .9rem; text-align: center; }
+.offline-copy { position: sticky; top: 0; z-index: 1050; background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); border-bottom: 1px solid var(--bs-warning-border-subtle); padding: .4rem 1rem; font-size: .9rem; text-align: center; }
 
 /* Menu names stay on one line; the menu wraps to a second row rather than running off the screen */
 .navbar-nav .nav-link { white-space: nowrap; }
@@ -270,3 +270,27 @@
     .pm-bottombar, .pm-panel { display: none !important; }
     body.pm-signed-in { padding-bottom: 0; }
 }
+
+/* Dark colours: Bootstrap's "light" helpers stay light in dark mode, so tone them down to match */
+[data-bs-theme="dark"] .table-light {
+    --bs-table-color: var(--bs-emphasis-color);
+    --bs-table-bg: var(--bs-tertiary-bg);
+    --bs-table-border-color: var(--bs-border-color);
+    --bs-table-striped-bg: var(--bs-secondary-bg);
+    --bs-table-striped-color: var(--bs-emphasis-color);
+    --bs-table-active-bg: var(--bs-secondary-bg);
+    --bs-table-active-color: var(--bs-emphasis-color);
+    --bs-table-hover-bg: var(--bs-secondary-bg);
+    --bs-table-hover-color: var(--bs-emphasis-color);
+    color: var(--bs-table-color);
+    border-color: var(--bs-table-border-color);
+}
+[data-bs-theme="dark"] .bg-light,
+[data-bs-theme="dark"] .bg-white { background-color: var(--bs-tertiary-bg) !important; color: var(--bs-body-color); }
+[data-bs-theme="dark"] .text-bg-light { background-color: var(--bs-secondary-bg) !important; color: var(--bs-emphasis-color) !important; }
+[data-bs-theme="dark"] .bg-light.text-dark { color: var(--bs-emphasis-color) !important; }
+[data-bs-theme="dark"] .btn-outline-dark { --bs-btn-color: var(--bs-emphasis-color); --bs-btn-border-color: var(--bs-border-color); --bs-btn-hover-bg: var(--bs-secondary-bg); --bs-btn-hover-color: var(--bs-emphasis-color); --bs-btn-hover-border-color: var(--bs-border-color); }
+[data-bs-theme="dark"] .btn-dark { --bs-btn-bg: var(--bs-secondary-bg); --bs-btn-border-color: var(--bs-border-color); }
+[data-bs-theme="dark"] .navbar.bg-dark,
+[data-bs-theme="dark"] .pm-bottombar { background-color: #0b0d0f !important; }
+

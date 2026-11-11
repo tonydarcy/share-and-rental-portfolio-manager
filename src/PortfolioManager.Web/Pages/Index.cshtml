@@ -167,7 +167,7 @@
                     const round = s.type === 'doughnut';
                     const datasets = s.datasets.map(d => ({
                         label: d.label, data: d.data, stack: d.stack,
-                        borderColor: round ? '#fff' : d.color, backgroundColor: d.colors ?? d.color,
+                        borderColor: round ? getComputedStyle(document.body).getPropertyValue('--bs-body-bg').trim() : d.color, pmSliceBorder: round, backgroundColor: d.colors ?? d.color,
                         borderDash: d.dashed ? [6, 4] : undefined, pointRadius: 0, tension: 0.2, borderWidth: s.type === 'line' ? 2 : 1
                     }));
                     const options = {
