@@ -156,7 +156,11 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
         }
         catch (HttpRequestException)
         {
-            throw new SiteException("Can't reach the site. Check your internet connection.", unreachable: true);
+            // A write can reach the site and then lose its reply, so it may have been saved
+            throw new SiteException(body is null
+                ? "Can't reach the site. Check your internet connection."
+                : "The connection dropped, so this may or may not have been saved. Check the site before adding it again.",
+                unreachable: true);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {

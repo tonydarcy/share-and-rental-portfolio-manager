@@ -312,6 +312,15 @@ public class MobileClientTests
     }
 
     [Fact]
+    public async Task Dropped_connection_on_a_save_is_reported_as_maybe_saved()
+    {
+        var site = new FakeSite(_ => throw new HttpRequestException("reset"));
+        var api = new SiteApi(new HttpClient(site), "https://example.com", "k");
+        var e = await Assert.ThrowsAsync<SiteException>(() => api.AddCashAsync(1, new CashRequest(new DateOnly(2026, 1, 1), "Deposit", 1m)));
+        Assert.Contains("may or may not have been saved", e.Message);
+    }
+
+    [Fact]
     public async Task Payout_form_can_list_shares_already_sold()
     {
         var site = new FakeSite(_ => (HttpStatusCode.OK, """{"holdings":[],"total":{"marketValue":0,"capitalGain":0,"payouts":0,"totalProfit":0,"cost":0}}"""));
