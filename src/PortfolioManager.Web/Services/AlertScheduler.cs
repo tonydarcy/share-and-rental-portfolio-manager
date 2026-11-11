@@ -62,11 +62,17 @@ public sealed class AlertScheduler(IServiceScopeFactory scopes, IEmailSender ema
         {
             try
             {
+                var delivered = d.Items.Count == 0;
                 if (d.Items.Count > 0 && EmailOn)
+                {
                     await email.SendAsync(AlertKinds.Email(d, site.Name, link), ct);
-                if (d.Items.Count > 0 && push.IsConfigured)
-                    await PushAsync(devices, d, ct);
-                await alerts.MarkCheckedAsync(d, now);
+                    delivered = true;
+                }
+                if (d.Items.Count > 0 && push.IsConfigured && await PushAsync(devices, d, ct))
+                    delivered = true;
+                // With no email and no phone that took it, leave the alerts waiting for a phone to sign in
+                if (delivered)
+                    await alerts.MarkCheckedAsync(d, now);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -80,20 +86,23 @@ public sealed class AlertScheduler(IServiceScopeFactory scopes, IEmailSender ema
         }
     }
 
-    private async Task PushAsync(PushDeviceService devices, AlertDigest d, CancellationToken ct)
+    /// <summary>Sends the digest to the login's phones; true when at least one phone took it.</summary>
+    private async Task<bool> PushAsync(PushDeviceService devices, AlertDigest d, CancellationToken ct)
     {
         try
         {
             var tokens = (await devices.ListAsync(d.LoginId)).Select(x => x.Token).ToList();
             if (tokens.Count == 0)
-                return;
-            var gone = await push.SendAsync(tokens, PushRules.ForDigest(d), ct);
-            await devices.RemoveTokensAsync(gone);
+                return false;
+            var result = await push.SendAsync(tokens, PushRules.ForDigest(d), ct);
+            await devices.RemoveTokensAsync(result.Gone);
+            return result.Delivered > 0;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // A push failure (or the device table not made yet) mustn't stop the email or resend it next time
             logger.LogWarning(ex, "Couldn't send phone alerts to login {LoginId}", d.LoginId);
+            return false;
         }
     }
 }

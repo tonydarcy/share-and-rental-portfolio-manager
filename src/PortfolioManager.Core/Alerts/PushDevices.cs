@@ -9,13 +9,19 @@ public sealed record PushDevice(int PushDeviceId, string Platform, string Token,
 /// <summary>One notification to show on a phone.</summary>
 public sealed record PushMessage(string Title, string Body, IReadOnlyDictionary<string, string> Data);
 
+/// <summary>How a send went: how many phones took it, and the tokens the push service says are gone.</summary>
+public sealed record PushResult(int Delivered, IReadOnlyList<string> Gone)
+{
+    public static readonly PushResult None = new(0, []);
+}
+
 /// <summary>Sends notifications to phones. <see cref="IsConfigured"/> is false until the site has push settings.</summary>
 public interface IPushSender
 {
     bool IsConfigured { get; }
 
-    /// <summary>Sends to each token and returns the tokens the push service says are gone (app removed or signed out).</summary>
-    Task<IReadOnlyList<string>> SendAsync(IReadOnlyList<string> tokens, PushMessage message, CancellationToken ct = default);
+    /// <summary>Sends to each token; the result counts deliveries and lists tokens that are gone (app removed or signed out).</summary>
+    Task<PushResult> SendAsync(IReadOnlyList<string> tokens, PushMessage message, CancellationToken ct = default);
 }
 
 /// <summary>Used when push isn't set up: sends nothing.</summary>
@@ -23,8 +29,8 @@ public sealed class NoPushSender : IPushSender
 {
     public bool IsConfigured => false;
 
-    public Task<IReadOnlyList<string>> SendAsync(IReadOnlyList<string> tokens, PushMessage message, CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<string>>([]);
+    public Task<PushResult> SendAsync(IReadOnlyList<string> tokens, PushMessage message, CancellationToken ct = default) =>
+        Task.FromResult(PushResult.None);
 }
 
 public static class PushRules

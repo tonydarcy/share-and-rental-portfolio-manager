@@ -33,11 +33,12 @@ public sealed class FirebasePushSender : IPushSender
 
     public bool IsConfigured => true;
 
-    public async Task<IReadOnlyList<string>> SendAsync(IReadOnlyList<string> tokens, PushMessage message, CancellationToken ct = default)
+    public async Task<PushResult> SendAsync(IReadOnlyList<string> tokens, PushMessage message, CancellationToken ct = default)
     {
         if (tokens.Count == 0)
-            return [];
+            return PushResult.None;
         var gone = new List<string>();
+        var delivered = 0;
         // Firebase takes up to 500 tokens a call
         foreach (var batch in tokens.Chunk(500))
         {
@@ -54,6 +55,8 @@ public sealed class FirebasePushSender : IPushSender
             for (var i = 0; i < response.Responses.Count; i++)
             {
                 var error = response.Responses[i].Exception;
+                if (response.Responses[i].IsSuccess)
+                    delivered++;
                 // Only "unregistered" surely means the phone is gone; InvalidArgument can also mean a bad message, which would wipe every phone
                 if (error?.MessagingErrorCode is MessagingErrorCode.Unregistered)
                     gone.Add(batch[i]);
@@ -62,6 +65,6 @@ public sealed class FirebasePushSender : IPushSender
                     logger.LogWarning(error, "Firebase refused a phone alert ({Code})", error.MessagingErrorCode);
             }
         }
-        return gone;
+        return new PushResult(delivered, gone);
     }
 }
