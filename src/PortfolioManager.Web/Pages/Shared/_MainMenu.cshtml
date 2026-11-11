@@ -119,6 +119,14 @@
                     <li><a class="dropdown-item" asp-page="/Account/Activity">Recent sign-ins</a></li>
                     <li><a class="dropdown-item" asp-page="/Account/ApiKeys">API keys and AI assistants</a></li>
                     <li><a class="dropdown-item" asp-page="/Account/Alerts">Email alerts</a></li>
+                    <li>
+                        <div class="px-3 py-1 small text-body-secondary">Colours</div>
+                        <div class="btn-group btn-group-sm w-100 px-3 pb-2" role="group" aria-label="Colours">
+                            <button type="button" class="btn btn-outline-secondary" data-pm-theme="light" title="Always light"><i class="bi bi-sun"></i> Light</button>
+                            <button type="button" class="btn btn-outline-secondary" data-pm-theme="dark" title="Always dark"><i class="bi bi-moon-stars"></i> Dark</button>
+                            <button type="button" class="btn btn-outline-secondary" data-pm-theme="auto" title="Follow this device's setting"><i class="bi bi-circle-half"></i> Auto</button>
+                        </div>
+                    </li>
                     <li><a class="dropdown-item" href="#" id="offlineCopies" title="Save the main pages on this device as you open them, to look at with no connection">Offline copies on this device: <span data-state>off</span></a></li>
                     @if (Admin.IsAdmin(User))
                     {
