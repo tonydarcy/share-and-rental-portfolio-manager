@@ -127,8 +127,11 @@ public sealed class SignInClient(HttpClient http)
 }
 
 /// <summary>A problem worth showing the person, in plain words.</summary>
-public sealed class SiteException(string message, bool signedOut = false) : Exception(message)
+public sealed class SiteException(string message, bool signedOut = false, bool unreachable = false) : Exception(message)
 {
+    /// <summary>No reply from the site (no signal, or too slow): an offline copy can stand in.</summary>
+    public bool Unreachable { get; } = unreachable;
+
     /// <summary>The key was refused (revoked or deleted on the site): the app should sign in again.</summary>
     public bool SignedOut { get; } = signedOut;
 }

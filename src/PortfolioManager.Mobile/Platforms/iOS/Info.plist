@@ -19,6 +19,8 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID unlocks the app so others using your phone can't see your figures.</string>
 	<!-- The sign-in reply address (com.shareportfoliomanager.app:/oauth) -->
 	<key>CFBundleURLTypes</key>
 	<array>

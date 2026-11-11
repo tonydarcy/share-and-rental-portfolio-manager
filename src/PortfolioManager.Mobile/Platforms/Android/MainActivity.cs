@@ -8,4 +8,11 @@ namespace PortfolioManager.Mobile;
         | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity
 {
+    protected override void OnCreate(Android.OS.Bundle? savedInstanceState)
+    {
+        base.OnCreate(savedInstanceState);
+        // Blank in the recent-apps list (and no screenshots) unless turned off under More
+        if (Preferences.Default.Get("hide_in_recents", true))
+            Window?.SetFlags(Android.Views.WindowManagerFlags.Secure, Android.Views.WindowManagerFlags.Secure);
+    }
 }

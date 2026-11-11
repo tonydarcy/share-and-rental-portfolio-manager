@@ -15,10 +15,50 @@ public sealed record HoldingsTotal(decimal MarketValue, decimal CapitalGain, dec
 
 public sealed record HoldingsSummary(IReadOnlyList<Holding> Holdings, HoldingsTotal Total);
 
-/// <summary>The site's JSON API (/api/v1), signed in with the key from <see cref="SignInClient"/>.</summary>
-public sealed class SiteApi(HttpClient http, string server, string key)
+public sealed record DayMove(DateOnly Date, decimal Change, double Return);
+
+public sealed record TopHolding(
+    string ExchangeCode, string StockCode, decimal Units, decimal Price, decimal MarketValue, decimal CapitalGain,
+    decimal? GainPercent, decimal Weight);
+
+public sealed record ExpectedPayout(string StockExchangeCode, string StockCode, DateTime ProjectedPaymentDate, decimal ProjectedAmount);
+
+/// <summary>The dashboard's headline figures (the get_dashboard tool).</summary>
+public sealed record DashboardSummary(
+    string? Currency, decimal TotalPortfolioValue, decimal TotalShareValue, decimal TotalCashValue, DayMove? LatestMove,
+    HoldingsTotal Holdings, IReadOnlyList<TopHolding> TopHoldings, IReadOnlyList<ExpectedPayout> UpcomingPayouts);
+
+public sealed record PricePoint(DateOnly Date, double Close, double? Open, double? High, double? Low, double? Volume);
+
+/// <summary>One share's daily prices and quote (the get_price_history tool).</summary>
+public sealed record PriceHistory(
+    string Exchange, string Code, string? Name, string? Sector, decimal? UnitsHeld, double? Latest, DateOnly? LatestDate,
+    double? Change, double? ChangePct, double? YearLow, double? YearHigh, IReadOnlyList<PricePoint> Prices);
+
+public sealed record PayoutRow(
+    int PayoutId, string StockExchangeCode, string StockCode, DateTime? Date, decimal Total, decimal Franked, decimal Unfranked,
+    decimal FrankingCredit, decimal Interest, decimal TrustIncome, decimal TaxWithheld, decimal ForeignTax, decimal Other,
+    string? Comment);
+
+public sealed record PayoutTotals(
+    decimal Total, decimal Franked, decimal Unfranked, decimal FrankingCredit, decimal Interest,
+    decimal TrustIncome, decimal TaxWithheld, decimal ForeignTax, decimal Other);
+
+public sealed record PayoutPage(int Total, int Returned, IReadOnlyList<PayoutRow> Rows);
+
+/// <summary>Payouts in a period, newest first, with the period's totals (the list_payouts tool).</summary>
+public sealed record PayoutList(PayoutTotals? Totals, PayoutPage Payouts);
+
+/// <summary>
+/// The site's JSON API (/api/v1), signed in with the key from <see cref="SignInClient"/>. With an
+/// <see cref="OfflineCopy"/>, every reply is kept on the phone and shown again when the site can't be reached.
+/// </summary>
+public sealed class SiteApi(HttpClient http, string server, string key, OfflineCopy? offline = null)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    /// <summary>When any reply so far came from the offline copy instead of the site: the oldest such copy's time.</summary>
+    public DateTimeOffset? OfflineCopySaved { get; private set; }
 
     public Task<List<PortfolioSummary>> ListPortfoliosAsync(CancellationToken ct = default) =>
         GetAsync<List<PortfolioSummary>>("/portfolios", ct);
@@ -26,7 +66,44 @@ public sealed class SiteApi(HttpClient http, string server, string key)
     public Task<HoldingsSummary> GetHoldingsAsync(int portfolioId, CancellationToken ct = default) =>
         GetAsync<HoldingsSummary>($"/portfolios/{portfolioId}/holdings", ct);
 
+    public Task<DashboardSummary> GetDashboardAsync(int portfolioId, CancellationToken ct = default) =>
+        GetAsync<DashboardSummary>($"/portfolios/{portfolioId}/dashboard", ct);
+
+    public Task<PriceHistory> GetPriceHistoryAsync(int portfolioId, string exchange, string stockCode, DateOnly? from = null, CancellationToken ct = default) =>
+        GetAsync<PriceHistory>($"/portfolios/{portfolioId}/prices/{Uri.EscapeDataString(exchange)}/{Uri.EscapeDataString(stockCode)}"
+            + (from is { } f ? $"?from={f:yyyy-MM-dd}" : ""), ct);
+
+    public Task<PayoutList> ListPayoutsAsync(int portfolioId, DateOnly from, DateOnly to, int limit = 500, CancellationToken ct = default) =>
+        GetAsync<PayoutList>($"/portfolios/{portfolioId}/payouts?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}&limit={limit}", ct);
+
     private async Task<T> GetAsync<T>(string path, CancellationToken ct)
+    {
+        string json;
+        var fromCopy = false;
+        try
+        {
+            json = await FetchAsync(path, ct);
+        }
+        catch (SiteException e) when (e.Unreachable && offline?.Load(server + path) is { } copy)
+        {
+            fromCopy = true;
+            OfflineCopySaved = OfflineCopySaved is { } earlier && earlier < copy.Saved ? earlier : copy.Saved;
+            json = copy.Json;
+        }
+        try
+        {
+            var value = JsonSerializer.Deserialize<T>(json, Json) ?? throw new SiteException("The site sent an empty reply.");
+            if (!fromCopy)
+                offline?.Save(server + path, json);
+            return value;
+        }
+        catch (JsonException)
+        {
+            throw new SiteException("The site sent an unexpected reply.");
+        }
+    }
+
+    private async Task<string> FetchAsync(string path, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, server + "/api/v1" + path);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
@@ -38,11 +115,11 @@ public sealed class SiteApi(HttpClient http, string server, string key)
         }
         catch (HttpRequestException)
         {
-            throw new SiteException("Can't reach the site. Check your internet connection.");
+            throw new SiteException("Can't reach the site. Check your internet connection.", unreachable: true);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new SiteException("The site took too long to reply. Please try again.");
+            throw new SiteException("The site took too long to reply. Please try again.", unreachable: true);
         }
         using (reply)
         {
@@ -50,14 +127,7 @@ public sealed class SiteApi(HttpClient http, string server, string key)
                 throw new SiteException("You've been signed out. Please sign in again.", signedOut: true);
             if (!reply.IsSuccessStatusCode)
                 throw new SiteException(await ErrorAsync(reply, ct));
-            try
-            {
-                return await reply.Content.ReadFromJsonAsync<T>(Json, ct) ?? throw new SiteException("The site sent an empty reply.");
-            }
-            catch (JsonException)
-            {
-                throw new SiteException("The site sent an unexpected reply.");
-            }
+            return await reply.Content.ReadAsStringAsync(ct);
         }
     }
 
