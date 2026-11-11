@@ -37,7 +37,7 @@ public sealed class Session(HttpClient http)
         catch (Exception)
         {
             // Unreadable (e.g. the phone's keystore was reset): forget it, so the app asks to sign in again
-            SecureStorage.Default.Remove(KeyName);
+            Forget();
         }
         return key is not null;
     }
@@ -89,9 +89,21 @@ public sealed class Session(HttpClient http)
     /// <summary>Forgets the key on this phone. It stays on the site's API keys page until deleted there.</summary>
     public void SignOut()
     {
-        SecureStorage.Default.Remove(KeyName);
+        Forget();
         key = null;
         Preferences.Default.Set("signed_in", false);
         LastPortfolioId = 0;
+    }
+
+    private static void Forget()
+    {
+        try
+        {
+            SecureStorage.Default.Remove(KeyName);
+        }
+        catch (Exception)
+        {
+            // Storage itself is broken; the app still signs out (the key can be deleted on the site's API keys page)
+        }
     }
 }

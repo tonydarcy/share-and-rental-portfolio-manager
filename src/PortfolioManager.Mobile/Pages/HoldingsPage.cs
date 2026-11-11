@@ -14,6 +14,7 @@ public sealed class HoldingsPage : ContentPage
     private readonly RefreshView refresh = new();
     private List<PortfolioSummary> loaded = [];
     private bool busy;
+    private int request;
 
     public HoldingsPage(Session session)
     {
@@ -91,11 +92,14 @@ public sealed class HoldingsPage : ContentPage
     private async Task LoadHoldingsAsync()
     {
         message.IsVisible = false;
+        var mine = ++request;
         try
         {
             var picked = loaded[portfolios.SelectedIndex];
             Title = picked.Name;
             var holdings = await session.Api.GetHoldingsAsync(picked.PortfolioId);
+            if (mine != request)
+                return; // another portfolio was picked while this one loaded
             total.Text = Money(holdings.Total.MarketValue);
             gain.Text = $"Gain {Money(holdings.Total.CapitalGain)}  ·  Payouts {Money(holdings.Total.Payouts)}";
             gain.TextColor = Shade(holdings.Total.CapitalGain);
