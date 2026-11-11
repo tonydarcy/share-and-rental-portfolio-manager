@@ -63,8 +63,9 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
     public Task<List<PortfolioSummary>> ListPortfoliosAsync(CancellationToken ct = default) =>
         GetAsync<List<PortfolioSummary>>("/portfolios", ct);
 
-    public Task<HoldingsSummary> GetHoldingsAsync(int portfolioId, CancellationToken ct = default) =>
-        GetAsync<HoldingsSummary>($"/portfolios/{portfolioId}/holdings", ct);
+    /// <summary>The portfolio's holdings; <paramref name="openOnly"/> false also lists shares sold out of.</summary>
+    public Task<HoldingsSummary> GetHoldingsAsync(int portfolioId, CancellationToken ct = default, bool openOnly = true) =>
+        GetAsync<HoldingsSummary>($"/portfolios/{portfolioId}/holdings" + (openOnly ? "" : "?openOnly=false"), ct);
 
     public Task<DashboardSummary> GetDashboardAsync(int portfolioId, CancellationToken ct = default) =>
         GetAsync<DashboardSummary>($"/portfolios/{portfolioId}/dashboard", ct);
@@ -91,19 +92,29 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
         PostAsync($"/portfolios/{portfolioId}/cash", cash, ct);
 
     public Task<SavedReply> AddAttachmentAsync(int portfolioId, AttachmentRequest file, CancellationToken ct = default) =>
-        PostAsync($"/portfolios/{portfolioId}/attachments", file, ct);
+        PostAsync($"/portfolios/{portfolioId}/attachments", file, ct, needsMessage: false);
 
-    private async Task<SavedReply> PostAsync<TBody>(string path, TBody body, CancellationToken ct)
+    private const string Unclear = "The site's reply was unclear, so this may or may not have been saved. Check the site before adding it again.";
+
+    /// <summary>
+    /// Sends a write. A reply without the site's usual message doesn't confirm the save, so it's reported as unclear
+    /// rather than as saved (adding it again could record it twice).
+    /// </summary>
+    private async Task<SavedReply> PostAsync<TBody>(string path, TBody body, CancellationToken ct, bool needsMessage = true)
     {
         var json = await FetchAsync(path, ct, JsonContent.Create(body, options: Json));
+        SavedReply? reply;
         try
         {
-            return JsonSerializer.Deserialize<SavedReply>(json, Json) ?? new SavedReply(null, null);
+            reply = JsonSerializer.Deserialize<SavedReply>(json, Json);
         }
         catch (JsonException)
         {
-            return new SavedReply(null, null); // saved; the reply just wasn't in the expected shape
+            reply = null;
         }
+        if (reply is null || (needsMessage && string.IsNullOrWhiteSpace(reply.Message)))
+            throw new SiteException(Unclear);
+        return reply;
     }
 
     private async Task<T> GetAsync<T>(string path, CancellationToken ct)

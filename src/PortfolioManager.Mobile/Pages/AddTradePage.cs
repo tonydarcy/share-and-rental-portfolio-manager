@@ -61,7 +61,9 @@ public sealed class AddTradePage : EntryForm
     {
         var saved = await api.AddTradeAsync(PortfolioId, Request());
         var message = saved.Message ?? "Trade saved.";
-        if (photo is { } p && saved.TradeId is int id and > 0)
+        if (photo is not null && saved.TradeId is not (int and > 0))
+            message += " The photo wasn't attached (the site didn't say which trade it saved). You can attach it to the trade on the site.";
+        else if (photo is { } p && saved.TradeId is int id)
         {
             try
             {
@@ -100,12 +102,19 @@ public sealed class AddTradePage : EntryForm
             };
             if (file is null)
                 return;
+            // Read at most one byte past the limit, so a huge file is turned away without loading it all
             await using var stream = await file.OpenReadAsync();
             using var copy = new MemoryStream();
-            await stream.CopyToAsync(copy);
+            var buffer = new byte[81920];
+            int read;
+            while (copy.Length <= EntryChecks.MaxAttachmentBytes
+                   && (read = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, EntryChecks.MaxAttachmentBytes + 1 - copy.Length)))) > 0)
+                copy.Write(buffer, 0, read);
             if (copy.Length > EntryChecks.MaxAttachmentBytes)
             {
-                await DisplayAlertAsync("Photo too big", "The site takes files up to 10 MB.", "OK");
+                photo = null;
+                photoName.Text = "";
+                await DisplayAlertAsync("Photo too big", "The site takes files up to 10 MB. No photo will be attached.", "OK");
                 return;
             }
             photo = (file.FileName, copy.ToArray());

@@ -18,7 +18,7 @@ public sealed class AddPayoutPage : EntryForm
         : base(session, portfolioId, "Add payout")
     {
         this.holdings = holdings.OrderBy(h => h.StockCode).ToList();
-        holding.ItemsSource = this.holdings.Select(h => h.StockCode).ToList();
+        holding.ItemsSource = this.holdings.Select(h => $"{h.StockCode} ({h.ExchangeCode})" + (h.Units > 0 ? "" : " sold")).ToList();
         holding.SelectedIndex = start is null ? -1 : this.holdings.FindIndex(h => h.StockCode == start);
         cash.TextChanged += (_, _) => ShowUnfranked();
         franked.TextChanged += (_, _) => ShowUnfranked();

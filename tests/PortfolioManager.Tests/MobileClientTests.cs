@@ -274,7 +274,7 @@ public class MobileClientTests
     [InlineData("add_attachment")]
     public async Task Other_entries_send_only_names_their_tool_reads(string toolName)
     {
-        var site = new FakeSite(_ => (HttpStatusCode.OK, """{"message":"Saved."}"""));
+        var site = new FakeSite(_ => (HttpStatusCode.OK, """{"message":"Saved.","attachmentId":5}"""));
         var api = new SiteApi(new HttpClient(site), "https://example.com", "k");
         var day = new DateOnly(2026, 9, 28);
         var saved = toolName switch
@@ -300,6 +300,23 @@ public class MobileClientTests
         e = await Assert.ThrowsAsync<SiteException>(() => new SiteApi(new HttpClient(refused), "https://example.com", "k")
             .AddCashAsync(1, new CashRequest(new DateOnly(2026, 1, 1), "Deposit", 1m)));
         Assert.Equal("amount must be more than zero.", e.Message);
+
+        // A success status without the site's message doesn't confirm the save
+        foreach (var odd in new[] { "", "{}", "not json" })
+        {
+            var unclear = new FakeSite(_ => (HttpStatusCode.OK, odd));
+            e = await Assert.ThrowsAsync<SiteException>(() => new SiteApi(new HttpClient(unclear), "https://example.com", "k")
+                .AddCashAsync(1, new CashRequest(new DateOnly(2026, 1, 1), "Deposit", 1m)));
+            Assert.Contains("may or may not have been saved", e.Message);
+        }
+    }
+
+    [Fact]
+    public async Task Payout_form_can_list_shares_already_sold()
+    {
+        var site = new FakeSite(_ => (HttpStatusCode.OK, """{"holdings":[],"total":{"marketValue":0,"capitalGain":0,"payouts":0,"totalProfit":0,"cost":0}}"""));
+        await new SiteApi(new HttpClient(site), "https://example.com", "k").GetHoldingsAsync(4, openOnly: false);
+        Assert.Equal("https://example.com/api/v1/portfolios/4/holdings?openOnly=false", site.Requests[0].RequestUri!.ToString());
     }
 
     [Fact]

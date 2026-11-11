@@ -85,10 +85,11 @@ public abstract class EntryForm : ContentPage
 
     protected static Entry Amount(string placeholder = "0.00") => new() { Keyboard = Keyboard.Numeric, Placeholder = placeholder };
 
-    /// <summary>A typed number, or 0 when blank. Accepts the phone's own decimal mark.</summary>
+    /// <summary>A typed number, or 0 when blank. Read the phone's own way first (so "1,50" is 1.50 where a comma is the
+    /// decimal mark), then with a point as the decimal mark.</summary>
     protected static decimal Number(Entry entry) =>
-        decimal.TryParse(entry.Text?.Replace(",", "").Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var v)
-        || decimal.TryParse(entry.Text?.Trim(), NumberStyles.Number, CultureInfo.CurrentCulture, out v) ? v : 0;
+        decimal.TryParse(entry.Text?.Trim(), NumberStyles.Number, CultureInfo.CurrentCulture, out var v)
+        || decimal.TryParse(entry.Text?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out v) ? v : 0;
 
     protected static DateOnly Day(DatePicker picker) => DateOnly.FromDateTime(picker.Date ?? DateTime.Today);
 

@@ -55,7 +55,7 @@ public abstract class PortfolioPage : ContentPage
         if (Refresh.IsRefreshing)
             loadAgain = true;
         else
-            Reload();
+            Refresh.IsRefreshing = true; // runs the refresh command, which loads
     }
 
     protected override void OnAppearing()
@@ -117,11 +117,12 @@ public abstract class PortfolioPage : ContentPage
         {
             var picked = loaded[portfolios.SelectedIndex];
             var api = Session.Api;
+            var version = Session.Version;
             await ShowAsync(api, picked, () => mine == request);
             if (mine != request)
                 return;
             shownPortfolio = picked.PortfolioId;
-            shownVersion = Session.Version;
+            shownVersion = version; // a save during the load leaves this behind, so the next visit loads again
             // Only logins that can change this portfolio get the Add button
             if (picked.CanEdit && !ToolbarItems.Contains(add))
                 ToolbarItems.Add(add);
@@ -171,8 +172,12 @@ public abstract class PortfolioPage : ContentPage
     private async Task AddAsync()
     {
         var portfolioId = shownPortfolio;
-        if (portfolioId == 0)
+        if (portfolioId == 0 || portfolioId != Session.LastPortfolioId)
+        {
+            // Another portfolio was picked and hasn't loaded yet: never add to the one still on screen by mistake
+            await DisplayAlertAsync("One moment", "Wait for the portfolio you picked to load, then tap Add again.", "OK");
             return;
+        }
         var choice = await DisplayActionSheetAsync("Add to this portfolio", "Cancel", null, "Trade", "Payout", "Cash");
         try
         {
@@ -180,7 +185,7 @@ public abstract class PortfolioPage : ContentPage
             Page? page = choice switch
             {
                 "Trade" => new AddTradePage(Session, portfolioId, (await api.GetDashboardAsync(portfolioId)).Currency ?? "AUD"),
-                "Payout" => new AddPayoutPage(Session, portfolioId, (await api.GetHoldingsAsync(portfolioId)).Holdings),
+                "Payout" => new AddPayoutPage(Session, portfolioId, (await api.GetHoldingsAsync(portfolioId, openOnly: false)).Holdings),
                 "Cash" => new AddCashPage(Session, portfolioId),
                 _ => null,
             };
