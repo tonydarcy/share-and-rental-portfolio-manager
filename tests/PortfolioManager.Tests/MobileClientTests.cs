@@ -341,6 +341,67 @@ public class MobileClientTests
         Assert.Equal(33.33m, EntryChecks.FrankingCredit(100m, 0.25m));
     }
 
+    [Fact]
+    public void Rental_amounts_the_app_offers_are_names_add_rental_entry_reads()
+    {
+        var site = PortfolioManager.Core.Payouts.RentalPayoutInput.Fields
+            .ToDictionary(PortfolioManager.Core.Payouts.RentalPayoutInput.Key, f => f.IsIncome);
+        Assert.All(RentalAmounts.All, a => Assert.Equal(site[a.Key], a.IsIncome));
+        Assert.Equal(-150m, RentalAmounts.Net(new Dictionary<string, decimal> { ["rentalIncome"] = 2000m, ["propertyAgentFeesAndCommission"] = 150m, ["repairsAndMaintenance"] = 2000m }));
+    }
+
+    [Fact]
+    public async Task Rental_entry_is_posted_with_names_add_rental_entry_reads()
+    {
+        var site = new FakeSite(_ => (HttpStatusCode.OK, """{"message":"Recorded the 12SMITH rental entry, net 1,850.00.","amounts":{}}"""));
+        var api = new SiteApi(new HttpClient(site), "https://example.com", "k");
+        var amounts = new Dictionary<string, decimal> { ["rentalIncome"] = 2000m, ["propertyAgentFeesAndCommission"] = 150m };
+
+        var saved = await api.AddRentalAsync(4, new RentalRequest(new DateOnly(2026, 10, 31), "12SMITH", amounts, "October"));
+
+        Assert.StartsWith("Recorded", saved.Message);
+        Assert.Equal("https://example.com/api/v1/portfolios/4/rentals", site.Requests[0].RequestUri!.ToString());
+        var body = JsonDocument.Parse(site.Bodies[0]).RootElement;
+        var schema = new AgentTools().Find("add_rental_entry")!.InputSchema["properties"]!.AsObject().Select(p => p.Key).ToHashSet();
+        Assert.All(body.EnumerateObject(), p => Assert.Contains(p.Name, schema));
+        Assert.Equal(2000m, body.GetProperty("amounts").GetProperty("rentalIncome").GetDecimal());
+        Assert.Equal("12SMITH", body.GetProperty("propertyCode").GetString());
+    }
+
+    [Fact]
+    public async Task Properties_and_their_schedule_are_read_from_the_sites_replies()
+    {
+        var site = new FakeSite(r => r.RequestUri!.AbsolutePath.EndsWith("/properties")
+            ? (HttpStatusCode.OK, """[{"propertyId":3,"address":"12 Smith St","payoutCode":"12SMITH","ownershipPct":50,"firstEarned":"2020-07-01","active":true,"note":null,"value":850000,"valued":"2026-06-30","coOwners":[]}]""")
+            : (HttpStatusCode.OK, """{"financialYear":"2026-27","item21":{"grossRent21P":12000,"interest21Q":4000,"capitalWorks21F":500,"otherDeductions21U":1500,"netRent":6000},"properties":[{"id":3,"address":"12 Smith St","ownershipPct":50,"weeksRented":52,"expensesClaimedPct":100,"lines":[{"name":"Rent","wholeProperty":24000,"ownersShare":12000}],"grossRent21P":12000,"interest21Q":4000,"capitalWorks21F":500,"otherDeductions21U":1500,"netRent":6000}]}"""));
+        var api = new SiteApi(new HttpClient(site), "https://example.com", "k");
+
+        var properties = await api.ListRentalPropertiesAsync(4);
+        var schedule = await api.GetRentalScheduleAsync(4, 2027);
+
+        Assert.Equal("12SMITH", properties[0].PayoutCode);
+        Assert.Equal(850000m, properties[0].Value);
+        Assert.Equal("https://example.com/api/v1/portfolios/4/reports/rental-schedule?financialYear=2027", site.Requests[1].RequestUri!.ToString());
+        Assert.Equal(6000m, schedule.Item21.NetRent);
+        Assert.Equal(12000m, schedule.Properties[0].Lines[0].OwnersShare);
+    }
+
+    [Theory]
+    [InlineData("2026-11-11", 0, 2027)]
+    [InlineData("2026-11-11", 1, 2026)]
+    [InlineData("2026-06-30", 0, 2026)]
+    public void Rental_years_are_named_by_the_year_they_end(string today, int back, int expected) =>
+        Assert.Equal(expected, ReportPeriod.YearEnding(DateOnly.Parse(today), back));
+
+    [Fact]
+    public void Rental_checks_catch_simple_slips()
+    {
+        var today = new DateOnly(2026, 11, 11);
+        Assert.Empty(EntryChecks.Rental(new RentalRequest(today, "12SMITH", new Dictionary<string, decimal> { ["rentalIncome"] = 1m }), today));
+        Assert.Contains("Pick the property.", EntryChecks.Rental(new RentalRequest(today, "", new Dictionary<string, decimal> { ["rentalIncome"] = 1m }), today));
+        Assert.Contains("Enter the rent received or at least one expense.", EntryChecks.Rental(new RentalRequest(today, "12SMITH", new Dictionary<string, decimal>()), today));
+    }
+
     private sealed class FakeSite(Func<HttpRequestMessage, (HttpStatusCode Status, string Body)> reply) : HttpMessageHandler
     {
         public List<HttpRequestMessage> Requests { get; } = [];
