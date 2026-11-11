@@ -95,13 +95,15 @@ This page lists only what is **not built yet**. Everything already in the site i
     - Sign-in: the app opens the site's own sign-in page in the system browser (OAuth with PKCE, already used by
       `OAuthServer.cs` for Claude connectors), so 2FA and lockout keep working. The token goes in the phone's
       Keychain / Keystore; tokens need an expiry, refresh, and a "Signed-in devices" list in the account menu to
-      revoke a lost phone. Check that a mobile redirect address (`app.shareportfoliomanager://...`) is allowed.
+      revoke a lost phone. (The app's return address `com.shareportfoliomanager.app:/oauth` is allowed.)
     - A device token table and a sender for Apple (APNs) and Google (Firebase Cloud Messaging) push, called by
       `AlertService`. Rate limits on the API.
     - The app asks for the site address on first start (default app.shareportfoliomanager.com), so self-hosted copies
       work too, as the Nextcloud and Home Assistant apps do.
 
-    **Step 3: the app (version 1 about 6 to 10 weeks).** `src/PortfolioManager.Mobile` (.NET MAUI).
+    **Step 3: the app (version 1 about 6 to 10 weeks).** `src/PortfolioManager.Mobile` (.NET MAUI). *Started
+    (2026-11-11):* an Android test app that signs in through the site (any site address) and shows each portfolio's
+    holdings; GitHub builds an installable APK. Everything below is still to do.
     - Mostly reading: portfolio picker, dashboard, holdings and prices, payouts and income calendar, CGT and
       unrealised gains, alerts. Quick entries: add a trade, payout or cash line (through the same tools and procs as
       the site), and a photo of a receipt or contract note attached to a bill or trade.

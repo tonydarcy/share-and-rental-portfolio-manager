@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PortfolioManager.Core\PortfolioManager.Core.csproj" />
+    <ProjectReference Include="..\..\src\PortfolioManager.Mobile.Client\PortfolioManager.Mobile.Client.csproj" />
     <ProjectReference Include="..\..\src\PortfolioManager.Web\PortfolioManager.Web.csproj" />
   </ItemGroup>
 
