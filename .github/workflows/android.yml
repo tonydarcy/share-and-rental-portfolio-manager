@@ -39,12 +39,13 @@ jobs:
         id: key
         env:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE" ]; then
+          if [ -n "$KEYSTORE" ] && [ -n "$PASSWORD" ]; then
             echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/app.keystore"
             echo "args=-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$RUNNER_TEMP/app.keystore -p:AndroidSigningKeyAlias=spm -p:AndroidSigningKeyPass=env:ANDROID_KEY_PASSWORD -p:AndroidSigningStorePass=env:ANDROID_KEY_PASSWORD" >> "$GITHUB_OUTPUT"
           else
-            echo "No signing key set: using a throwaway debug key (fine for testing, no Release made)"
+            echo "Signing secrets not both set: using a throwaway debug key (fine for testing, no Release made)"
           fi
       - name: Build the APK
         env:
