@@ -18,6 +18,8 @@ public sealed class PayoutsPage : PortfolioPage
         Refresh.Content = new ScrollView { Content = body };
     }
 
+    protected override void ClearFigures() => figures.Clear();
+
     protected override async Task ShowAsync(SiteApi api, PortfolioSummary portfolio, Func<bool> stillWanted)
     {
         var chosen = period.SelectedIndex;

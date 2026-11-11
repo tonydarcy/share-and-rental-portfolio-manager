@@ -36,6 +36,13 @@ public sealed class HoldingsPage : PortfolioPage
         list.ItemsSource = holdings.Holdings.OrderByDescending(h => h.MarketValue).ToList();
     }
 
+    protected override void ClearFigures()
+    {
+        total.Text = "";
+        gain.Text = "";
+        list.ItemsSource = null;
+    }
+
     private static View Row()
     {
         var code = new Label { FontAttributes = FontAttributes.Bold, FontSize = 16 };

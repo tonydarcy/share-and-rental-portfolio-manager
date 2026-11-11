@@ -44,13 +44,16 @@ public abstract class PortfolioPage : ContentPage
     /// portfolio was picked while this one loaded.</summary>
     protected abstract Task ShowAsync(SiteApi api, PortfolioSummary portfolio, Func<bool> stillWanted);
 
+    /// <summary>Removes the figures, so a portfolio that failed to load never shows the previous one's figures.</summary>
+    protected abstract void ClearFigures();
+
     /// <summary>Loads again, e.g. after a setting on the page changed. A change during a load queues one more load.</summary>
     protected void Reload()
     {
         if (Refresh.IsRefreshing)
             loadAgain = true;
         else
-            Refresh.IsRefreshing = true; // runs the refresh command, which loads
+            Reload();
     }
 
     protected override void OnAppearing()
@@ -58,7 +61,7 @@ public abstract class PortfolioPage : ContentPage
         base.OnAppearing();
         // First visit, or the portfolio was changed on another tab
         if (loaded.Count == 0 || shownPortfolio != Session.LastPortfolioId)
-            Refresh.IsRefreshing = true; // runs the refresh command, which loads
+            Reload();
     }
 
     private async Task LoadAsync()
@@ -121,6 +124,9 @@ public abstract class PortfolioPage : ContentPage
         }
         catch (SiteException e) when (mine == request)
         {
+            ClearFigures();
+            shownPortfolio = 0;
+            offlineNote.IsVisible = false;
             await Problem(e);
         }
         catch (SiteException)

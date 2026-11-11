@@ -13,15 +13,20 @@ public sealed class DashboardPage : PortfolioPage
         Refresh.Content = new ScrollView { Content = body };
     }
 
+    protected override void ClearFigures()
+    {
+        // Keep the header (picker, notes), remove the rest
+        while (body.Count > 1)
+            body.RemoveAt(body.Count - 1);
+    }
+
     protected override async Task ShowAsync(SiteApi api, PortfolioSummary portfolio, Func<bool> stillWanted)
     {
         var d = await api.GetDashboardAsync(portfolio.PortfolioId);
         if (!stillWanted())
             return;
 
-        // Keep the header (picker, notes), replace the rest
-        while (body.Count > 1)
-            body.RemoveAt(body.Count - 1);
+        ClearFigures();
 
         body.Add(new Label { Text = "Total value" + (d.Currency is { Length: > 0 } c ? $" ({c})" : ""), FontSize = 13, TextColor = Colors.Gray });
         body.Add(new Label { Text = Ui.Money(d.TotalPortfolioValue), FontSize = 32, FontAttributes = FontAttributes.Bold });
