@@ -13,13 +13,15 @@ public sealed class TradeService(IDbConnectionFactory db)
     /// The proc runs several statements without its own transaction, so it runs inside one here:
     /// either everything is recorded or nothing is.
     /// </summary>
-    public async Task AddAsync(int portfolioId, NewTrade trade)
+    /// <summary>Records the trade; returns its id.</summary>
+    public async Task<int> AddAsync(int portfolioId, NewTrade trade)
     {
         await using var con = db.Create();
         await con.OpenAsync();
         await using var tx = await con.BeginTransactionAsync();
-        await AddAsync(con, tx, portfolioId, trade);
+        var id = await AddAsync(con, tx, portfolioId, trade);
         await tx.CommitAsync();
+        return id;
     }
 
     /// <summary>Units held of one code at the end of a day (buys less sells; splits are already applied to the trades).</summary>
@@ -37,7 +39,7 @@ public sealed class TradeService(IDbConnectionFactory db)
     }
 
     /// <summary>Records the trade inside the caller's transaction, then any securities transaction tax (India) against it.</summary>
-    public static async Task AddAsync(IDbConnection con, IDbTransaction tx, int portfolioId, NewTrade trade)
+    public static async Task<int> AddAsync(IDbConnection con, IDbTransaction tx, int portfolioId, NewTrade trade)
     {
         var (proc, parameters) = trade.Cash is null
             ? ("uspAddShareTrade", TradeEntry.ShareTradeParameters(portfolioId, trade))
@@ -46,6 +48,9 @@ public sealed class TradeService(IDbConnectionFactory db)
         if (trade.SecuritiesTax > 0)
             await con.ExecuteAsync("uspSetLatestTradeSecuritiesTax", SecuritiesTaxParameters(portfolioId, trade), tx,
                 commandType: CommandType.StoredProcedure);
+        // The new trade is the portfolio's newest (the same rule uspSetLatestTradeSecuritiesTax uses), inside this transaction
+        return await con.ExecuteScalarAsync<int?>(
+            "SELECT MAX(iShareTradeId) FROM dbo.tblShareTrades WHERE iUserId = @portfolioId", new { portfolioId }, tx) ?? 0;
     }
 
     /// <summary>The STT in the portfolio currency (the exchange rate is trade currency per portfolio currency).</summary>

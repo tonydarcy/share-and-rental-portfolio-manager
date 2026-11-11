@@ -249,6 +249,72 @@ public class MobileClientTests
     public void Payout_periods_follow_the_july_to_june_year(int choice, string today, string from, string to) =>
         Assert.Equal((DateOnly.Parse(from), DateOnly.Parse(to)), ReportPeriod.Range(choice, DateOnly.Parse(today)));
 
+    [Fact]
+    public async Task Trade_is_posted_with_the_names_add_trade_reads_and_gives_back_the_new_id()
+    {
+        var site = new FakeSite(_ => (HttpStatusCode.OK, """{"message":"Recorded the buy of 10 BHP at 45 AUD.","tradeId":812,"trade":{}}"""));
+        var api = new SiteApi(new HttpClient(site), "https://example.com", "k");
+
+        var saved = await api.AddTradeAsync(4, new TradeRequest(new DateOnly(2026, 11, 10), "Buy", "ASX", "BHP", 10, 45m, 9.5m, "AUD"));
+
+        Assert.Equal(HttpMethod.Post, site.Requests[0].Method);
+        Assert.Equal("https://example.com/api/v1/portfolios/4/trades", site.Requests[0].RequestUri!.ToString());
+        Assert.Equal(812, saved.TradeId);
+        var body = JsonDocument.Parse(site.Bodies[0]).RootElement;
+        // Every name the app sends is one the tool's schema has
+        var schema = new AgentTools().Find("add_trade")!.InputSchema["properties"]!.AsObject().Select(p => p.Key).ToHashSet();
+        Assert.All(body.EnumerateObject(), p => Assert.Contains(p.Name, schema));
+        Assert.Equal("2026-11-10", body.GetProperty("date").GetString());
+        Assert.Equal(10m, body.GetProperty("quantity").GetDecimal());
+    }
+
+    [Theory]
+    [InlineData("add_payout")]
+    [InlineData("add_cash_transaction")]
+    [InlineData("add_attachment")]
+    public async Task Other_entries_send_only_names_their_tool_reads(string toolName)
+    {
+        var site = new FakeSite(_ => (HttpStatusCode.OK, """{"message":"Saved."}"""));
+        var api = new SiteApi(new HttpClient(site), "https://example.com", "k");
+        var day = new DateOnly(2026, 9, 28);
+        var saved = toolName switch
+        {
+            "add_payout" => await api.AddPayoutAsync(4, new PayoutRequest(day, "ASX", "CBA", 210m, 210m, 0, 90m)),
+            "add_cash_transaction" => await api.AddCashAsync(4, new CashRequest(day, "Deposit", 500m, "Top up")),
+            _ => await api.AddAttachmentAsync(4, new AttachmentRequest("Trade", 812, "note.jpg", "AAAA")),
+        };
+        Assert.Equal("Saved.", saved.Message);
+        var schema = new AgentTools().Find(toolName)!.InputSchema["properties"]!.AsObject().Select(p => p.Key).ToHashSet();
+        Assert.All(JsonDocument.Parse(site.Bodies[0]).RootElement.EnumerateObject(), p => Assert.Contains(p.Name, schema));
+    }
+
+    [Fact]
+    public async Task A_write_that_times_out_says_it_may_have_been_saved_and_is_never_taken_from_the_offline_copy()
+    {
+        var slow = new FakeSite(_ => throw new TaskCanceledException("timeout"));
+        var e = await Assert.ThrowsAsync<SiteException>(() => new SiteApi(new HttpClient(slow), "https://example.com", "k")
+            .AddCashAsync(1, new CashRequest(new DateOnly(2026, 1, 1), "Deposit", 1m)));
+        Assert.Contains("may or may not have been saved", e.Message);
+
+        var refused = new FakeSite(_ => (HttpStatusCode.BadRequest, """{"error":"amount must be more than zero."}"""));
+        e = await Assert.ThrowsAsync<SiteException>(() => new SiteApi(new HttpClient(refused), "https://example.com", "k")
+            .AddCashAsync(1, new CashRequest(new DateOnly(2026, 1, 1), "Deposit", 1m)));
+        Assert.Equal("amount must be more than zero.", e.Message);
+    }
+
+    [Fact]
+    public void Entry_checks_catch_simple_slips()
+    {
+        var today = new DateOnly(2026, 11, 11);
+        Assert.Empty(EntryChecks.Trade(new TradeRequest(today, "Buy", "ASX", "BHP", 10, 45m, 0, "AUD"), today));
+        Assert.Contains("Units must be a whole number above zero.", EntryChecks.Trade(new TradeRequest(today, "Buy", "ASX", "BHP", 1.5m, 45m, 0, "AUD"), today));
+        Assert.Contains("The trade date can't be in the future.", EntryChecks.Trade(new TradeRequest(today.AddDays(1), "Buy", "ASX", "BHP", 1, 45m, 0, "AUD"), today));
+        Assert.Contains("The franked part must be between zero and the cash received.", EntryChecks.Payout(new PayoutRequest(today, "ASX", "CBA", 100m, 120m, 0, 0), today));
+        Assert.Empty(EntryChecks.Cash(new CashRequest(today, "Withdrawal", 5m)));
+        Assert.Equal(42.86m, EntryChecks.FrankingCredit(100m, 0.30m));
+        Assert.Equal(33.33m, EntryChecks.FrankingCredit(100m, 0.25m));
+    }
+
     private sealed class FakeSite(Func<HttpRequestMessage, (HttpStatusCode Status, string Body)> reply) : HttpMessageHandler
     {
         public List<HttpRequestMessage> Requests { get; } = [];

@@ -19,6 +19,10 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo of a contract note to attach to a trade.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo of a contract note to attach to a trade.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Face ID unlocks the app so others using your phone can't see your figures.</string>
 	<!-- The sign-in reply address (com.shareportfoliomanager.app:/oauth) -->

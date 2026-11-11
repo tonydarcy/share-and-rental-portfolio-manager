@@ -76,6 +76,36 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
     public Task<PayoutList> ListPayoutsAsync(int portfolioId, DateOnly from, DateOnly to, int limit = 500, CancellationToken ct = default) =>
         GetAsync<PayoutList>($"/portfolios/{portfolioId}/payouts?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}&limit={limit}", ct);
 
+    public Task<List<SecurityMatch>> SearchSecuritiesAsync(int portfolioId, string query, CancellationToken ct = default) =>
+        GetAsync<List<SecurityMatch>>($"/portfolios/{portfolioId}/securities?query={Uri.EscapeDataString(query)}", ct);
+
+    // Writes go straight to the site: never from or into the offline copy, and never retried by the app
+
+    public Task<SavedReply> AddTradeAsync(int portfolioId, TradeRequest trade, CancellationToken ct = default) =>
+        PostAsync($"/portfolios/{portfolioId}/trades", trade, ct);
+
+    public Task<SavedReply> AddPayoutAsync(int portfolioId, PayoutRequest payout, CancellationToken ct = default) =>
+        PostAsync($"/portfolios/{portfolioId}/payouts", payout, ct);
+
+    public Task<SavedReply> AddCashAsync(int portfolioId, CashRequest cash, CancellationToken ct = default) =>
+        PostAsync($"/portfolios/{portfolioId}/cash", cash, ct);
+
+    public Task<SavedReply> AddAttachmentAsync(int portfolioId, AttachmentRequest file, CancellationToken ct = default) =>
+        PostAsync($"/portfolios/{portfolioId}/attachments", file, ct);
+
+    private async Task<SavedReply> PostAsync<TBody>(string path, TBody body, CancellationToken ct)
+    {
+        var json = await FetchAsync(path, ct, JsonContent.Create(body, options: Json));
+        try
+        {
+            return JsonSerializer.Deserialize<SavedReply>(json, Json) ?? new SavedReply(null, null);
+        }
+        catch (JsonException)
+        {
+            return new SavedReply(null, null); // saved; the reply just wasn't in the expected shape
+        }
+    }
+
     private async Task<T> GetAsync<T>(string path, CancellationToken ct)
     {
         string json;
@@ -103,9 +133,9 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
         }
     }
 
-    private async Task<string> FetchAsync(string path, CancellationToken ct)
+    private async Task<string> FetchAsync(string path, CancellationToken ct, HttpContent? body = null)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, server + "/api/v1" + path);
+        using var request = new HttpRequestMessage(body is null ? HttpMethod.Get : HttpMethod.Post, server + "/api/v1" + path) { Content = body };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         HttpResponseMessage reply;
@@ -119,7 +149,10 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new SiteException("The site took too long to reply. Please try again.", unreachable: true);
+            throw new SiteException(body is null
+                ? "The site took too long to reply. Please try again."
+                : "The site took too long to reply, so this may or may not have been saved. Check the site before adding it again.",
+                unreachable: true);
         }
         using (reply)
         {
