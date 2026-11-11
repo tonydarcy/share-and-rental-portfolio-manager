@@ -104,8 +104,9 @@ This page lists only what is **not built yet**. Everything already in the site i
     **Step 3: the app (version 1 about 6 to 10 weeks).** `src/PortfolioManager.Mobile` (.NET MAUI). *Started
     (2026-11-11):* an Android app that signs in through the site (any site address), with dashboard, holdings, a price
     chart per share, payouts, fingerprint/face/PIN lock, hiding in recent apps (Android) and an encrypted offline copy;
-    GitHub publishes each version for Obtainium. Still to do: quick entries (trade, payout, cash, receipt photo), CGT
-    and unrealised gains reports, alerts, and the iPhone build (the iPhone lock screen cover is not done).
+    GitHub publishes each version for Obtainium; quick entries (trade with a contract note photo, payout, cash).
+    Still to do: CGT and unrealised gains reports, alerts, receipt photos on bills, and the iPhone build (the iPhone
+    lock screen cover is not done).
     - Mostly reading: portfolio picker, dashboard, holdings and prices, payouts and income calendar, CGT and
       unrealised gains, alerts. Quick entries: add a trade, payout or cash line (through the same tools and procs as
       the site), and a photo of a receipt or contract note attached to a bill or trade.

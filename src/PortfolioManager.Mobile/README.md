@@ -7,6 +7,10 @@ A .NET MAUI app for Android (iOS later, from the same code). It signs in through
   1 year or 5 years), units held, value and the year's range.
 - **Payouts**: dividends, distributions and interest for the last 12 months, this financial year or last, with franking
   credits. The financial year is 1 July to 30 June.
+- **Add** (top of the Dashboard, Holdings and Payouts tabs, for logins that can change the portfolio): a buy or sale
+  (with a photo of the contract note attached to it), a dividend or distribution (cash, franked part and franking
+  credit), or a bank deposit or withdrawal. Each is saved through the same stored procedures as the site, with its
+  journals. Trades in another currency, and payouts with interest, trust or foreign income, are entered on the site.
 - **More**: lock and privacy settings, a button to open the full site, and sign out.
 
 Privacy: with "Lock the app" on (the default) the phone's fingerprint, face or PIN is asked for on opening and after a

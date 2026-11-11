@@ -28,6 +28,11 @@ public sealed class Session(HttpClient http)
 
     public bool IsSignedIn => Preferences.Default.Get("signed_in", false);
 
+    /// <summary>Goes up each time the app saves something, so the tabs know to load again.</summary>
+    public int Version { get; private set; }
+
+    public void DataChanged() => Version++;
+
     /// <summary>Ask for the fingerprint, face or phone PIN when the app opens or comes back after a minute away.</summary>
     public bool LockApp
     {

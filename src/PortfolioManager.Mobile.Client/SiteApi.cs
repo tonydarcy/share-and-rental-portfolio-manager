@@ -63,8 +63,9 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
     public Task<List<PortfolioSummary>> ListPortfoliosAsync(CancellationToken ct = default) =>
         GetAsync<List<PortfolioSummary>>("/portfolios", ct);
 
-    public Task<HoldingsSummary> GetHoldingsAsync(int portfolioId, CancellationToken ct = default) =>
-        GetAsync<HoldingsSummary>($"/portfolios/{portfolioId}/holdings", ct);
+    /// <summary>The portfolio's holdings; <paramref name="openOnly"/> false also lists shares sold out of.</summary>
+    public Task<HoldingsSummary> GetHoldingsAsync(int portfolioId, CancellationToken ct = default, bool openOnly = true) =>
+        GetAsync<HoldingsSummary>($"/portfolios/{portfolioId}/holdings" + (openOnly ? "" : "?openOnly=false"), ct);
 
     public Task<DashboardSummary> GetDashboardAsync(int portfolioId, CancellationToken ct = default) =>
         GetAsync<DashboardSummary>($"/portfolios/{portfolioId}/dashboard", ct);
@@ -75,6 +76,46 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
 
     public Task<PayoutList> ListPayoutsAsync(int portfolioId, DateOnly from, DateOnly to, int limit = 500, CancellationToken ct = default) =>
         GetAsync<PayoutList>($"/portfolios/{portfolioId}/payouts?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}&limit={limit}", ct);
+
+    public Task<List<SecurityMatch>> SearchSecuritiesAsync(int portfolioId, string query, CancellationToken ct = default) =>
+        GetAsync<List<SecurityMatch>>($"/portfolios/{portfolioId}/securities?query={Uri.EscapeDataString(query)}", ct);
+
+    // Writes go straight to the site: never from or into the offline copy, and never retried by the app
+
+    public Task<SavedReply> AddTradeAsync(int portfolioId, TradeRequest trade, CancellationToken ct = default) =>
+        PostAsync($"/portfolios/{portfolioId}/trades", trade, ct);
+
+    public Task<SavedReply> AddPayoutAsync(int portfolioId, PayoutRequest payout, CancellationToken ct = default) =>
+        PostAsync($"/portfolios/{portfolioId}/payouts", payout, ct);
+
+    public Task<SavedReply> AddCashAsync(int portfolioId, CashRequest cash, CancellationToken ct = default) =>
+        PostAsync($"/portfolios/{portfolioId}/cash", cash, ct);
+
+    public Task<SavedReply> AddAttachmentAsync(int portfolioId, AttachmentRequest file, CancellationToken ct = default) =>
+        PostAsync($"/portfolios/{portfolioId}/attachments", file, ct, needsMessage: false);
+
+    private const string Unclear = "The site's reply was unclear, so this may or may not have been saved. Check the site before adding it again.";
+
+    /// <summary>
+    /// Sends a write. A reply without the site's usual message doesn't confirm the save, so it's reported as unclear
+    /// rather than as saved (adding it again could record it twice).
+    /// </summary>
+    private async Task<SavedReply> PostAsync<TBody>(string path, TBody body, CancellationToken ct, bool needsMessage = true)
+    {
+        var json = await FetchAsync(path, ct, JsonContent.Create(body, options: Json));
+        SavedReply? reply;
+        try
+        {
+            reply = JsonSerializer.Deserialize<SavedReply>(json, Json);
+        }
+        catch (JsonException)
+        {
+            reply = null;
+        }
+        if (reply is null || (needsMessage && string.IsNullOrWhiteSpace(reply.Message)))
+            throw new SiteException(Unclear);
+        return reply;
+    }
 
     private async Task<T> GetAsync<T>(string path, CancellationToken ct)
     {
@@ -103,9 +144,9 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
         }
     }
 
-    private async Task<string> FetchAsync(string path, CancellationToken ct)
+    private async Task<string> FetchAsync(string path, CancellationToken ct, HttpContent? body = null)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, server + "/api/v1" + path);
+        using var request = new HttpRequestMessage(body is null ? HttpMethod.Get : HttpMethod.Post, server + "/api/v1" + path) { Content = body };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         HttpResponseMessage reply;
@@ -115,11 +156,18 @@ public sealed class SiteApi(HttpClient http, string server, string key, OfflineC
         }
         catch (HttpRequestException)
         {
-            throw new SiteException("Can't reach the site. Check your internet connection.", unreachable: true);
+            // A write can reach the site and then lose its reply, so it may have been saved
+            throw new SiteException(body is null
+                ? "Can't reach the site. Check your internet connection."
+                : "The connection dropped, so this may or may not have been saved. Check the site before adding it again.",
+                unreachable: true);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new SiteException("The site took too long to reply. Please try again.", unreachable: true);
+            throw new SiteException(body is null
+                ? "The site took too long to reply. Please try again."
+                : "The site took too long to reply, so this may or may not have been saved. Check the site before adding it again.",
+                unreachable: true);
         }
         using (reply)
         {

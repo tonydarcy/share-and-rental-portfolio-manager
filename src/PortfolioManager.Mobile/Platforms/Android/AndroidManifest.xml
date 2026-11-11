@@ -4,10 +4,16 @@
 	<application android:allowBackup="false" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true" android:dataExtractionRules="@xml/data_extraction_rules"></application>
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 	<uses-permission android:name="android.permission.INTERNET" />
+	<!-- A photo of a contract note to attach to a trade (asked for only when "Take a photo" is tapped) -->
+	<uses-permission android:name="android.permission.CAMERA" />
+	<uses-feature android:name="android.hardware.camera" android:required="false" />
 	<!-- Lets sign-in open in a browser tab (Custom Tabs) on Android 11 and later -->
 	<queries>
 		<intent>
 			<action android:name="android.support.customtabs.action.CustomTabsService" />
+		</intent>
+		<intent>
+			<action android:name="android.media.action.IMAGE_CAPTURE" />
 		</intent>
 	</queries>
 </manifest>

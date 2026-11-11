@@ -320,11 +320,12 @@ public sealed partial class AgentTools
                 throw AgentToolException.Invalid([error]);
         }
 
-        await c.Service<TradeService>().AddAsync(c.PortfolioId, trade);
+        var tradeId = await c.Service<TradeService>().AddAsync(c.PortfolioId, trade);
         return new
         {
             Message = $"Recorded the {trade.TypeText.ToLowerInvariant()} of {trade.Quantity:N0} {trade.Code} at {trade.Price} {trade.Currency}"
                 + (trade.Cash is null ? "." : ", with its cash settlement."),
+            TradeId = tradeId,
             Trade = trade,
         };
     }
