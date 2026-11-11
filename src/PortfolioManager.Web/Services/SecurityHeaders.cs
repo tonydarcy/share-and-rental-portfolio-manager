@@ -30,7 +30,7 @@ public static class SecurityHeaders
         "manifest-src 'self'",
         "object-src 'none'",
         "base-uri 'self'",
-        oauthConsent ? "form-action 'self' https: http://localhost:* http://127.0.0.1:* http://[::1]:*" : "form-action 'self'",
+        oauthConsent ? $"form-action 'self' https: http://localhost:* http://127.0.0.1:* http://[::1]:* {Api.OAuthServer.AppScheme}:" : "form-action 'self'",
         "frame-ancestors 'none'");
 
     public const string PermissionsPolicy = "camera=(), microphone=(), geolocation=(), payment=(), usb=()";

@@ -86,7 +86,7 @@ public sealed class OAuthServer(IDataProtectionProvider provider, IMemoryCache m
             var uri = u is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
             if (uri is null || !AllowedRedirect(uri))
                 return (null, new OAuthProblem("invalid_redirect_uri",
-                    "Each redirect_uri must be an https address, or http on this computer (localhost).", false));
+                    "Each redirect_uri must be an https address, http on this computer (localhost), or the phone app's " + AppScheme + ": address.", false));
             list.Add(uri);
         }
 
@@ -124,10 +124,16 @@ public sealed class OAuthServer(IDataProtectionProvider provider, IMemoryCache m
     }
 
     /// <summary>An https address, or http back to this computer for desktop apps (RFC 8252). Never a fragment.</summary>
+    /// <summary>
+    /// The phone app's own return address scheme (a "private-use" scheme, RFC 8252): the app registers it with Android and
+    /// iOS, so after sign-in the phone hands the code straight back to the app, e.g. com.shareportfoliomanager.app:/oauth.
+    /// </summary>
+    public const string AppScheme = "com.shareportfoliomanager.app";
+
     public static bool AllowedRedirect(string? uri) =>
         Uri.TryCreate(uri, UriKind.Absolute, out var u)
         && string.IsNullOrEmpty(u.Fragment)
-        && (u.Scheme == Uri.UriSchemeHttps || (u.Scheme == Uri.UriSchemeHttp && u.IsLoopback));
+        && (u.Scheme == Uri.UriSchemeHttps || (u.Scheme == Uri.UriSchemeHttp && u.IsLoopback) || u.Scheme == AppScheme);
 
     /// <summary>Checks the sign-in request an app sent the person with (the authorization endpoint's query).</summary>
     public (OAuthRequest? Request, OAuthProblem? Problem) Check(Func<string, string?> value)

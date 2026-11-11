@@ -178,6 +178,15 @@ if (emailSettings.IsConfigured)
 else
     builder.Services.AddSingleton<IEmailSender, LogOnlyEmailSender>();
 builder.Services.AddSingleton(TimeProvider.System);
+
+// Phone notifications for alerts go through Firebase Cloud Messaging when Push:FirebaseCredentialsFile names its key file
+var pushSettings = builder.Configuration.GetSection("Push").Get<PushSettings>() ?? new PushSettings();
+builder.Services.AddSingleton(pushSettings);
+if (pushSettings.IsConfigured)
+    builder.Services.AddSingleton<PortfolioManager.Core.Alerts.IPushSender>(_ => new FirebasePushSender(pushSettings));
+else
+    builder.Services.AddSingleton<PortfolioManager.Core.Alerts.IPushSender, PortfolioManager.Core.Alerts.NoPushSender>();
+builder.Services.AddScoped<PortfolioManager.Core.Alerts.PushDeviceService>();
 builder.Services.AddSingleton<AccountTokens>();
 builder.Services.AddScoped<SignInFlow>();
 builder.Services.AddScoped<AccountSecurity>();

@@ -77,6 +77,9 @@ public sealed record TrendRow(
     public double? WeekChange => WeekAgoClose is > 0 ? Close / WeekAgoClose.Value - 1 : null;
 }
 
+/// <summary>A share found by <see cref="QuoteService.SearchAsync"/>.</summary>
+public sealed record SecurityMatch(string Exchange, string Code, string? Name, string? Sector);
+
 public enum TrendScope { Holdings, Popular, All }
 
 /// <summary>Share quotes and price trends from tblSharePrice (the legacy Get Share Price and Share Trends pages).</summary>
@@ -123,6 +126,39 @@ public sealed class QuoteService(IDbConnectionFactory db)
 
         return new Quote(exchange, code, Clean(details.Name), Clean(details.Sector), bars, Math.Round(units, 6));
     }
+
+    public const int MaxSearchResults = 20;
+
+    /// <summary>
+    /// Shares whose code starts with, or whose name contains, the text (for picking a code while adding a trade), best
+    /// matches first: the exact code, then codes starting with it, then names. Optionally on one exchange.
+    /// </summary>
+    public async Task<IReadOnlyList<SecurityMatch>> SearchAsync(string text, string? exchange = null)
+    {
+        var q = text.Trim().ToUpperInvariant();
+        if (q.Length == 0)
+            return [];
+        await using var con = db.Create();
+        var rows = await con.QueryAsync<SecurityMatch>($"""
+            SELECT TOP {MaxSearchResults} strStockExchangeCode AS Exchange, strStockCode AS Code, strStockName AS Name, strSector AS Sector
+            FROM tblShareDetails
+            WHERE (@exchange IS NULL OR strStockExchangeCode = @exchange)
+              AND (strStockCode LIKE @prefix ESCAPE '\' OR strStockName LIKE @contains ESCAPE '\')
+            ORDER BY CASE WHEN strStockCode = @code THEN 0 WHEN strStockCode LIKE @prefix ESCAPE '\' THEN 1 ELSE 2 END,
+                     strStockCode, strStockExchangeCode
+            """, new
+        {
+            exchange = string.IsNullOrWhiteSpace(exchange) ? null : AnsiText.Of(exchange.Trim().ToUpperInvariant()),
+            code = AnsiText.Of(q),
+            prefix = AnsiText.Of(LikeEscape(q) + "%"),
+            contains = AnsiText.Of("%" + LikeEscape(text.Trim()) + "%"),
+        });
+        return rows.Select(r => r with { Name = Clean(r.Name), Sector = Clean(r.Sector) }).ToList();
+    }
+
+    /// <summary>Makes text safe inside a LIKE pattern (with ESCAPE '\'): %, _, [ and \ match only themselves.</summary>
+    public static string LikeEscape(string text) =>
+        text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[");
 
     /// <summary>Stocks this portfolio has traded, as "ASX:CBA", for the quote search box.</summary>
     public async Task<IReadOnlyList<string>> GetTradedSymbolsAsync(int portfolioId)

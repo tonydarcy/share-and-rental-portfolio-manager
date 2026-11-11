@@ -701,6 +701,9 @@ below, up to and including 2026-10-16; it only needs scripts dated after that, r
 - `2026-11-10-menu-areas.sql`: the top menu shows Business, Property and the company/trust/SMSF tax pages only when a
   portfolio uses them, with Automatic/Always/Never choices on Portfolio settings. Adds `tblUsers.strMenuAreas`,
   `uspGetMenuUsage` and `uspSaveMenuAreas`. Until it is run every menu shows, as before.
+- `2026-11-11-push-devices.sql`: phone alerts for the coming app. Adds `tblPushDevices` (the phones each login has
+  signed the app in on). Needed by the API tools `register_push_device`, `list_push_devices` and
+  `unregister_push_device`; until it is run they fail and email alerts carry on as before.
 
 ## API and MCP server
 
@@ -738,6 +741,20 @@ portfolio, the tool, what was sent and the result. It shows on the API keys page
 | `report_capital_gains`, `report_taxable_income`, `report_profit_and_loss` | `GET /reports/capital-gains`, `/taxable-income`, `/profit-and-loss` (`financialYear=` or `from=&to=`) | |
 | `report_unrealised_gains`, `report_trial_balance`, `report_balance_sheet` | `GET /reports/unrealised-gains`, `/trial-balance`, `/balance-sheet` (`asAt=`) | |
 | `report_rental_schedule` | `GET /reports/rental-schedule` (`financialYear=`) | |
+| `get_dashboard` | `GET /dashboard` | |
+| `get_price_history` | `GET /prices/{exchange}/{stockCode}?from=` | |
+| `search_securities` | `GET /securities?query=&exchange=` | |
+| `list_attachments`, `add_attachment` | `GET /attachments?kind=&targetId=`, `POST /attachments` (file as `contentBase64`) | add |
+
+For the phone app, these belong to the login rather than a portfolio (paths straight under `/api/v1`):
+
+| Tool | REST |
+| --- | --- |
+| `register_push_device`, `list_push_devices`, `unregister_push_device` | `POST /push-devices`, `GET /push-devices`, `DELETE /push-devices/{pushDeviceId}` |
+
+They count as reads, so a read-only key can still get alerts on its phone. The phone app signs in by OAuth with the
+return address `com.shareportfoliomanager.app:/oauth` (or any path on that scheme), which the sign-in server accepts
+alongside https and localhost addresses.
 
 These tools have no REST path of their own; call them with `POST /api/v1/tools/{name}`:
 

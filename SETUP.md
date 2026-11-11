@@ -356,6 +356,23 @@ Leave out either system you don't want. `Scopes` can be set for each one if the 
 if MYOB gives you a different API address (the default is `https://api.myob.com/accountright/`). The sign-in tokens
 are stored encrypted with the data protection keys above. Run `2026-10-26-09-accounting-connections.sql` first.
 
+### Phone notifications (optional)
+
+The phone app can show the same alerts as the alert emails as notifications. They go through Firebase Cloud
+Messaging (free), which reaches Android phones and, once you add an Apple push key in Firebase, iPhones too.
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com) and add the Android app
+   (package `com.shareportfoliomanager.app`).
+2. In Project settings > Service accounts, choose **Generate new private key** and save the JSON file on the server,
+   outside the site folder, readable only by the site's account.
+3. Add its path to `appsettings.Production.json` and run `2026-11-11-push-devices.sql`:
+
+```json
+"Push": { "FirebaseCredentialsFile": "C:\\Secrets\\firebase-push.json" }
+```
+
+Without it, phones can still sign in; they just get no notifications.
+
 ### Sample portfolio
 
 `Database/SampleData/demo-portfolio.sql` adds a made-up portfolio covering the last twelve months: a deposit, buys

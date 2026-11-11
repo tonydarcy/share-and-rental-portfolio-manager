@@ -28,7 +28,7 @@ public sealed partial class AgentTools
 
     public AgentTools()
     {
-        All = [.. Build(), .. BuildBooks(), .. BuildProperty(), .. BuildAccounts()];
+        All = [.. Build(), .. BuildBooks(), .. BuildProperty(), .. BuildAccounts(), .. BuildMobile()];
         _byName = All.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
     }
 

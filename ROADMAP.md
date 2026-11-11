@@ -87,7 +87,10 @@ This page lists only what is **not built yet**. Everything already in the site i
     a subscribe switch in Email alerts), an "Install app" prompt, and Face ID / fingerprint sign-in by passkey.
     Useful for everyone straight away, including people running their own copy.
 
-    **Step 2: the API the app needs (about 2 weeks).** Builds on item 2.
+    **Step 2: the API the app needs (about 2 weeks).** Builds on item 2. *Partly done (2026-11-11):* dashboard,
+    price history, share code search, attachments, the app's sign-in return address and Firebase push for alerts are
+    built; still to do from this step: OpenAPI, token expiry and refresh, a "Signed-in devices" page, and alerts
+    settings over the API.
     - OpenAPI description and REST read paths for the dashboard, holdings, payouts, cash, alerts and documents.
     - Sign-in: the app opens the site's own sign-in page in the system browser (OAuth with PKCE, already used by
       `OAuthServer.cs` for Claude connectors), so 2FA and lockout keep working. The token goes in the phone's
