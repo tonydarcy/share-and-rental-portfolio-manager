@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The phone app's talk to the site: sign-in (OAuth with PKCE) and the /api/v1 calls. Plain .NET with no phone
+       code, so the normal build and tests cover it and the MAUI app (src/PortfolioManager.Mobile) stays thin. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

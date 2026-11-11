@@ -1,0 +1,37 @@
+name: Android app
+
+# Builds the phone app into an APK anyone can install by hand for testing. Runs when the app's code changes,
+# or from the Actions tab (Run workflow). The APK is attached to the run as "android-app".
+on:
+  push:
+    branches: [main]
+    paths: ['src/PortfolioManager.Mobile/**', 'src/PortfolioManager.Mobile.Client/**', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['src/PortfolioManager.Mobile/**', 'src/PortfolioManager.Mobile.Client/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: '21'
+      - name: Install the .NET Android tools
+        run: dotnet workload install maui-android
+      - name: Install the Android SDK parts the app needs
+        run: dotnet build src/PortfolioManager.Mobile -t:InstallAndroidDependencies -f net10.0-android -p:AndroidSdkDirectory="$ANDROID_HOME" -p:AcceptAndroidSDKLicenses=True -v q
+      - name: Build the APK
+        # Signed with a throwaway debug key: fine for testing, not for the Play Store
+        run: dotnet publish src/PortfolioManager.Mobile -f net10.0-android -c Release -p:AndroidSdkDirectory="$ANDROID_HOME" -o apk -v q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-app
+          path: apk/*-Signed.apk
+          if-no-files-found: error

@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/PortfolioManager.Core/PortfolioManager.Core.csproj" />
+    <Project Path="src/PortfolioManager.Mobile.Client/PortfolioManager.Mobile.Client.csproj" />
     <Project Path="src/PortfolioManager.PriceUpdater/PortfolioManager.PriceUpdater.csproj" />
     <Project Path="src/PortfolioManager.Web/PortfolioManager.Web.csproj" />
   </Folder>

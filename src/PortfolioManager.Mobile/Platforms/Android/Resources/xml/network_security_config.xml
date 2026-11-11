@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Release builds: https only, on every Android version (before Android 9, plain http was allowed by default) -->
+<network-security-config>
+	<base-config cleartextTrafficPermitted="false" />
+</network-security-config>
