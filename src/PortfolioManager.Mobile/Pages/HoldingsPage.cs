@@ -2,113 +2,38 @@ using PortfolioManager.Mobile.Client;
 
 namespace PortfolioManager.Mobile.Pages;
 
-/// <summary>The picked portfolio's holdings with today's value and gain. Pull down to refresh.</summary>
-public sealed class HoldingsPage : ContentPage
+/// <summary>The picked portfolio's holdings with today's value and gain. Tap one for its price chart.</summary>
+public sealed class HoldingsPage : PortfolioPage
 {
-    private readonly Session session;
-    private readonly Picker portfolios = new() { Title = "Portfolio" };
     private readonly Label total = new() { FontSize = 28, FontAttributes = FontAttributes.Bold };
     private readonly Label gain = new() { FontSize = 15 };
-    private readonly Label message = new() { IsVisible = false, Margin = new Thickness(0, 8) };
-    private readonly CollectionView list = new() { SelectionMode = SelectionMode.None };
-    private readonly RefreshView refresh = new();
-    private List<PortfolioSummary> loaded = [];
-    private bool busy;
-    private int request;
+    private readonly CollectionView list = new() { SelectionMode = SelectionMode.Single };
 
-    public HoldingsPage(Session session)
+    public HoldingsPage(Session session) : base(session, "Holdings")
     {
-        this.session = session;
-        Title = "Holdings";
-        ToolbarItems.Add(new ToolbarItem("Sign out", null, async () => await SignOutAsync()));
-
-        portfolios.SelectedIndexChanged += async (_, _) =>
-        {
-            if (portfolios.SelectedIndex >= 0 && !busy)
-            {
-                session.LastPortfolioId = loaded[portfolios.SelectedIndex].PortfolioId;
-                await LoadHoldingsAsync();
-            }
-        };
-
         list.ItemTemplate = new DataTemplate(Row);
         list.EmptyView = new Label { Text = "No holdings yet.", Margin = 16 };
-        list.Header = new VerticalStackLayout
+        list.Header = new VerticalStackLayout { Padding = new Thickness(16, 8), Children = { Header, total, gain } };
+        list.SelectionChanged += async (_, e) =>
         {
-            Padding = new Thickness(16, 8),
-            Children = { portfolios, total, gain, message },
+            if (e.CurrentSelection.FirstOrDefault() is Holding h)
+            {
+                list.SelectedItem = null;
+                await OpenShareAsync(h.ExchangeCode, h.StockCode);
+            }
         };
-        refresh.Content = list;
-        refresh.Command = new Command(async () => await LoadAsync());
-        Content = refresh;
+        Refresh.Content = list;
     }
 
-    protected override async void OnAppearing()
+    protected override async Task ShowAsync(SiteApi api, PortfolioSummary portfolio, Func<bool> stillWanted)
     {
-        base.OnAppearing();
-        if (loaded.Count == 0)
-        {
-            refresh.IsRefreshing = true;
-            await LoadAsync();
-        }
-    }
-
-    private async Task LoadAsync()
-    {
-        try
-        {
-            if (!await session.LoadAsync())
-            {
-                await SignOutAsync();
-                return;
-            }
-            busy = true;
-            loaded = await session.Api.ListPortfoliosAsync();
-            portfolios.ItemsSource = loaded.Select(p => p.Name).ToList();
-            portfolios.IsVisible = loaded.Count > 1;
-            var pick = loaded.FindIndex(p => p.PortfolioId == session.LastPortfolioId);
-            portfolios.SelectedIndex = loaded.Count == 0 ? -1 : Math.Max(pick, 0);
-            busy = false;
-            if (loaded.Count == 0)
-            {
-                Show("This login has no portfolios yet. Add one on the site.");
-                list.ItemsSource = null;
-                return;
-            }
-            session.LastPortfolioId = loaded[portfolios.SelectedIndex].PortfolioId;
-            await LoadHoldingsAsync();
-        }
-        catch (SiteException e)
-        {
-            await Problem(e);
-        }
-        finally
-        {
-            busy = false;
-            refresh.IsRefreshing = false;
-        }
-    }
-
-    private async Task LoadHoldingsAsync()
-    {
-        message.IsVisible = false;
-        var mine = ++request;
-        try
-        {
-            var picked = loaded[portfolios.SelectedIndex];
-            Title = picked.Name;
-            var holdings = await session.Api.GetHoldingsAsync(picked.PortfolioId);
-            if (mine != request)
-                return; // another portfolio was picked while this one loaded
-            total.Text = Money(holdings.Total.MarketValue);
-            gain.Text = $"Gain {Money(holdings.Total.CapitalGain)}  ·  Payouts {Money(holdings.Total.Payouts)}";
-            gain.TextColor = Shade(holdings.Total.CapitalGain);
-            list.ItemsSource = holdings.Holdings.OrderByDescending(h => h.MarketValue).ToList();
-        }
-        catch (SiteException e)
-        {
-            await Problem(e);
-        }
+        var holdings = await api.GetHoldingsAsync(portfolio.PortfolioId);
+        if (!stillWanted())
+            return;
+        total.Text = Ui.Money(holdings.Total.MarketValue);
+        gain.Text = $"Gain {Ui.Money(holdings.Total.CapitalGain)}  ·  Payouts {Ui.Money(holdings.Total.Payouts)}";
+        gain.TextColor = Ui.Shade(holdings.Total.CapitalGain);
+        list.ItemsSource = holdings.Holdings.OrderByDescending(h => h.MarketValue).ToList();
     }
 
     private static View Row()
@@ -136,38 +61,10 @@ public sealed class HoldingsPage : ContentPage
         return grid;
     }
 
-    private async Task Problem(SiteException e)
-    {
-        if (e.SignedOut)
-        {
-            await DisplayAlertAsync("Signed out", e.Message, "OK");
-            await SignOutAsync();
-            return;
-        }
-        Show(e.Message);
-    }
-
-    private void Show(string text)
-    {
-        message.Text = text;
-        message.IsVisible = true;
-    }
-
-    private async Task SignOutAsync()
-    {
-        session.SignOut();
-        ((App)Application.Current!).ShowStart();
-        await Task.CompletedTask;
-    }
-
-    private static string Money(decimal amount) => amount.ToString("#,##0.00");
-
-    private static Color Shade(decimal amount) => amount < 0 ? Colors.Firebrick : amount > 0 ? Colors.SeaGreen : Colors.Gray;
-
     private sealed class GainColour : IValueConverter
     {
         public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
-            Shade(value is decimal d ? d : 0);
+            Ui.Shade(value is decimal d ? d : 0);
 
         public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
             throw new NotSupportedException();

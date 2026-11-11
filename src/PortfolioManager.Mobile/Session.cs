@@ -8,8 +8,11 @@ namespace PortfolioManager.Mobile;
 /// </summary>
 public sealed class Session(HttpClient http)
 {
-    private const string KeyName = "api_key";
+    private const string KeyName = "api_key", OfflineKeyName = "offline_key";
     private string? key;
+    private OfflineCopy? offline;
+
+    private static string OfflineFolder => Path.Combine(FileSystem.Current.AppDataDirectory, "offline");
 
     public string Server
     {
@@ -25,7 +28,21 @@ public sealed class Session(HttpClient http)
 
     public bool IsSignedIn => Preferences.Default.Get("signed_in", false);
 
-    public SiteApi Api => new(http, Server, key ?? throw new SiteException("Please sign in.", signedOut: true));
+    /// <summary>Ask for the fingerprint, face or phone PIN when the app opens or comes back after a minute away.</summary>
+    public bool LockApp
+    {
+        get => Preferences.Default.Get("lock_app", true);
+        set => Preferences.Default.Set("lock_app", value);
+    }
+
+    /// <summary>Blank the app in the recent-apps list (Android also blocks screenshots while this is on).</summary>
+    public bool HideInRecents
+    {
+        get => Preferences.Default.Get("hide_in_recents", true);
+        set => Preferences.Default.Set("hide_in_recents", value);
+    }
+
+    public SiteApi Api => new(http, Server, key ?? throw new SiteException("Please sign in.", signedOut: true), offline);
 
     /// <summary>Reads the key back from secure storage once the app starts.</summary>
     public async Task<bool> LoadAsync()
@@ -39,7 +56,29 @@ public sealed class Session(HttpClient http)
             // Unreadable (e.g. the phone's keystore was reset): forget it, so the app asks to sign in again
             Forget();
         }
+        if (key is not null && offline is null && OfflineCopy.IsSupported)
+        {
+            try
+            {
+                offline = new OfflineCopy(OfflineFolder, await OfflineKeyAsync());
+            }
+            catch (Exception)
+            {
+                // No offline copy this time; the app still works online
+            }
+        }
         return key is not null;
+    }
+
+    /// <summary>The key that encrypts the offline copy, made on first use and kept in secure storage.</summary>
+    private static async Task<byte[]> OfflineKeyAsync()
+    {
+        if (await SecureStorage.Default.GetAsync(OfflineKeyName) is { } saved)
+            return Convert.FromBase64String(saved);
+        OfflineCopy.Clear(OfflineFolder); // files from an older key can't be read anyway
+        var made = OfflineCopy.NewKey();
+        await SecureStorage.Default.SetAsync(OfflineKeyName, Convert.ToBase64String(made));
+        return made;
     }
 
     /// <summary>Signs in through the site's own sign-in page in the phone's browser (passwords never touch the app).</summary>
@@ -82,15 +121,20 @@ public sealed class Session(HttpClient http)
         var newKey = await signIn.SwapCodeAsync(server, clientId, callback.Code, pkce);
         await SecureStorage.Default.SetAsync(KeyName, newKey);
         key = newKey;
+        offline = null;
         Server = server;
         Preferences.Default.Set("signed_in", true);
     }
 
-    /// <summary>Forgets the key on this phone. It stays on the site's API keys page until deleted there.</summary>
+    /// <summary>
+    /// Forgets the key and the offline copy on this phone. The key stays on the site's API keys page until deleted there.
+    /// </summary>
     public void SignOut()
     {
         Forget();
         key = null;
+        offline = null;
+        OfflineCopy.Clear(OfflineFolder);
         Preferences.Default.Set("signed_in", false);
         LastPortfolioId = 0;
     }
@@ -100,6 +144,7 @@ public sealed class Session(HttpClient http)
         try
         {
             SecureStorage.Default.Remove(KeyName);
+            SecureStorage.Default.Remove(OfflineKeyName);
         }
         catch (Exception)
         {

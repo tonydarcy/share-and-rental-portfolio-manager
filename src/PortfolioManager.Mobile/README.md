@@ -1,6 +1,18 @@
 # Phone app
 
-A .NET MAUI app for Android (iOS later, from the same code). Version 0.1 signs in and shows each portfolio's holdings.
+A .NET MAUI app for Android (iOS later, from the same code). It signs in through the site and has four tabs:
+
+- **Dashboard**: total value, the latest day's move, gain, the biggest holdings and payouts expected in the next 90 days.
+- **Holdings**: every holding with its value and gain. Tap one (here or on the dashboard) for its price chart (3 months,
+  1 year or 5 years), units held, value and the year's range.
+- **Payouts**: dividends, distributions and interest for the last 12 months, this financial year or last, with franking
+  credits. The financial year is 1 July to 30 June.
+- **More**: lock and privacy settings, a button to open the full site, and sign out.
+
+Privacy: with "Lock the app" on (the default) the phone's fingerprint, face or PIN is asked for on opening and after a
+minute away. "Hide in recent apps" (on by default) blanks the app in the app switcher and, on Android, blocks
+screenshots. The last figures loaded are kept on the phone, encrypted with a key in the phone's secure storage, and shown
+with an "Offline copy" note when there's no signal; signing out deletes them. Nothing can be changed offline.
 
 - `src/PortfolioManager.Mobile.Client`: sign-in (OAuth with PKCE) and the `/api/v1` calls. Plain .NET, in the main
   solution and covered by `tests/PortfolioManager.Tests/MobileClientTests.cs`.

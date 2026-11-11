@@ -142,6 +142,113 @@ public class MobileClientTests
         Assert.Contains("too long", e.Message);
     }
 
+    [Fact]
+    public async Task Api_reads_the_dashboard_as_the_site_writes_it()
+    {
+        // The same shape as AgentTools.Dashboard
+        var written = new
+        {
+            Currency = "AUD", TotalPortfolioValue = 15000m, TotalShareValue = 12000m, TotalCashValue = 3000m,
+            LatestMove = new PortfolioManager.Core.Dashboard.DayMove(new DateOnly(2026, 11, 10), -120.5m, -0.01),
+            Holdings = new Site.HoldingsTotal(12000m, 2000m, 300m, 2300m, 10000m),
+            TopHoldings = new[] { new { ExchangeCode = "ASX", StockCode = "CBA", Units = 50m, Price = 160m, MarketValue = 8000m,
+                CapitalGain = 1500m, GainPercent = (decimal?)0.23m, Weight = 0.6667m } },
+            UpcomingPayouts = new[] { new PortfolioManager.Core.Dashboard.ProjectedPayout("ASX", "CBA", new DateTime(2026, 12, 1), 210m) },
+        };
+        var site = new FakeSite(_ => (HttpStatusCode.OK, JsonSerializer.Serialize(written, AgentJson.Options)));
+
+        var d = await new SiteApi(new HttpClient(site), "https://example.com", "k").GetDashboardAsync(4);
+
+        Assert.Equal("https://example.com/api/v1/portfolios/4/dashboard", site.Requests[0].RequestUri!.ToString());
+        Assert.Equal((15000m, 3000m, -120.5m), (d.TotalPortfolioValue, d.TotalCashValue, d.LatestMove!.Change));
+        Assert.Equal(2000m, d.Holdings.CapitalGain);
+        Assert.Equal(("CBA", 0.6667m), (d.TopHoldings[0].StockCode, d.TopHoldings[0].Weight));
+        Assert.Equal(new DateTime(2026, 12, 1), Assert.Single(d.UpcomingPayouts).ProjectedPaymentDate);
+    }
+
+    [Fact]
+    public async Task Api_reads_a_shares_price_history()
+    {
+        var written = new
+        {
+            Exchange = "ASX", Code = "BHP", Name = "BHP Group", Sector = "Materials", UnitsHeld = (decimal?)100m,
+            Latest = (double?)45.2, LatestDate = (DateOnly?)new DateOnly(2026, 11, 10), Change = (double?)0.3, ChangePct = (double?)0.0067,
+            YearLow = (double?)38.0, YearHigh = (double?)49.9,
+            Prices = new[] { new { Date = new DateOnly(2026, 11, 10), Close = 45.2, Open = (double?)44.9, High = (double?)45.5, Low = (double?)44.8, Volume = (double?)1000 } },
+        };
+        var site = new FakeSite(_ => (HttpStatusCode.OK, JsonSerializer.Serialize(written, AgentJson.Options)));
+
+        var h = await new SiteApi(new HttpClient(site), "https://example.com", "k").GetPriceHistoryAsync(4, "ASX", "BHP", new DateOnly(2026, 5, 1));
+
+        Assert.Equal("https://example.com/api/v1/portfolios/4/prices/ASX/BHP?from=2026-05-01", site.Requests[0].RequestUri!.ToString());
+        Assert.Equal(("BHP Group", 100m, 49.9), (h.Name, h.UnitsHeld, h.YearHigh));
+        Assert.Equal(45.2, Assert.Single(h.Prices).Close);
+    }
+
+    [Fact]
+    public async Task Api_reads_payouts_for_a_period()
+    {
+        var payout = new PortfolioManager.Core.Payouts.Payout(9, "ASX", "CBA", new DateTime(2026, 9, 28), 210m, 210m, 0, 90m, 0, 0, 0, 0, 0, 0, 0, "Final", true);
+        var written = new
+        {
+            Totals = new PortfolioManager.Core.Payouts.PayoutTotals(210m, 210m, 0, 90m, 0, 0, 0, 0, 0),
+            Payouts = new { Total = 1, Returned = 1, Rows = new[] { payout } },
+        };
+        var site = new FakeSite(_ => (HttpStatusCode.OK, JsonSerializer.Serialize(written, AgentJson.Options)));
+
+        var list = await new SiteApi(new HttpClient(site), "https://example.com", "k").ListPayoutsAsync(4, new DateOnly(2026, 7, 1), new DateOnly(2027, 6, 30));
+
+        Assert.Equal("https://example.com/api/v1/portfolios/4/payouts?from=2026-07-01&to=2027-06-30&limit=500", site.Requests[0].RequestUri!.ToString());
+        Assert.Equal(90m, list.Totals!.FrankingCredit);
+        var row = Assert.Single(list.Payouts.Rows);
+        Assert.Equal((9, "CBA", 210m, "Final"), (row.PayoutId, row.StockCode, row.Total, row.Comment));
+    }
+
+    [Fact]
+    public async Task Offline_copy_is_shown_when_the_site_cant_be_reached()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "pm-offline-" + Guid.NewGuid().ToString("N"));
+        var key = OfflineCopy.NewKey();
+        try
+        {
+            var up = new FakeSite(_ => (HttpStatusCode.OK, """[{"portfolioId":3,"name":"Sample","entityType":null,"role":null,"canEdit":true}]"""));
+            var online = new SiteApi(new HttpClient(up), "https://example.com", "k", new OfflineCopy(folder, key));
+            await online.ListPortfoliosAsync();
+            Assert.Null(online.OfflineCopySaved);
+            Assert.DoesNotContain(Directory.GetFiles(folder), f => File.ReadAllText(f).Contains("Sample"));
+
+            var down = new FakeSite(_ => throw new HttpRequestException("no signal"));
+            var offline = new SiteApi(new HttpClient(down), "https://example.com", "k", new OfflineCopy(folder, key));
+            Assert.Equal("Sample", Assert.Single(await offline.ListPortfoliosAsync()).Name);
+            Assert.NotNull(offline.OfflineCopySaved);
+
+            // Not readable with another key, and nothing saved for another address
+            var otherKey = new SiteApi(new HttpClient(down), "https://example.com", "k", new OfflineCopy(folder, OfflineCopy.NewKey()));
+            Assert.True((await Assert.ThrowsAsync<SiteException>(() => otherKey.ListPortfoliosAsync())).Unreachable);
+            await Assert.ThrowsAsync<SiteException>(() => offline.GetHoldingsAsync(3));
+
+            // A refusal from the site is never covered up by the copy
+            var revoked = new SiteApi(new HttpClient(new FakeSite(_ => (HttpStatusCode.Unauthorized, ""))), "https://example.com", "k", new OfflineCopy(folder, key));
+            Assert.True((await Assert.ThrowsAsync<SiteException>(() => revoked.ListPortfoliosAsync())).SignedOut);
+
+            OfflineCopy.Clear(folder);
+            Assert.False(Directory.Exists(folder));
+        }
+        finally
+        {
+            OfflineCopy.Clear(folder);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, "2026-11-11", "2025-11-12", "2026-11-11")]
+    [InlineData(1, "2026-11-11", "2026-07-01", "2027-06-30")]
+    [InlineData(2, "2026-11-11", "2025-07-01", "2026-06-30")]
+    [InlineData(1, "2026-03-05", "2025-07-01", "2026-06-30")]
+    [InlineData(2, "2026-07-01", "2025-07-01", "2026-06-30")]
+    public void Payout_periods_follow_the_july_to_june_year(int choice, string today, string from, string to) =>
+        Assert.Equal((DateOnly.Parse(from), DateOnly.Parse(to)), ReportPeriod.Range(choice, DateOnly.Parse(today)));
+
     private sealed class FakeSite(Func<HttpRequestMessage, (HttpStatusCode Status, string Body)> reply) : HttpMessageHandler
     {
         public List<HttpRequestMessage> Requests { get; } = [];
