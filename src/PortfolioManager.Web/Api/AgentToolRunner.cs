@@ -86,6 +86,21 @@ public sealed class AgentToolRunner(AgentTools tools, PortfolioService portfolio
     /// <summary>Whether the key may change this portfolio at all (shown in list_portfolios).</summary>
     public static bool CanEdit(ApiCaller caller, PortfolioSummary portfolio) => !caller.ReadOnly && portfolio.CanEdit;
 
+    /// <summary>
+    /// What a call sent, for the change log. A file's base64 (add_attachment) is replaced by its length, so it doesn't fill
+    /// the log's 4,000 characters and push out the fields that say what it was for.
+    /// </summary>
+    public static string? AuditDetail(JsonElement args)
+    {
+        if (args.ValueKind == JsonValueKind.Undefined)
+            return null;
+        if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty("contentBase64", out var content))
+            return args.GetRawText();
+        var node = System.Text.Json.Nodes.JsonNode.Parse(args.GetRawText())!.AsObject();
+        node["contentBase64"] = $"({(content.ValueKind == JsonValueKind.String ? content.GetString()!.Length : 0)} characters)";
+        return node.ToJsonString();
+    }
+
     private async Task LogAsync(AgentTool tool, ApiCaller caller, int? portfolioId, JsonElement args, bool ok, string result)
     {
         // Reads aren't logged; a change (or an attempt at one) always is
@@ -93,7 +108,7 @@ public sealed class AgentToolRunner(AgentTools tools, PortfolioService portfolio
             return;
         try
         {
-            await audit.LogAsync(caller, id, tool.Name, args.ValueKind == JsonValueKind.Undefined ? null : args.GetRawText(), ok, result);
+            await audit.LogAsync(caller, id, tool.Name, AuditDetail(args), ok, result);
         }
         catch (Exception ex)
         {

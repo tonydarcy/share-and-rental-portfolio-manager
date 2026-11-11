@@ -64,6 +64,18 @@ public class MobileApiTests
     }
 
     [Fact]
+    public void The_change_log_keeps_a_files_length_not_its_bytes()
+    {
+        var args = System.Text.Json.JsonDocument.Parse("""{"portfolioId":3,"kind":"Trade","targetId":9,"fileName":"r.jpg","contentBase64":"AQID"}""").RootElement;
+        var detail = AgentToolRunner.AuditDetail(args)!;
+        Assert.Contains("(4 characters)", detail);
+        Assert.Contains("r.jpg", detail);
+        Assert.DoesNotContain("AQID", detail);
+        var plain = System.Text.Json.JsonDocument.Parse("""{"portfolioId":3}""").RootElement;
+        Assert.Equal("""{"portfolioId":3}""", AgentToolRunner.AuditDetail(plain));
+    }
+
+    [Fact]
     public void Upcoming_payouts_are_the_next_90_days_soonest_first()
     {
         var today = new DateOnly(2026, 11, 11);

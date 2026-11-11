@@ -183,7 +183,20 @@ builder.Services.AddSingleton(TimeProvider.System);
 var pushSettings = builder.Configuration.GetSection("Push").Get<PushSettings>() ?? new PushSettings();
 builder.Services.AddSingleton(pushSettings);
 if (pushSettings.IsConfigured)
-    builder.Services.AddSingleton<PortfolioManager.Core.Alerts.IPushSender>(_ => new FirebasePushSender(pushSettings));
+    builder.Services.AddSingleton<PortfolioManager.Core.Alerts.IPushSender>(sp =>
+    {
+        // A missing or broken key file turns phone alerts off rather than stopping the site (and email alerts)
+        var log = sp.GetRequiredService<ILogger<FirebasePushSender>>();
+        try
+        {
+            return new FirebasePushSender(pushSettings, log);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Phone alerts are off: couldn't load Push:FirebaseCredentialsFile");
+            return new PortfolioManager.Core.Alerts.NoPushSender();
+        }
+    });
 else
     builder.Services.AddSingleton<PortfolioManager.Core.Alerts.IPushSender, PortfolioManager.Core.Alerts.NoPushSender>();
 builder.Services.AddScoped<PortfolioManager.Core.Alerts.PushDeviceService>();

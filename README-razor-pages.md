@@ -716,7 +716,7 @@ journals, FIFO CGT, locked periods and validation are exactly as on the site.
 one on the API keys page and send it as `Authorization: Bearer pm_...` (or `X-Api-Key: pm_...`), or let the app get
 one by OAuth (below). A key acts as the
 login that made it: it reaches the same portfolios (`uspGetAccessiblePortfolios`) with the same role, so on a Read only
-portfolio it can only look. A key marked read only can never change anything, and the MCP server doesn't even list
+portfolio it can only look. A key marked read only can never change anything (except turning alerts on or off for its own login's phones), and the MCP server doesn't even list
 the tools that change things. Revoking a key stops it at once. Each address may make 120 API or MCP requests a minute.
 
 **Change log.** Every call that changes something, done or refused, is written to `tblApiAuditLog` with the key, the

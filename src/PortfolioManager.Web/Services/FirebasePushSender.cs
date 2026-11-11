@@ -20,9 +20,11 @@ public sealed class PushSettings
 public sealed class FirebasePushSender : IPushSender
 {
     private readonly FirebaseMessaging messaging;
+    private readonly ILogger<FirebasePushSender> logger;
 
-    public FirebasePushSender(PushSettings settings)
+    public FirebasePushSender(PushSettings settings, ILogger<FirebasePushSender> logger)
     {
+        this.logger = logger;
         var credential = CredentialFactory.FromFile<ServiceAccountCredential>(settings.FirebaseCredentialsFile!).ToGoogleCredential()
             .CreateScoped("https://www.googleapis.com/auth/firebase.messaging");
         var app = FirebaseApp.GetInstance("push") ?? FirebaseApp.Create(new AppOptions { Credential = credential }, "push");
@@ -50,8 +52,14 @@ public sealed class FirebasePushSender : IPushSender
             }), ct);
 #pragma warning restore CS0618
             for (var i = 0; i < response.Responses.Count; i++)
-                if (response.Responses[i].Exception?.MessagingErrorCode is MessagingErrorCode.Unregistered or MessagingErrorCode.InvalidArgument)
+            {
+                var error = response.Responses[i].Exception;
+                if (error?.MessagingErrorCode is MessagingErrorCode.Unregistered or MessagingErrorCode.InvalidArgument)
                     gone.Add(batch[i]);
+                else if (error is not null)
+                    // e.g. no Apple key in Firebase yet, so every iPhone alert fails: keep the phone, tell the operator
+                    logger.LogWarning(error, "Firebase refused a phone alert ({Code})", error.MessagingErrorCode);
+            }
         }
         return gone;
     }
